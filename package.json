@@ -1,7 +1,7 @@
 {
-  "name": "family-robot-assistant-withai",
+  "name": "family-robot-assistant",
+  "version": "1.0.0",
   "private": true,
-  "type": "module",
   "dependencies": {
     "openai": "^4.0.0"
   }
