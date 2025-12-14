@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chatbot Welcome</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="apple-touch-icon" sizes="180x180" href="Profile1.png" />
+
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/app.js" defer></script>
+</head>
+
+<body>
+
+  <!-- ✅ BOOT LOADER -->
+  <div class="boot-loader" id="bootLoader">
+    <div class="boot-card">
+      <div class="boot-title">Loading assets…</div>
+      <div class="boot-sub">Preparing all pages for smooth transitions</div>
+      <div class="boot-bar"><div id="bootBarFill"></div></div>
+      <div class="boot-row">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="boot-spin"></div>
+          <div id="bootStatus">Starting…</div>
+        </div>
+        <div id="bootPercent">0%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIDEO OVERLAY -->
+  <div class="frame-video" id="frameVideo" style="display:none;">
+    <video id="introVideo" autoplay muted loop playsinline preload="auto">
+      <source src="Face.webm" type="video/webm">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+
+  <!-- FRAME 1: Welcome -->
+  <div class="frame-1">
+    <div class="main-picture">
+      <img src="Pic3.png" alt="Main Main Picture" loading="eager" decoding="async">
+    </div>
+
+    <div class="title">Welcome</div>
+
+    <div class="subtitle">
+      Let me help you. Your chatbot assistant
+      is here to support you.
+    </div>
+
+    <div class="option-card option-card-1">
+      <img src="Pic1.png" alt="Option 1" loading="eager" decoding="async">
+    </div>
+
+    <div class="option-card option-card-2">
+      <img src="Pic2.png" alt="Option 2" loading="eager" decoding="async">
+    </div>
+  </div>
+
+  <!-- FRAME 2: Carousel -->
+  <div class="frame-2">
+    <div class="frame2-close">
+      <img src="Pic9.png" alt="Go to profile setup" decoding="async">
+    </div>
+
+    <div class="slider-wrapper">
+      <div class="slider" id="slider">
+        <div class="slide"><img src="Pic8.png" alt="Slide 1" decoding="async"></div>
+        <div class="slide"><img src="Pic10.png" alt="Slide 2" decoding="async"></div>
+        <div class="slide"><img src="Pic11.png" alt="Slide 3" decoding="async"></div>
+      </div>
+    </div>
+
+    <div class="frame2-btn-left" id="btnLeft"><img src="Pic6.png" alt="Left button" decoding="async"></div>
+    <div class="frame2-btn-right" id="btnRight"><img src="Pic7.png" alt="Right button" decoding="async"></div>
+
+    <div class="frame2-dot frame2-dot-1" id="dot1"></div>
+    <div class="frame2-dot frame2-dot-2" id="dot2"></div>
+    <div class="frame2-dot frame2-dot-3" id="dot3"></div>
+  </div>
+
+  <!-- FRAME 3: Nickname + Profile icon -->
+  <div class="frame-3">
+    <div class="frame3-btn-left" id="frame3Back"><img src="Pic6.png" alt="Back to slides" decoding="async"></div>
+    <div class="frame3-btn-right" id="frame3Next"><img src="Pic7.png" alt="Go to age select" decoding="async"></div>
+
+    <div class="profile-avatar" id="avatarBtn">
+      <img src="Pic13.png" alt="Profile Avatar" id="avatarImage" decoding="async">
+    </div>
+
+    <input type="text" class="nickname-input" id="nicknameInput" placeholder="Nickname" />
+  </div>
+
+  <!-- FRAME AVATAR -->
+  <div class="frame-avatar" id="frameAvatar">
+    <div class="profile-option profile-1"><img src="Profile1.png" alt="Profile 1" decoding="async"></div>
+    <div class="profile-option profile-2"><img src="Profile2.png" alt="Profile 2" decoding="async"></div>
+    <div class="profile-option profile-3"><img src="Profile3.png" alt="Profile 3" decoding="async"></div>
+    <div class="profile-option profile-4"><img src="Profile4.png" alt="Profile 4" decoding="async"></div>
+    <div class="profile-option profile-5"><img src="Profile5.png" alt="Profile 5" decoding="async"></div>
+    <div class="profile-option profile-6"><img src="Profile6.png" alt="Profile 6" decoding="async"></div>
+    <div class="profile-option profile-7"><img src="Profile7.png" alt="Profile 7" decoding="async"></div>
+    <div class="profile-option profile-8"><img src="Profile8.png" alt="Profile 8" decoding="async"></div>
+    <div class="profile-option profile-9"><img src="Profile9.png" alt="Profile 9" decoding="async"></div>
+    <div class="profile-option profile-10"><img src="Profile10.png" alt="Profile 10" decoding="async"></div>
+  </div>
+
+  <!-- FRAME 4: Age select -->
+  <div class="frame-4" id="frame4">
+    <div class="age-title">
+      Select your age category, and we’ll customize <br>
+      the features for you.
+    </div>
+
+    <div class="frame4-btn-left" id="frame4Back"><img src="Pic6.png" alt="Back to nickname" decoding="async"></div>
+    <div class="frame4-btn-right" id="frame4Next"><img src="Pic7.png" alt="Next (age)" decoding="async"></div>
+
+    <div class="age-card age-1" data-age="Age1"><img src="Age1.png" alt="Age 1" decoding="async"></div>
+    <div class="age-card age-2" data-age="Age2"><img src="Age2.png" alt="Age 2" decoding="async"></div>
+    <div class="age-card age-3" data-age="Age3"><img src="Age3.png" alt="Age 3" decoding="async"></div>
+    <div class="age-card age-4" data-age="Age4"><img src="Age4.png" alt="Age 4" decoding="async"></div>
+    <div class="age-card age-5" data-age="Age5"><img src="Age5.png" alt="Age 5" decoding="async"></div>
+  </div>
+
+  <!-- FRAME 5: Well done + accounts -->
+  <div class="frame-5" id="frame5">
+    <div class="done-title">Well done!</div>
+    <div class="done-subtitle">The assistant is ready for you to use.</div>
+    <div class="profiles-list" id="profilesList"></div>
+  </div>
+
+  <!-- FRAME 6: Home screen -->
+  <div class="frame-6" id="frame6">
+    <div class="frame6-profile" id="frame6ProfileBtn">
+      <img src="Pic13.png" alt="Profile" id="frame6ProfileImg" decoding="async">
+    </div>
+
+    <div class="frame6-bluetooth"><img src="Bluetooth.png" alt="Bluetooth" decoding="async"></div>
+
+    <div class="frame6-tabs">
+      <div class="frame6-tab-highlight" id="tabHighlight"></div>
+      <div class="frame6-tab" id="tabHome">Home</div>
+      <div class="frame6-tab" id="tabHealthcare">Healthcare</div>
+      <div class="frame6-tab" id="tabSports">Sports&amp;Fitness</div>
+      <div class="frame6-tab" id="tabEducation">Education</div>
+      <div class="frame6-tab" id="tabCommunity">Community</div>
+    </div>
+
+    <div class="frame6-home-cards-wrapper" id="homeCards">
+      <div class="frame6-home-cards" id="homeCardsTrack">
+        <div class="frame6-card" data-card="healthcare">
+          <img src="Card1.png" alt="Card 1" decoding="async">
+          <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
+        </div>
+        <div class="frame6-card" data-card="sports">
+          <img src="Card2.png" alt="Card 2" decoding="async">
+          <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
+        </div>
+        <div class="frame6-card" data-card="education">
+          <img src="Card3.png" alt="Card 3" decoding="async">
+          <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
+        </div>
+        <div class="frame6-card" data-card="community">
+          <img src="Card4.png" alt="Card 4" decoding="async">
+          <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
+        </div>
+        <div class="frame6-card">
+          <img src="Card5.png" alt="Card 5" decoding="async">
+          <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
+        </div>
+        <div class="frame6-card">
+          <img src="Card6.png" alt="Card 6" decoding="async">
+          <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 7: Chatbot -->
+  <div class="frame-7" id="frame7">
+    <div class="stage" id="chatStage">
+      <div class="history-label">History</div>
+
+      <div class="chat-back" id="chatBackBtn" title="Go back">
+        <img src="ChatBot_GoBack.png" alt="Go Back" decoding="async">
+      </div>
+
+      <div class="chat-title" id="chatTitle">HealthCare Chatbot</div>
+      <div class="chat-history" id="chatHistory"></div>
+
+      <div class="chat-bottom">
+        <div class="tap-to-ask" id="tapToAsk">Tap to ask</div>
+
+        <div class="input-wrap">
+          <input class="chat-input" id="chatInput" autocomplete="off" />
+        </div>
+
+        <div class="chat-icon" id="chatAdd"><img id="chatAddImg" src="ChatBot_Add.png" alt="Add" decoding="async"></div>
+        <div class="chat-icon" id="chatMic"><img id="chatMicImg" src="ChatBot_Mic.png" alt="Mic" decoding="async"></div>
+        <div class="chat-icon" id="chatSend"><img id="chatSendImg" src="ChatBot_Send.png" alt="Send" decoding="async"></div>
+
+        <div class="voice-center" id="voiceCenter">
+          <div class="voice-pill">
+            <div class="voice-time" id="voiceTime">00:00</div>
+            <div class="voice-wave" id="voiceWave">▂▃▅▆▅▃▂</div>
+          </div>
+        </div>
+
+        <input type="file" id="filePicker" class="hidden" multiple />
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

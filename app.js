@@ -1,0 +1,1104 @@
+// ✅ same-origin เสมอ
+const SERVER_BASE = window.location.origin;
+
+// =========================================================
+// ✅ PRELOAD SYSTEM
+// =========================================================
+const bootLoader = document.getElementById('bootLoader');
+const bootBarFill = document.getElementById('bootBarFill');
+const bootStatus = document.getElementById('bootStatus');
+const bootPercent = document.getElementById('bootPercent');
+
+let bootReady = false;
+
+function uniq(arr) { return Array.from(new Set(arr.filter(Boolean))); }
+
+function preloadImage(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => resolve({ url, ok: true });
+    img.onerror = () => resolve({ url, ok: false });
+    img.src = url;
+  });
+}
+
+function preloadVideo(url) {
+  return new Promise((resolve) => {
+    fetch(url, { cache: "force-cache" })
+      .then(() => resolve({ url, ok: true }))
+      .catch(() => resolve({ url, ok: false }));
+  });
+}
+
+function cssBgUrls() {
+  return ["Pic4.png","Pic5.png","Pic12.png","Pic14.png","Pic15.png","Pic17.png","Pic18.png"];
+}
+
+function domImgUrls() {
+  return [
+    "Pic1.png","Pic2.png","Pic3.png",
+    "Pic6.png","Pic7.png","Pic8.png","Pic9.png","Pic10.png","Pic11.png",
+    "Pic13.png",
+    "Age1.png","Age2.png","Age3.png","Age4.png","Age5.png",
+    "Profile1.png","Profile2.png","Profile3.png","Profile4.png","Profile5.png",
+    "Profile6.png","Profile7.png","Profile8.png","Profile9.png","Profile10.png",
+    "ProfileAdd.png",
+    "Pic16.png",
+    "Bluetooth.png",
+    "Card1.png","Card2.png","Card3.png","Card4.png","Card5.png","Card6.png",
+    "Fix_Menu.png",
+    "Pin_Header.png",
+    "Pin.png","Unpin.png",
+    "ChatBot_GoBack.png",
+    "ChatBot_Add.png","ChatBot_Mic.png","ChatBot_Send.png",
+    "ChatBot_No.png","ChatBot_Yes.png",
+  ];
+}
+
+async function preloadAssets() {
+  const imgs = uniq([...cssBgUrls(), ...domImgUrls()]);
+  const vids = ["Face.webm"];
+
+  const tasks = [
+    ...imgs.map(u => ({ type: "img", url: u })),
+    ...vids.map(u => ({ type: "vid", url: u })),
+  ];
+
+  let done = 0;
+  const total = tasks.length;
+
+  function updateUI(label) {
+    const pct = Math.round((done / total) * 100);
+    bootBarFill.style.width = pct + "%";
+    bootPercent.textContent = pct + "%";
+    if (label) bootStatus.textContent = label;
+  }
+
+  updateUI("Starting…");
+
+  for (const t of tasks) {
+    if (t.type === "img") await preloadImage(t.url);
+    else await preloadVideo(t.url);
+    done++;
+    updateUI(`Loading: ${t.url}`);
+  }
+
+  updateUI("Finalizing…");
+  bootLoader.classList.add('hidden');
+  bootReady = true;
+}
+
+preloadAssets();
+
+// =========================================================
+// ✅ APP
+// =========================================================
+const frameVideo = document.getElementById('frameVideo');
+
+const frame1 = document.querySelector('.frame-1');
+const frame2 = document.querySelector('.frame-2');
+const frame3 = document.querySelector('.frame-3');
+const frameAvatar = document.getElementById('frameAvatar');
+const frame4 = document.getElementById('frame4');
+const frame5 = document.getElementById('frame5');
+const frame6 = document.getElementById('frame6');
+const frame7 = document.getElementById('frame7');
+
+const option1 = document.querySelector('.option-card-1');
+const option2 = document.querySelector('.option-card-2');
+
+const slider = document.getElementById('slider');
+const btnLeft = document.getElementById('btnLeft');
+const btnRight = document.getElementById('btnRight');
+const frame2Close = document.querySelector('.frame2-close');
+
+const dot1 = document.getElementById('dot1');
+const dot2 = document.getElementById('dot2');
+const dot3 = document.getElementById('dot3');
+
+const frame3Back = document.getElementById('frame3Back');
+const frame3Next = document.getElementById('frame3Next');
+const avatarBtn = document.getElementById('avatarBtn');
+const avatarImage = document.getElementById('avatarImage');
+const nicknameInput = document.getElementById('nicknameInput');
+
+const profileOptions = document.querySelectorAll('.frame-avatar .profile-option');
+
+const frame4Back = document.getElementById('frame4Back');
+const frame4Next = document.getElementById('frame4Next');
+const ageCards = document.querySelectorAll('.age-card');
+
+const profilesList = document.getElementById('profilesList');
+
+const frame6ProfileImg = document.getElementById('frame6ProfileImg');
+const frame6ProfileBtn = document.querySelector('.frame6-profile');
+const tabHighlight = document.getElementById('tabHighlight');
+const tabHome = document.getElementById('tabHome');
+const tabHealthcare = document.getElementById('tabHealthcare');
+const tabSports = document.getElementById('tabSports');
+const tabEducation = document.getElementById('tabEducation');
+const tabCommunity = document.getElementById('tabCommunity');
+const homeCardsWrapper = document.getElementById('homeCards');
+const homeCardsTrack = document.getElementById('homeCardsTrack');
+
+const chatStage = document.getElementById('chatStage');
+const chatTitle = document.getElementById('chatTitle');
+const chatHistory = document.getElementById('chatHistory');
+const chatInput = document.getElementById('chatInput');
+const tapToAsk = document.getElementById('tapToAsk');
+const chatBackBtn = document.getElementById('chatBackBtn');
+
+const chatAdd = document.getElementById('chatAdd');
+const chatMic = document.getElementById('chatMic');
+const chatSend = document.getElementById('chatSend');
+const chatAddImg = document.getElementById('chatAddImg');
+const chatMicImg = document.getElementById('chatMicImg');
+const chatSendImg = document.getElementById('chatSendImg');
+
+const voiceCenter = document.getElementById('voiceCenter');
+const voiceTime = document.getElementById('voiceTime');
+const voiceWave = document.getElementById('voiceWave');
+
+const filePicker = document.getElementById('filePicker');
+
+const totalSlides = 3;
+let currentIndex = 0;
+let startX = 0;
+let startTranslate = 0;
+let isDragging = false;
+let sliderWidth = 0;
+
+let profiles = [];
+let deleteModeId = null;
+let currentProfile = null;
+
+const ageMap = {
+  Age1: 'Early Kids Ages 5–8',
+  Age2: 'Kids Ages 9–12',
+  Age3: 'Teens Ages 13–17',
+  Age4: 'Adults Ages 18–59',
+  Age5: 'Older Adults Ages 60+'
+};
+
+const tabConfig = {
+  home: { left: 174, width: 76 },
+  healthcare: { left: 259, width: 115 },
+  sports: { left: 374, width: 143 },
+  education: { left: 516, width: 107 },
+  community: { left: 623, width: 122 }
+};
+
+const tabOrder = ['home', 'healthcare', 'sports', 'education', 'community'];
+let currentTabName = 'home';
+
+const HOME_CARD_WIDTH = 340;
+const HOME_CARD_GAP = 17;
+const HOME_STEP = HOME_CARD_WIDTH + HOME_CARD_GAP;
+
+let homeIndex = 0;
+let homeStartX = 0;
+let homeStartTranslate = 0;
+let homeDragging = false;
+let homeMinTranslate = 0;
+let homeMaxTranslate = 0;
+let homeLastX = 0;
+let homeLastTime = 0;
+let homeVelocity = 0;
+
+// ---- VIDEO / IDLE STATE ----
+let startupMode = true;
+let startupTimer = null;
+let idleTimer = null;
+let isVideoVisible = false;
+let lastActiveFrame = null;
+
+function hideAllFrames() {
+  frame1.style.display = 'none';
+  frame2.style.display = 'none';
+  frame3.style.display = 'none';
+  frameAvatar.style.display = 'none';
+  frame4.style.display = 'none';
+  frame5.style.display = 'none';
+  frame6.style.display = 'none';
+  frame7.style.display = 'none';
+}
+
+function goToFrame1() {
+  hideAllFrames();
+  frame1.style.display = 'block';
+  document.body.style.backgroundImage = 'url("Pic4.png")';
+  lastActiveFrame = 'frame1';
+}
+
+function goToFrame2() {
+  hideAllFrames();
+  frame2.style.display = 'block';
+  document.body.style.backgroundImage = 'url("Pic5.png")';
+
+  updateSliderSize();
+  setIndex(0, false);
+  requestAnimationFrame(() => {
+    slider.style.transition = 'transform 0.25s ease';
+  });
+  lastActiveFrame = 'frame2';
+}
+
+function goToFrame3New() {
+  hideAllFrames();
+  frame3.style.display = 'block';
+  document.body.style.backgroundImage = 'url("Pic12.png")';
+  nicknameInput.value = '';
+  nicknameInput.placeholder = 'Nickname';
+  avatarImage.src = 'Pic13.png';
+  lastActiveFrame = 'frame3';
+}
+
+function goToFrame3Keep() {
+  hideAllFrames();
+  frame3.style.display = 'block';
+  document.body.style.backgroundImage = 'url("Pic12.png")';
+  lastActiveFrame = 'frame3';
+}
+
+function goToAvatarFrame() {
+  hideAllFrames();
+  frameAvatar.style.display = 'block';
+  document.body.style.backgroundImage = 'url("Pic14.png")';
+  lastActiveFrame = 'frameAvatar';
+}
+
+function goToFrame4Age() {
+  hideAllFrames();
+  frame4.style.display = 'block';
+  document.body.style.backgroundImage = 'url("Pic15.png")';
+  lastActiveFrame = 'frame4';
+}
+
+function goToFrame5Accounts() {
+  hideAllFrames();
+  frame5.style.display = 'block';
+  document.body.style.backgroundImage = 'url("Pic15.png")';
+  renderProfiles();
+  lastActiveFrame = 'frame5';
+}
+
+function goToFrame6() {
+  if (!currentProfile && profiles.length > 0) currentProfile = profiles[0];
+
+  hideAllFrames();
+  frame6.style.display = 'block';
+  document.body.style.backgroundImage = 'url("Pic17.png")';
+
+  if (currentProfile && frame6ProfileImg) frame6ProfileImg.src = currentProfile.avatarSrc;
+
+  setActiveTab('home');
+  setHomeIndex(0, false);
+  lastActiveFrame = 'frame6';
+}
+
+function goFrame6ProfileToFrame5(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  startIdleTimer();
+  goToFrame5Accounts();
+}
+
+if (frame6ProfileBtn) {
+  frame6ProfileBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    goFrame6ProfileToFrame5(e);
+  }, { passive: false, capture: true });
+
+  frame6ProfileBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    goFrame6ProfileToFrame5(e);
+  }, { capture: true });
+
+  frame6ProfileImg.addEventListener('touchstart', goFrame6ProfileToFrame5, { passive: false, capture: true });
+  frame6ProfileImg.addEventListener('click', goFrame6ProfileToFrame5, { capture: true });
+}
+
+// ---------- Frame7 (Chatbot) ----------
+const cardToTitle = {
+  healthcare: "HealthCare Chatbot",
+  sports: "Sports&Fitness Chatbot",
+  education: "Education Chatbot",
+  community: "Community Chatbot",
+};
+
+let activeChatType = "healthcare";
+
+function updateChatScale() {
+  if (!chatStage) return;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const baseW = 864;
+  const baseH = 444;
+  const s = Math.min(vw / baseW, vh / baseH);
+  chatStage.style.setProperty('--s', s.toString());
+}
+
+window.addEventListener('resize', () => {
+  if (frame7.style.display === 'block') updateChatScale();
+});
+
+function goToFrame7(chatType) {
+  activeChatType = chatType || "healthcare";
+  hideAllFrames();
+
+  // ✅ enforce Pic18 on frame7 + body
+  frame7.style.backgroundImage = 'url("Pic18.png")';
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+
+  frame7.style.display = 'block';
+  lastActiveFrame = 'frame7';
+
+  chatTitle.textContent = cardToTitle[activeChatType] || "Chatbot";
+  updateChatScale();
+  startIdleTimer();
+  renderChatHistory(activeChatType);
+  focusChatInput();
+}
+
+function focusChatInput() {
+  setTimeout(() => {
+    chatInput.focus({ preventScroll: true });
+  }, 50);
+}
+
+// -------- VIDEO OVERLAY FUNCTIONS --------
+function showVideoOverlay() {
+  if (!frameVideo) return;
+  frameVideo.style.display = 'flex';
+  isVideoVisible = true;
+}
+
+function hideVideoOverlay() {
+  if (!frameVideo) return;
+  frameVideo.style.display = 'none';
+  isVideoVisible = false;
+}
+
+function startIdleTimer() {
+  if (startupMode) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    if (!startupMode && !isVideoVisible) showVideoOverlay();
+  }, 20000);
+}
+
+function restoreLastFrame() {
+  switch (lastActiveFrame) {
+    case 'frame1': goToFrame1(); break;
+    case 'frame2': goToFrame2(); break;
+    case 'frame3': goToFrame3Keep(); break;
+    case 'frameAvatar': goToAvatarFrame(); break;
+    case 'frame4': goToFrame4Age(); break;
+    case 'frame5': goToFrame5Accounts(); break;
+    case 'frame6': goToFrame6(); break;
+    case 'frame7': goToFrame7(activeChatType); break;
+    default: goToFrame1(); break;
+  }
+}
+
+function handleUserInteraction(e) {
+  if (!bootReady) return;
+
+  if (e && e.target) {
+    const block = e.target.closest(
+      '#frame6ProfileBtn, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
+      '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close'
+    );
+    if (block) return;
+  }
+
+  if (isVideoVisible) {
+    hideVideoOverlay();
+
+    if (startupMode) {
+      startupMode = false;
+      clearTimeout(startupTimer);
+      goToFrame1();
+    } else {
+      restoreLastFrame();
+    }
+    startIdleTimer();
+  } else {
+    if (!startupMode) startIdleTimer();
+  }
+}
+
+// ✅ after preload
+(function bootFlow() {
+  const t = setInterval(() => {
+    if (!bootReady) return;
+    clearInterval(t);
+
+    showVideoOverlay();
+    startupMode = true;
+
+    startupTimer = setTimeout(() => {
+      if (startupMode) {
+        startupMode = false;
+        hideVideoOverlay();
+        goToFrame1();
+        startIdleTimer();
+      }
+    }, 20000);
+
+    ['touchstart', 'mousedown', 'keydown'].forEach(evt => {
+      document.addEventListener(evt, handleUserInteraction, { passive: true });
+    });
+  }, 30);
+})();
+
+// ---------- Slider + Frame 2 ----------
+function updateDots() {
+  [dot1, dot2, dot3].forEach(dot => {
+    dot.style.background = 'transparent';
+    dot.style.border = '3px solid rgba(0,0,0,0.45)';
+  });
+
+  if (currentIndex === 0) { dot1.style.background = 'rgba(0,0,0,0.65)'; dot1.style.border = 'none'; }
+  else if (currentIndex === 1) { dot2.style.background = 'rgba(0,0,0,0.65)'; dot2.style.border = 'none'; }
+  else if (currentIndex === 2) { dot3.style.background = 'rgba(0,0,0,0.65)'; dot3.style.border = 'none'; }
+}
+
+function updateSliderSize() { sliderWidth = slider.offsetWidth / totalSlides; }
+
+function setIndex(idx, withTransition = true) {
+  currentIndex = idx;
+  slider.style.transition = withTransition ? 'transform 0.25s ease' : 'none';
+  const tx = -sliderWidth * currentIndex;
+  slider.style.transform = `translateX(${tx}px)`;
+  updateDots();
+}
+
+function showFrame2FromWelcome() { goToFrame2(); startIdleTimer(); }
+option1.addEventListener('click', showFrame2FromWelcome);
+option2.addEventListener('click', showFrame2FromWelcome);
+
+frame2Close.addEventListener('click', () => { goToFrame3New(); startIdleTimer(); });
+
+function goNext() {
+  if (currentIndex < totalSlides - 1) setIndex(currentIndex + 1, true);
+  else {
+    if (profiles.length > 0) goToFrame5Accounts();
+    else goToFrame3New();
+  }
+  startIdleTimer();
+}
+
+function goLeftAction() {
+  if (currentIndex > 0) setIndex(currentIndex - 1, true);
+  else goToFrame1();
+  startIdleTimer();
+}
+
+btnRight.addEventListener('click', goNext);
+btnLeft.addEventListener('click', goLeftAction);
+
+slider.addEventListener('touchstart', (e) => {
+  if (sliderWidth === 0) updateSliderSize();
+  isDragging = true;
+  slider.style.transition = 'none';
+  startX = e.touches[0].clientX;
+  startTranslate = -sliderWidth * currentIndex;
+}, { passive: true });
+
+slider.addEventListener('touchmove', (e) => {
+  if (!isDragging) return;
+  const x = e.touches[0].clientX;
+  const deltaX = x - startX;
+  let nextTranslate = startTranslate + deltaX;
+
+  const minTranslate = -sliderWidth * (totalSlides - 1);
+  const maxTranslate = 0;
+  if (nextTranslate > maxTranslate) nextTranslate = maxTranslate;
+  if (nextTranslate < minTranslate) nextTranslate = minTranslate;
+
+  slider.style.transform = `translateX(${nextTranslate}px)`;
+}, { passive: true });
+
+function endDrag(e) {
+  if (!isDragging) return;
+  isDragging = false;
+  slider.style.transition = 'transform 0.25s ease';
+
+  const endX = e.changedTouches[0].clientX;
+  const diff = endX - startX;
+  const threshold = sliderWidth * 0.15;
+
+  if (diff < -threshold && currentIndex < totalSlides - 1) setIndex(currentIndex + 1, true);
+  else if (diff > threshold && currentIndex > 0) setIndex(currentIndex - 1, true);
+  else setIndex(currentIndex, true);
+
+  startIdleTimer();
+}
+slider.addEventListener('touchend', endDrag);
+slider.addEventListener('touchcancel', endDrag);
+
+window.addEventListener('resize', () => {
+  if (frame2.style.display === 'block') {
+    updateSliderSize();
+    setIndex(currentIndex, false);
+  }
+});
+
+// ---------- Frame 3 / Avatar / Age ----------
+frame3Back.addEventListener('click', () => {
+  goToFrame2();
+  setIndex(totalSlides - 1, false);
+  startIdleTimer();
+});
+
+frame3Next.addEventListener('click', () => { goToFrame4Age(); startIdleTimer(); });
+avatarBtn.addEventListener('click', () => { goToAvatarFrame(); startIdleTimer(); });
+
+profileOptions.forEach(option => {
+  option.addEventListener('click', () => {
+    const img = option.querySelector('img');
+    if (img && avatarImage) avatarImage.src = img.src;
+    goToFrame3Keep();
+    startIdleTimer();
+  });
+});
+
+if (nicknameInput) {
+  nicknameInput.addEventListener('focus', () => {
+    nicknameInput.setAttribute('data-old-placeholder', nicknameInput.placeholder);
+    nicknameInput.placeholder = '';
+  });
+  nicknameInput.addEventListener('blur', () => {
+    if (nicknameInput.value.trim() === '') {
+      const oldPh = nicknameInput.getAttribute('data-old-placeholder') || 'Nickname';
+      nicknameInput.placeholder = oldPh;
+    }
+  });
+}
+
+frame4Back.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
+if (frame4Next) frame4Next.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
+
+function createProfile(ageKey) {
+  const name = nicknameInput.value.trim() || 'Guest';
+  const avatarSrc = avatarImage.src || 'Pic13.png';
+  const ageText = ageMap[ageKey] || '';
+
+  const profile = {
+    id: Date.now().toString() + Math.random().toString(16).slice(2),
+    name, avatarSrc, ageKey, ageText
+  };
+
+  profiles.push(profile);
+  goToFrame5Accounts();
+  startIdleTimer();
+}
+
+ageCards.forEach(card => {
+  card.addEventListener('click', () => {
+    const ageKey = card.getAttribute('data-age');
+    createProfile(ageKey);
+  });
+});
+
+function renderProfiles() {
+  profilesList.innerHTML = '';
+
+  profiles.forEach(profile => {
+    const card = document.createElement('div');
+    card.className = 'profile-card';
+    card.dataset.id = profile.id;
+
+    const avatarWrap = document.createElement('div');
+    avatarWrap.className = 'profile-card-avatar';
+
+    const img = document.createElement('img');
+    img.src = profile.avatarSrc;
+    img.alt = profile.name;
+    avatarWrap.appendChild(img);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'profile-delete-overlay';
+    overlay.innerHTML = '<img src="Pic16.png" alt="Delete">';
+
+    function deleteThisCard(e) {
+      e.stopPropagation();
+      const id = card.dataset.id;
+      profiles = profiles.filter(p => p.id !== id);
+      deleteModeId = null;
+      renderProfiles();
+    }
+
+    overlay.addEventListener('click', deleteThisCard);
+    overlay.addEventListener('touchend', deleteThisCard);
+
+    avatarWrap.appendChild(overlay);
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'profile-name';
+    nameEl.textContent = profile.name;
+
+    card.appendChild(avatarWrap);
+    card.appendChild(nameEl);
+
+    attachLongPress(card, profile.id);
+
+    card.addEventListener('click', () => {
+      if (deleteModeId) return;
+      currentProfile = profile;
+      goToFrame6();
+      startIdleTimer();
+    });
+
+    profilesList.appendChild(card);
+  });
+
+  const addCard = document.createElement('div');
+  addCard.className = 'profile-card add-card';
+
+  const avatarWrap = document.createElement('div');
+  avatarWrap.className = 'profile-card-avatar';
+
+  const addImg = document.createElement('img');
+  addImg.src = 'ProfileAdd.png';
+  addImg.alt = 'Add Profile';
+
+  avatarWrap.appendChild(addImg);
+  addCard.appendChild(avatarWrap);
+
+  addCard.addEventListener('click', () => { goToFrame3New(); startIdleTimer(); });
+  profilesList.appendChild(addCard);
+}
+
+function attachLongPress(card, id) {
+  let timer = null;
+
+  const start = (ev) => {
+    if (ev.type === 'mousedown') ev.preventDefault();
+    timer = setTimeout(() => { toggleDeleteMode(id); }, 600);
+  };
+
+  const cancel = () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+  };
+
+  card.addEventListener('touchstart', start, { passive: true });
+  card.addEventListener('mousedown', start);
+
+  ['touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach(evt => {
+    card.addEventListener(evt, cancel);
+  });
+}
+
+function toggleDeleteMode(id) {
+  deleteModeId = (deleteModeId === id) ? null : id;
+
+  const cards = profilesList.querySelectorAll('.profile-card');
+  cards.forEach(c => {
+    if (c.dataset.id === deleteModeId) c.classList.add('show-delete');
+    else c.classList.remove('show-delete');
+  });
+}
+
+// ---------- Tabs logic ----------
+function setActiveTab(name) {
+  const cfg = tabConfig[name];
+  if (!cfg || !tabHighlight) return;
+
+  currentTabName = name;
+  tabHighlight.style.left = cfg.left + 'px';
+  tabHighlight.style.width = cfg.width + 'px';
+
+  tabHome.style.color = 'rgba(0,0,0,0.9)';
+  tabHealthcare.style.color = 'rgba(0,0,0,0.9)';
+  tabSports.style.color = 'rgba(0,0,0,0.9)';
+  tabEducation.style.color = 'rgba(0,0,0,0.9)';
+  tabCommunity.style.color = 'rgba(0,0,0,0.9)';
+
+  if (name === 'home') tabHome.style.color = 'rgba(255,255,255,0.9)';
+  if (name === 'healthcare') tabHealthcare.style.color = 'rgba(255,255,255,0.9)';
+  if (name === 'sports') tabSports.style.color = 'rgba(255,255,255,0.9)';
+  if (name === 'education') tabEducation.style.color = 'rgba(255,255,255,0.9)';
+  if (name === 'community') tabCommunity.style.color = 'rgba(255,255,255,0.9)';
+
+  if (homeCardsWrapper) homeCardsWrapper.style.display = (name === 'home') ? 'block' : 'none';
+}
+
+tabHome.addEventListener('click', () => { setActiveTab('home'); startIdleTimer(); });
+tabHealthcare.addEventListener('click', () => { setActiveTab('healthcare'); startIdleTimer(); });
+tabSports.addEventListener('click', () => { setActiveTab('sports'); startIdleTimer(); });
+tabEducation.addEventListener('click', () => { setActiveTab('education'); startIdleTimer(); });
+tabCommunity.addEventListener('click', () => { setActiveTab('community'); startIdleTimer(); });
+
+// ---------- Home cards slide logic ----------
+function getTranslateX(el) {
+  const t = window.getComputedStyle(el).transform;
+  if (!t || t === 'none') return 0;
+  const m2 = t.match(/^matrix\((.+)\)$/);
+  if (m2) {
+    const parts = m2[1].split(',').map(s => parseFloat(s.trim()));
+    return parts[4] || 0;
+  }
+  const m3 = t.match(/^matrix3d\((.+)\)$/);
+  if (m3) {
+    const parts = m3[1].split(',').map(s => parseFloat(s.trim()));
+    return parts[12] || 0;
+  }
+  return 0;
+}
+
+function calcHomeBounds() {
+  if (!homeCardsTrack || !homeCardsWrapper) return { min: 0, max: 0 };
+  const trackWidth = homeCardsTrack.scrollWidth;
+  const wrapperWidth = homeCardsWrapper.offsetWidth;
+  const max = 0;
+  const min = Math.min(0, wrapperWidth - trackWidth - 42);
+  return { min, max };
+}
+
+function setHomeIndex(idx, withTransition = true) {
+  if (!homeCardsTrack) return;
+  homeIndex = idx;
+  const bounds = calcHomeBounds();
+  const tx = Math.max(bounds.min, Math.min(bounds.max, -HOME_STEP * homeIndex));
+  homeCardsTrack.style.transition = withTransition ? 'transform 0.25s ease' : 'none';
+  homeCardsTrack.style.transform = `translateX(${tx}px)`;
+}
+
+if (homeCardsWrapper && homeCardsTrack) {
+  homeCardsWrapper.addEventListener('touchstart', (e) => {
+    homeDragging = true;
+    homeCardsTrack.style.transition = 'none';
+    homeStartX = e.touches[0].clientX;
+
+    homeStartTranslate = getTranslateX(homeCardsTrack);
+
+    const bounds = calcHomeBounds();
+    homeMinTranslate = bounds.min;
+    homeMaxTranslate = bounds.max;
+
+    homeLastX = homeStartX;
+    homeLastTime = performance.now();
+    homeVelocity = 0;
+  }, { passive: true });
+
+  homeCardsWrapper.addEventListener('touchmove', (e) => {
+    if (!homeDragging) return;
+    const x = e.touches[0].clientX;
+
+    const deltaX = (x - homeStartX) * 1.2;
+    let nextTranslate = homeStartTranslate + deltaX;
+
+    if (nextTranslate > homeMaxTranslate) nextTranslate = homeMaxTranslate;
+    if (nextTranslate < homeMinTranslate) nextTranslate = homeMinTranslate;
+
+    homeCardsTrack.style.transform = `translateX(${nextTranslate}px)`;
+
+    const now = performance.now();
+    const dt = now - homeLastTime;
+    if (dt > 0) homeVelocity = (x - homeLastX) / dt;
+    homeLastX = x;
+    homeLastTime = now;
+  }, { passive: true });
+
+  function endHomeDrag() {
+    if (!homeDragging) return;
+    homeDragging = false;
+
+    let current = getTranslateX(homeCardsTrack);
+
+    const projectionMs = 500;
+    let projected = current + homeVelocity * projectionMs;
+
+    if (projected > homeMaxTranslate) projected = homeMaxTranslate;
+    if (projected < homeMinTranslate) projected = homeMinTranslate;
+
+    homeCardsTrack.style.transition = 'transform 0.3s ease-out';
+    homeCardsTrack.style.transform = `translateX(${projected}px)`;
+    startIdleTimer();
+  }
+
+  homeCardsWrapper.addEventListener('touchend', endHomeDrag);
+  homeCardsWrapper.addEventListener('touchcancel', endHomeDrag);
+}
+
+// ✅ Card click -> go to Frame7 (only Card1-4)
+document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('.frame6-card-menu')) return;
+    const type = card.getAttribute('data-card');
+    goToFrame7(type);
+  });
+});
+
+// =========================================================
+// ✅ CHATBOT SYSTEM (4 types)
+// =========================================================
+const chatDB = { healthcare: [], sports: [], education: [], community: [] };
+
+function renderChatHistory(type) {
+  chatHistory.innerHTML = '';
+  const list = chatDB[type] || [];
+  list.forEach(m => addBubbleToDOM(m.role, m.text, m.attachments, false));
+  scrollChatToBottom();
+}
+
+function scrollChatToBottom() { chatHistory.scrollTop = chatHistory.scrollHeight; }
+
+function addBubbleToDOM(role, text, attachments = null, autoScroll = true) {
+  const row = document.createElement('div');
+  row.className = 'msg-row ' + (role === 'user' ? 'user' : 'bot');
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble' + (role === 'bot' ? ' bot' : '');
+
+  let finalText = text || '';
+  if (attachments && attachments.length) {
+    finalText += (finalText ? '\n\n' : '');
+    finalText += '📎 Attachments:\n' + attachments.map(a => `- ${a.name}`).join('\n');
+  }
+
+  bubble.textContent = finalText;
+  row.appendChild(bubble);
+  chatHistory.appendChild(row);
+  if (autoScroll) scrollChatToBottom();
+}
+
+function pushMessage(type, role, text, attachments = null) {
+  if (!chatDB[type]) chatDB[type] = [];
+  chatDB[type].push({ role, text, attachments });
+  addBubbleToDOM(role, text, attachments, true);
+}
+
+function updateTapHint() {
+  const hasText = (chatInput.value || '').trim().length > 0;
+  tapToAsk.style.opacity = hasText ? '0' : '1';
+}
+
+chatInput.addEventListener('input', () => { updateTapHint(); startIdleTimer(); });
+chatInput.addEventListener('focus', () => { updateTapHint(); startIdleTimer(); });
+
+function buildHistoryForServer(type, maxTurns = 14) {
+  // ส่งเฉพาะข้อความล่าสุดเพื่อคุม token
+  const list = chatDB[type] || [];
+  const msgs = [];
+  for (const m of list) {
+    if (m.role === 'user') msgs.push({ role: 'user', content: m.text || '' });
+    if (m.role === 'bot') msgs.push({ role: 'assistant', content: m.text || '' });
+  }
+  return msgs.slice(-maxTurns);
+}
+
+// ✅ CALL SERVER (OpenAI) — serverless endpoint
+async function callServerAI(type, userText) {
+  const history = buildHistoryForServer(type);
+
+  const r = await fetch(`${SERVER_BASE}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type,
+      message: userText,
+      history,
+      profile: currentProfile ? {
+        name: currentProfile.name,
+        ageKey: currentProfile.ageKey,
+        ageText: currentProfile.ageText
+      } : null
+    })
+  });
+
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data?.error || "Server error");
+  return String(data?.reply || "").trim() || "…";
+}
+
+// fallback
+async function mockAI(type, userText) {
+  const t = (userText || '').toLowerCase();
+  await new Promise(r => setTimeout(r, 200));
+
+  if (type === 'community') return "I’m here with you 😊 Tell me what’s on your mind.";
+  if (type === 'healthcare') return t.includes('pain') ? "Rest, hydrate, monitor symptoms, and seek care if severe." : "HealthCare mode ✅ Tell me your symptoms.";
+  if (type === 'sports') return "Sports&Fitness ✅ Tell me your goal and experience.";
+  if (type === 'education') return "Education ✅ Tell me the subject and what you don’t understand.";
+  return "Hi! How can I help?";
+}
+
+async function handleSend(text, attachments = null) {
+  const msg = (text || '').trim();
+  if (!msg && (!attachments || !attachments.length)) return;
+
+  chatInput.value = '';
+  updateTapHint();
+
+  const userPayload = msg || "(sent attachments)";
+  pushMessage(activeChatType, 'user', userPayload, attachments);
+
+  // thinking bubble
+  pushMessage(activeChatType, 'bot', '…');
+  const list = chatDB[activeChatType];
+  const thinkingIndex = list.length - 1;
+
+  try {
+    const reply = await callServerAI(activeChatType, userPayload);
+    list[thinkingIndex].text = reply;
+
+    const lastBubble = chatHistory.querySelector('.msg-row.bot:last-child .bubble');
+    if (lastBubble) lastBubble.textContent = reply;
+
+    scrollChatToBottom();
+  } catch (err) {
+    const reply = await mockAI(activeChatType, msg);
+    const failText = `⚠️ Server/AI error: ${err?.message || ''}\n\n(Fallback) ${reply}`;
+
+    list[thinkingIndex].text = failText;
+    const lastBubble = chatHistory.querySelector('.msg-row.bot:last-child .bubble');
+    if (lastBubble) lastBubble.textContent = failText;
+
+    scrollChatToBottom();
+  }
+}
+
+chatSend.addEventListener('click', () => { startIdleTimer(); handleSend(chatInput.value, null); });
+
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); handleSend(chatInput.value, null); }
+});
+
+chatAdd.addEventListener('click', () => {
+  startIdleTimer();
+  filePicker.value = '';
+  filePicker.click();
+});
+
+filePicker.addEventListener('change', () => {
+  startIdleTimer();
+  const files = Array.from(filePicker.files || []);
+  if (!files.length) return;
+  handleSend('', files);
+});
+
+chatBackBtn.addEventListener('click', () => {
+  startIdleTimer();
+  stopVoiceIfAny();
+  goToFrame6();
+});
+
+// ✅ Voice input (iPhone Safari ส่วนใหญ่ไม่รองรับ SpeechRecognition)
+let recognition = null;
+let isListening = false;
+let voiceDraft = '';
+let voiceTimer = null;
+let voiceSec = 0;
+
+function hasSpeechAPI() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+
+function startVoiceTimer() {
+  clearInterval(voiceTimer);
+  voiceSec = 0;
+  voiceTime.textContent = "00:00";
+  voiceTimer = setInterval(() => {
+    voiceSec++;
+    const mm = String(Math.floor(voiceSec / 60)).padStart(2, '0');
+    const ss = String(voiceSec % 60).padStart(2, '0');
+    voiceTime.textContent = `${mm}:${ss}`;
+    const waves = ["▂▃▅▆▅▃▂", "▁▂▃▅▃▂▁", "▂▄▆▇▆▄▂", "▁▃▅▇▅▃▁"];
+    voiceWave.textContent = waves[voiceSec % waves.length];
+  }, 1000);
+}
+
+function stopVoiceTimer() { clearInterval(voiceTimer); voiceTimer = null; }
+
+function enterVoiceConfirmMode() {
+  chatMicImg.src = 'ChatBot_No.png';
+  chatSendImg.src = 'ChatBot_Yes.png';
+  voiceCenter.style.display = 'flex';
+}
+
+function exitVoiceConfirmMode() {
+  chatMicImg.src = 'ChatBot_Mic.png';
+  chatSendImg.src = 'ChatBot_Send.png';
+  voiceCenter.style.display = 'none';
+  stopVoiceTimer();
+  voiceDraft = '';
+}
+
+function stopVoiceIfAny() {
+  if (recognition && isListening) {
+    try { recognition.stop(); } catch (e) {}
+  }
+  isListening = false;
+  stopVoiceTimer();
+}
+
+function startListening() {
+  if (!hasSpeechAPI()) {
+    alert("Speech Recognition not supported on this browser (iPhone Safari usually not supported).");
+    return;
+  }
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = 'en-US';
+  recognition.interimResults = true;
+  recognition.continuous = true;
+
+  voiceDraft = '';
+  isListening = true;
+
+  enterVoiceConfirmMode();
+  startVoiceTimer();
+
+  recognition.onresult = (event) => {
+    let transcript = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    voiceDraft = transcript.trim();
+    chatInput.value = voiceDraft;
+    updateTapHint();
+  };
+
+  recognition.onerror = () => { isListening = false; stopVoiceTimer(); };
+  recognition.onend = () => { isListening = false; stopVoiceTimer(); };
+
+  try { recognition.start(); } catch (e) {}
+}
+
+function onMicOrNoClick() {
+  startIdleTimer();
+
+  if (chatMicImg.src.includes('ChatBot_No.png')) {
+    stopVoiceIfAny();
+    chatInput.value = '';
+    updateTapHint();
+    exitVoiceConfirmMode();
+    return;
+  }
+  startListening();
+}
+
+function onSendOrYesClick() {
+  startIdleTimer();
+
+  if (chatSendImg.src.includes('ChatBot_Yes.png')) {
+    stopVoiceIfAny();
+    const finalText = (chatInput.value || voiceDraft || '').trim();
+    exitVoiceConfirmMode();
+    handleSend(finalText, null);
+    return;
+  }
+  handleSend(chatInput.value, null);
+}
+
+chatMic.addEventListener('click', onMicOrNoClick);
+chatSend.addEventListener('click', onSendOrYesClick);
+
+updateTapHint();
