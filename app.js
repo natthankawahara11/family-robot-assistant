@@ -66,26 +66,28 @@ async function preloadAssets() {
   ];
 
   let done = 0;
-  const total = tasks.length;
+  const total = tasks.length || 1;
 
   function updateUI(label) {
     const pct = Math.round((done / total) * 100);
-    bootBarFill.style.width = pct + "%";
-    bootPercent.textContent = pct + "%";
-    if (label) bootStatus.textContent = label;
+    if (bootBarFill) bootBarFill.style.width = pct + "%";
+    if (bootPercent) bootPercent.textContent = pct + "%";
+    if (label && bootStatus) bootStatus.textContent = label;
   }
 
   updateUI("Starting…");
 
   for (const t of tasks) {
-    if (t.type === "img") await preloadImage(t.url);
-    else await preloadVideo(t.url);
+    try {
+      if (t.type === "img") await preloadImage(t.url);
+      else await preloadVideo(t.url);
+    } catch (_) {}
     done++;
     updateUI(`Loading: ${t.url}`);
   }
 
   updateUI("Finalizing…");
-  bootLoader.classList.add('hidden');
+  if (bootLoader) bootLoader.classList.add('hidden');
   bootReady = true;
 }
 
@@ -132,7 +134,7 @@ const ageCards = document.querySelectorAll('.age-card');
 const profilesList = document.getElementById('profilesList');
 
 const frame6ProfileImg = document.getElementById('frame6ProfileImg');
-const frame6ProfileBtn = document.querySelector('.frame6-profile');
+const frame6ProfileBtn = document.querySelector('.frame6-profile'); // ✅ มีอยู่จริงใน HTML
 const tabHighlight = document.getElementById('tabHighlight');
 const tabHome = document.getElementById('tabHome');
 const tabHealthcare = document.getElementById('tabHealthcare');
@@ -214,70 +216,67 @@ let isVideoVisible = false;
 let lastActiveFrame = null;
 
 function hideAllFrames() {
-  frame1.style.display = 'none';
-  frame2.style.display = 'none';
-  frame3.style.display = 'none';
-  frameAvatar.style.display = 'none';
-  frame4.style.display = 'none';
-  frame5.style.display = 'none';
-  frame6.style.display = 'none';
-  frame7.style.display = 'none';
+  [frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7].forEach(f => {
+    if (f) f.style.display = 'none';
+  });
 }
 
 function goToFrame1() {
   hideAllFrames();
-  frame1.style.display = 'block';
+  if (frame1) frame1.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic4.png")';
   lastActiveFrame = 'frame1';
 }
 
 function goToFrame2() {
   hideAllFrames();
-  frame2.style.display = 'block';
+  if (frame2) frame2.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic5.png")';
 
   updateSliderSize();
   setIndex(0, false);
   requestAnimationFrame(() => {
-    slider.style.transition = 'transform 0.25s ease';
+    if (slider) slider.style.transition = 'transform 0.25s ease';
   });
   lastActiveFrame = 'frame2';
 }
 
 function goToFrame3New() {
   hideAllFrames();
-  frame3.style.display = 'block';
+  if (frame3) frame3.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic12.png")';
-  nicknameInput.value = '';
-  nicknameInput.placeholder = 'Nickname';
-  avatarImage.src = 'Pic13.png';
+  if (nicknameInput) {
+    nicknameInput.value = '';
+    nicknameInput.placeholder = 'Nickname';
+  }
+  if (avatarImage) avatarImage.src = 'Pic13.png';
   lastActiveFrame = 'frame3';
 }
 
 function goToFrame3Keep() {
   hideAllFrames();
-  frame3.style.display = 'block';
+  if (frame3) frame3.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic12.png")';
   lastActiveFrame = 'frame3';
 }
 
 function goToAvatarFrame() {
   hideAllFrames();
-  frameAvatar.style.display = 'block';
+  if (frameAvatar) frameAvatar.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic14.png")';
   lastActiveFrame = 'frameAvatar';
 }
 
 function goToFrame4Age() {
   hideAllFrames();
-  frame4.style.display = 'block';
+  if (frame4) frame4.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic15.png")';
   lastActiveFrame = 'frame4';
 }
 
 function goToFrame5Accounts() {
   hideAllFrames();
-  frame5.style.display = 'block';
+  if (frame5) frame5.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic15.png")';
   renderProfiles();
   lastActiveFrame = 'frame5';
@@ -287,7 +286,7 @@ function goToFrame6() {
   if (!currentProfile && profiles.length > 0) currentProfile = profiles[0];
 
   hideAllFrames();
-  frame6.style.display = 'block';
+  if (frame6) frame6.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic17.png")';
 
   if (currentProfile && frame6ProfileImg) frame6ProfileImg.src = currentProfile.avatarSrc;
@@ -298,12 +297,12 @@ function goToFrame6() {
 }
 
 function goFrame6ProfileToFrame5(e) {
-  e.preventDefault();
-  e.stopPropagation();
+  if (e) { e.preventDefault(); e.stopPropagation(); }
   startIdleTimer();
   goToFrame5Accounts();
 }
 
+// ✅ FIX: เคยใช้ '#frame6ProfileBtn' แต่ใน HTML ไม่มี id นี้
 if (frame6ProfileBtn) {
   frame6ProfileBtn.addEventListener('touchstart', (e) => {
     e.preventDefault();
@@ -318,7 +317,9 @@ if (frame6ProfileBtn) {
     e.stopImmediatePropagation();
     goFrame6ProfileToFrame5(e);
   }, { capture: true });
+}
 
+if (frame6ProfileImg) {
   frame6ProfileImg.addEventListener('touchstart', goFrame6ProfileToFrame5, { passive: false, capture: true });
   frame6ProfileImg.addEventListener('click', goFrame6ProfileToFrame5, { capture: true });
 }
@@ -344,21 +345,20 @@ function updateChatScale() {
 }
 
 window.addEventListener('resize', () => {
-  if (frame7.style.display === 'block') updateChatScale();
+  if (frame7 && frame7.style.display === 'block') updateChatScale();
 });
 
 function goToFrame7(chatType) {
   activeChatType = chatType || "healthcare";
   hideAllFrames();
 
-  // ✅ enforce Pic18 on frame7 + body
-  frame7.style.backgroundImage = 'url("Pic18.png")';
+  if (frame7) frame7.style.backgroundImage = 'url("Pic18.png")';
   document.body.style.backgroundImage = 'url("Pic18.png")';
 
-  frame7.style.display = 'block';
+  if (frame7) frame7.style.display = 'block';
   lastActiveFrame = 'frame7';
 
-  chatTitle.textContent = cardToTitle[activeChatType] || "Chatbot";
+  if (chatTitle) chatTitle.textContent = cardToTitle[activeChatType] || "Chatbot";
   updateChatScale();
   startIdleTimer();
   renderChatHistory(activeChatType);
@@ -366,9 +366,8 @@ function goToFrame7(chatType) {
 }
 
 function focusChatInput() {
-  setTimeout(() => {
-    chatInput.focus({ preventScroll: true });
-  }, 50);
+  if (!chatInput) return;
+  setTimeout(() => chatInput.focus({ preventScroll: true }), 50);
 }
 
 // -------- VIDEO OVERLAY FUNCTIONS --------
@@ -410,8 +409,9 @@ function handleUserInteraction(e) {
   if (!bootReady) return;
 
   if (e && e.target) {
+    // ✅ FIX: เปลี่ยนจาก '#frame6ProfileBtn' ที่ไม่มีจริง → '.frame6-profile'
     const block = e.target.closest(
-      '#frame6ProfileBtn, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
+      '.frame6-profile, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
       '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close'
     );
     if (block) return;
@@ -433,7 +433,6 @@ function handleUserInteraction(e) {
   }
 }
 
-// ✅ after preload
 (function bootFlow() {
   const t = setInterval(() => {
     if (!bootReady) return;
@@ -459,19 +458,26 @@ function handleUserInteraction(e) {
 
 // ---------- Slider + Frame 2 ----------
 function updateDots() {
-  [dot1, dot2, dot3].forEach(dot => {
+  const dots = [dot1, dot2, dot3].filter(Boolean);
+  dots.forEach(dot => {
     dot.style.background = 'transparent';
     dot.style.border = '3px solid rgba(0,0,0,0.45)';
   });
+
+  if (!dot1 || !dot2 || !dot3) return;
 
   if (currentIndex === 0) { dot1.style.background = 'rgba(0,0,0,0.65)'; dot1.style.border = 'none'; }
   else if (currentIndex === 1) { dot2.style.background = 'rgba(0,0,0,0.65)'; dot2.style.border = 'none'; }
   else if (currentIndex === 2) { dot3.style.background = 'rgba(0,0,0,0.65)'; dot3.style.border = 'none'; }
 }
 
-function updateSliderSize() { sliderWidth = slider.offsetWidth / totalSlides; }
+function updateSliderSize() {
+  if (!slider) return;
+  sliderWidth = slider.offsetWidth / totalSlides;
+}
 
 function setIndex(idx, withTransition = true) {
+  if (!slider) return;
   currentIndex = idx;
   slider.style.transition = withTransition ? 'transform 0.25s ease' : 'none';
   const tx = -sliderWidth * currentIndex;
@@ -480,10 +486,10 @@ function setIndex(idx, withTransition = true) {
 }
 
 function showFrame2FromWelcome() { goToFrame2(); startIdleTimer(); }
-option1.addEventListener('click', showFrame2FromWelcome);
-option2.addEventListener('click', showFrame2FromWelcome);
+if (option1) option1.addEventListener('click', showFrame2FromWelcome);
+if (option2) option2.addEventListener('click', showFrame2FromWelcome);
 
-frame2Close.addEventListener('click', () => { goToFrame3New(); startIdleTimer(); });
+if (frame2Close) frame2Close.addEventListener('click', () => { goToFrame3New(); startIdleTimer(); });
 
 function goNext() {
   if (currentIndex < totalSlides - 1) setIndex(currentIndex + 1, true);
@@ -500,65 +506,67 @@ function goLeftAction() {
   startIdleTimer();
 }
 
-btnRight.addEventListener('click', goNext);
-btnLeft.addEventListener('click', goLeftAction);
+if (btnRight) btnRight.addEventListener('click', goNext);
+if (btnLeft) btnLeft.addEventListener('click', goLeftAction);
 
-slider.addEventListener('touchstart', (e) => {
-  if (sliderWidth === 0) updateSliderSize();
-  isDragging = true;
-  slider.style.transition = 'none';
-  startX = e.touches[0].clientX;
-  startTranslate = -sliderWidth * currentIndex;
-}, { passive: true });
+if (slider) {
+  slider.addEventListener('touchstart', (e) => {
+    if (sliderWidth === 0) updateSliderSize();
+    isDragging = true;
+    slider.style.transition = 'none';
+    startX = e.touches[0].clientX;
+    startTranslate = -sliderWidth * currentIndex;
+  }, { passive: true });
 
-slider.addEventListener('touchmove', (e) => {
-  if (!isDragging) return;
-  const x = e.touches[0].clientX;
-  const deltaX = x - startX;
-  let nextTranslate = startTranslate + deltaX;
+  slider.addEventListener('touchmove', (e) => {
+    if (!isDragging) return;
+    const x = e.touches[0].clientX;
+    const deltaX = x - startX;
+    let nextTranslate = startTranslate + deltaX;
 
-  const minTranslate = -sliderWidth * (totalSlides - 1);
-  const maxTranslate = 0;
-  if (nextTranslate > maxTranslate) nextTranslate = maxTranslate;
-  if (nextTranslate < minTranslate) nextTranslate = minTranslate;
+    const minTranslate = -sliderWidth * (totalSlides - 1);
+    const maxTranslate = 0;
+    if (nextTranslate > maxTranslate) nextTranslate = maxTranslate;
+    if (nextTranslate < minTranslate) nextTranslate = minTranslate;
 
-  slider.style.transform = `translateX(${nextTranslate}px)`;
-}, { passive: true });
+    slider.style.transform = `translateX(${nextTranslate}px)`;
+  }, { passive: true });
 
-function endDrag(e) {
-  if (!isDragging) return;
-  isDragging = false;
-  slider.style.transition = 'transform 0.25s ease';
+  function endDrag(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    slider.style.transition = 'transform 0.25s ease';
 
-  const endX = e.changedTouches[0].clientX;
-  const diff = endX - startX;
-  const threshold = sliderWidth * 0.15;
+    const endX = e.changedTouches[0].clientX;
+    const diff = endX - startX;
+    const threshold = sliderWidth * 0.15;
 
-  if (diff < -threshold && currentIndex < totalSlides - 1) setIndex(currentIndex + 1, true);
-  else if (diff > threshold && currentIndex > 0) setIndex(currentIndex - 1, true);
-  else setIndex(currentIndex, true);
+    if (diff < -threshold && currentIndex < totalSlides - 1) setIndex(currentIndex + 1, true);
+    else if (diff > threshold && currentIndex > 0) setIndex(currentIndex - 1, true);
+    else setIndex(currentIndex, true);
 
-  startIdleTimer();
+    startIdleTimer();
+  }
+  slider.addEventListener('touchend', endDrag);
+  slider.addEventListener('touchcancel', endDrag);
 }
-slider.addEventListener('touchend', endDrag);
-slider.addEventListener('touchcancel', endDrag);
 
 window.addEventListener('resize', () => {
-  if (frame2.style.display === 'block') {
+  if (frame2 && frame2.style.display === 'block') {
     updateSliderSize();
     setIndex(currentIndex, false);
   }
 });
 
 // ---------- Frame 3 / Avatar / Age ----------
-frame3Back.addEventListener('click', () => {
+if (frame3Back) frame3Back.addEventListener('click', () => {
   goToFrame2();
   setIndex(totalSlides - 1, false);
   startIdleTimer();
 });
 
-frame3Next.addEventListener('click', () => { goToFrame4Age(); startIdleTimer(); });
-avatarBtn.addEventListener('click', () => { goToAvatarFrame(); startIdleTimer(); });
+if (frame3Next) frame3Next.addEventListener('click', () => { goToFrame4Age(); startIdleTimer(); });
+if (avatarBtn) avatarBtn.addEventListener('click', () => { goToAvatarFrame(); startIdleTimer(); });
 
 profileOptions.forEach(option => {
   option.addEventListener('click', () => {
@@ -582,12 +590,12 @@ if (nicknameInput) {
   });
 }
 
-frame4Back.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
+if (frame4Back) frame4Back.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
 if (frame4Next) frame4Next.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
 
 function createProfile(ageKey) {
-  const name = nicknameInput.value.trim() || 'Guest';
-  const avatarSrc = avatarImage.src || 'Pic13.png';
+  const name = (nicknameInput?.value || '').trim() || 'Guest';
+  const avatarSrc = avatarImage?.src || 'Pic13.png';
   const ageText = ageMap[ageKey] || '';
 
   const profile = {
@@ -608,6 +616,7 @@ ageCards.forEach(card => {
 });
 
 function renderProfiles() {
+  if (!profilesList) return;
   profilesList.innerHTML = '';
 
   profiles.forEach(profile => {
@@ -699,7 +708,7 @@ function attachLongPress(card, id) {
 function toggleDeleteMode(id) {
   deleteModeId = (deleteModeId === id) ? null : id;
 
-  const cards = profilesList.querySelectorAll('.profile-card');
+  const cards = profilesList?.querySelectorAll('.profile-card') || [];
   cards.forEach(c => {
     if (c.dataset.id === deleteModeId) c.classList.add('show-delete');
     else c.classList.remove('show-delete');
@@ -715,26 +724,26 @@ function setActiveTab(name) {
   tabHighlight.style.left = cfg.left + 'px';
   tabHighlight.style.width = cfg.width + 'px';
 
-  tabHome.style.color = 'rgba(0,0,0,0.9)';
-  tabHealthcare.style.color = 'rgba(0,0,0,0.9)';
-  tabSports.style.color = 'rgba(0,0,0,0.9)';
-  tabEducation.style.color = 'rgba(0,0,0,0.9)';
-  tabCommunity.style.color = 'rgba(0,0,0,0.9)';
+  if (tabHome) tabHome.style.color = 'rgba(0,0,0,0.9)';
+  if (tabHealthcare) tabHealthcare.style.color = 'rgba(0,0,0,0.9)';
+  if (tabSports) tabSports.style.color = 'rgba(0,0,0,0.9)';
+  if (tabEducation) tabEducation.style.color = 'rgba(0,0,0,0.9)';
+  if (tabCommunity) tabCommunity.style.color = 'rgba(0,0,0,0.9)';
 
-  if (name === 'home') tabHome.style.color = 'rgba(255,255,255,0.9)';
-  if (name === 'healthcare') tabHealthcare.style.color = 'rgba(255,255,255,0.9)';
-  if (name === 'sports') tabSports.style.color = 'rgba(255,255,255,0.9)';
-  if (name === 'education') tabEducation.style.color = 'rgba(255,255,255,0.9)';
-  if (name === 'community') tabCommunity.style.color = 'rgba(255,255,255,0.9)';
+  if (name === 'home' && tabHome) tabHome.style.color = 'rgba(255,255,255,0.9)';
+  if (name === 'healthcare' && tabHealthcare) tabHealthcare.style.color = 'rgba(255,255,255,0.9)';
+  if (name === 'sports' && tabSports) tabSports.style.color = 'rgba(255,255,255,0.9)';
+  if (name === 'education' && tabEducation) tabEducation.style.color = 'rgba(255,255,255,0.9)';
+  if (name === 'community' && tabCommunity) tabCommunity.style.color = 'rgba(255,255,255,0.9)';
 
   if (homeCardsWrapper) homeCardsWrapper.style.display = (name === 'home') ? 'block' : 'none';
 }
 
-tabHome.addEventListener('click', () => { setActiveTab('home'); startIdleTimer(); });
-tabHealthcare.addEventListener('click', () => { setActiveTab('healthcare'); startIdleTimer(); });
-tabSports.addEventListener('click', () => { setActiveTab('sports'); startIdleTimer(); });
-tabEducation.addEventListener('click', () => { setActiveTab('education'); startIdleTimer(); });
-tabCommunity.addEventListener('click', () => { setActiveTab('community'); startIdleTimer(); });
+if (tabHome) tabHome.addEventListener('click', () => { setActiveTab('home'); startIdleTimer(); });
+if (tabHealthcare) tabHealthcare.addEventListener('click', () => { setActiveTab('healthcare'); startIdleTimer(); });
+if (tabSports) tabSports.addEventListener('click', () => { setActiveTab('sports'); startIdleTimer(); });
+if (tabEducation) tabEducation.addEventListener('click', () => { setActiveTab('education'); startIdleTimer(); });
+if (tabCommunity) tabCommunity.addEventListener('click', () => { setActiveTab('community'); startIdleTimer(); });
 
 // ---------- Home cards slide logic ----------
 function getTranslateX(el) {
@@ -843,15 +852,21 @@ document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
 const chatDB = { healthcare: [], sports: [], education: [], community: [] };
 
 function renderChatHistory(type) {
+  if (!chatHistory) return;
   chatHistory.innerHTML = '';
   const list = chatDB[type] || [];
   list.forEach(m => addBubbleToDOM(m.role, m.text, m.attachments, false));
   scrollChatToBottom();
 }
 
-function scrollChatToBottom() { chatHistory.scrollTop = chatHistory.scrollHeight; }
+function scrollChatToBottom() {
+  if (!chatHistory) return;
+  chatHistory.scrollTop = chatHistory.scrollHeight;
+}
 
 function addBubbleToDOM(role, text, attachments = null, autoScroll = true) {
+  if (!chatHistory) return;
+
   const row = document.createElement('div');
   row.className = 'msg-row ' + (role === 'user' ? 'user' : 'bot');
 
@@ -877,46 +892,64 @@ function pushMessage(type, role, text, attachments = null) {
 }
 
 function updateTapHint() {
+  if (!tapToAsk || !chatInput) return;
   const hasText = (chatInput.value || '').trim().length > 0;
   tapToAsk.style.opacity = hasText ? '0' : '1';
 }
 
-chatInput.addEventListener('input', () => { updateTapHint(); startIdleTimer(); });
-chatInput.addEventListener('focus', () => { updateTapHint(); startIdleTimer(); });
+if (chatInput) {
+  chatInput.addEventListener('input', () => { updateTapHint(); startIdleTimer(); });
+  chatInput.addEventListener('focus', () => { updateTapHint(); startIdleTimer(); });
+}
 
 function buildHistoryForServer(type, maxTurns = 14) {
-  // ส่งเฉพาะข้อความล่าสุดเพื่อคุม token
   const list = chatDB[type] || [];
   const msgs = [];
+
   for (const m of list) {
-    if (m.role === 'user') msgs.push({ role: 'user', content: m.text || '' });
-    if (m.role === 'bot') msgs.push({ role: 'assistant', content: m.text || '' });
+    const txt = String(m.text || '').trim();
+    if (!txt) continue;
+
+    // ✅ ไม่ส่ง thinking bubble / error fallback ไป server
+    if (txt === '…') continue;
+    if (txt.startsWith('⚠️ Server/AI error:')) continue;
+
+    if (m.role === 'user') msgs.push({ role: 'user', content: txt });
+    if (m.role === 'bot') msgs.push({ role: 'assistant', content: txt });
   }
   return msgs.slice(-maxTurns);
 }
 
-// ✅ CALL SERVER (OpenAI) — serverless endpoint
+// ✅ CALL SERVER — endpoint /api/chat
 async function callServerAI(type, userText) {
   const history = buildHistoryForServer(type);
 
-  const r = await fetch(`${SERVER_BASE}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      type,
-      message: userText,
-      history,
-      profile: currentProfile ? {
-        name: currentProfile.name,
-        ageKey: currentProfile.ageKey,
-        ageText: currentProfile.ageText
-      } : null
-    })
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data?.error || "Server error");
-  return String(data?.reply || "").trim() || "…";
+  try {
+    const r = await fetch(`${SERVER_BASE}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        type,
+        message: userText,
+        history,
+        profile: currentProfile ? {
+          name: currentProfile.name,
+          ageKey: currentProfile.ageKey,
+          ageText: currentProfile.ageText
+        } : null
+      })
+    });
+
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data?.detail || data?.error || `Server error (${r.status})`);
+    return String(data?.reply || "").trim() || "…";
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // fallback
@@ -935,10 +968,10 @@ async function handleSend(text, attachments = null) {
   const msg = (text || '').trim();
   if (!msg && (!attachments || !attachments.length)) return;
 
-  chatInput.value = '';
+  if (chatInput) chatInput.value = '';
   updateTapHint();
 
-  const userPayload = msg || "(sent attachments)";
+  const userPayload = msg || (attachments?.length ? `(sent attachments: ${attachments.length} file(s))` : "(sent attachments)");
   pushMessage(activeChatType, 'user', userPayload, attachments);
 
   // thinking bubble
@@ -950,48 +983,49 @@ async function handleSend(text, attachments = null) {
     const reply = await callServerAI(activeChatType, userPayload);
     list[thinkingIndex].text = reply;
 
-    const lastBubble = chatHistory.querySelector('.msg-row.bot:last-child .bubble');
+    const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
     if (lastBubble) lastBubble.textContent = reply;
-
     scrollChatToBottom();
   } catch (err) {
     const reply = await mockAI(activeChatType, msg);
     const failText = `⚠️ Server/AI error: ${err?.message || ''}\n\n(Fallback) ${reply}`;
 
     list[thinkingIndex].text = failText;
-    const lastBubble = chatHistory.querySelector('.msg-row.bot:last-child .bubble');
+    const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
     if (lastBubble) lastBubble.textContent = failText;
-
     scrollChatToBottom();
   }
 }
 
-chatSend.addEventListener('click', () => { startIdleTimer(); handleSend(chatInput.value, null); });
+if (chatSend) chatSend.addEventListener('click', () => { startIdleTimer(); handleSend(chatInput?.value || '', null); });
 
-chatInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); handleSend(chatInput.value, null); }
-});
+if (chatInput) {
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); handleSend(chatInput.value, null); }
+  });
+}
 
-chatAdd.addEventListener('click', () => {
+if (chatAdd) chatAdd.addEventListener('click', () => {
   startIdleTimer();
+  if (!filePicker) return;
   filePicker.value = '';
   filePicker.click();
 });
 
-filePicker.addEventListener('change', () => {
+if (filePicker) filePicker.addEventListener('change', () => {
   startIdleTimer();
   const files = Array.from(filePicker.files || []);
   if (!files.length) return;
   handleSend('', files);
 });
 
-chatBackBtn.addEventListener('click', () => {
+if (chatBackBtn) chatBackBtn.addEventListener('click', () => {
   startIdleTimer();
   stopVoiceIfAny();
   goToFrame6();
 });
 
-// ✅ Voice input (iPhone Safari ส่วนใหญ่ไม่รองรับ SpeechRecognition)
+// ✅ Voice input
 let recognition = null;
 let isListening = false;
 let voiceDraft = '';
@@ -1003,29 +1037,29 @@ function hasSpeechAPI() { return !!(window.SpeechRecognition || window.webkitSpe
 function startVoiceTimer() {
   clearInterval(voiceTimer);
   voiceSec = 0;
-  voiceTime.textContent = "00:00";
+  if (voiceTime) voiceTime.textContent = "00:00";
   voiceTimer = setInterval(() => {
     voiceSec++;
     const mm = String(Math.floor(voiceSec / 60)).padStart(2, '0');
     const ss = String(voiceSec % 60).padStart(2, '0');
-    voiceTime.textContent = `${mm}:${ss}`;
+    if (voiceTime) voiceTime.textContent = `${mm}:${ss}`;
     const waves = ["▂▃▅▆▅▃▂", "▁▂▃▅▃▂▁", "▂▄▆▇▆▄▂", "▁▃▅▇▅▃▁"];
-    voiceWave.textContent = waves[voiceSec % waves.length];
+    if (voiceWave) voiceWave.textContent = waves[voiceSec % waves.length];
   }, 1000);
 }
 
 function stopVoiceTimer() { clearInterval(voiceTimer); voiceTimer = null; }
 
 function enterVoiceConfirmMode() {
-  chatMicImg.src = 'ChatBot_No.png';
-  chatSendImg.src = 'ChatBot_Yes.png';
-  voiceCenter.style.display = 'flex';
+  if (chatMicImg) chatMicImg.src = 'ChatBot_No.png';
+  if (chatSendImg) chatSendImg.src = 'ChatBot_Yes.png';
+  if (voiceCenter) voiceCenter.style.display = 'flex';
 }
 
 function exitVoiceConfirmMode() {
-  chatMicImg.src = 'ChatBot_Mic.png';
-  chatSendImg.src = 'ChatBot_Send.png';
-  voiceCenter.style.display = 'none';
+  if (chatMicImg) chatMicImg.src = 'ChatBot_Mic.png';
+  if (chatSendImg) chatSendImg.src = 'ChatBot_Send.png';
+  if (voiceCenter) voiceCenter.style.display = 'none';
   stopVoiceTimer();
   voiceDraft = '';
 }
@@ -1062,7 +1096,7 @@ function startListening() {
       transcript += event.results[i][0].transcript;
     }
     voiceDraft = transcript.trim();
-    chatInput.value = voiceDraft;
+    if (chatInput) chatInput.value = voiceDraft;
     updateTapHint();
   };
 
@@ -1075,9 +1109,9 @@ function startListening() {
 function onMicOrNoClick() {
   startIdleTimer();
 
-  if (chatMicImg.src.includes('ChatBot_No.png')) {
+  if (chatMicImg?.src?.includes('ChatBot_No.png')) {
     stopVoiceIfAny();
-    chatInput.value = '';
+    if (chatInput) chatInput.value = '';
     updateTapHint();
     exitVoiceConfirmMode();
     return;
@@ -1088,17 +1122,17 @@ function onMicOrNoClick() {
 function onSendOrYesClick() {
   startIdleTimer();
 
-  if (chatSendImg.src.includes('ChatBot_Yes.png')) {
+  if (chatSendImg?.src?.includes('ChatBot_Yes.png')) {
     stopVoiceIfAny();
-    const finalText = (chatInput.value || voiceDraft || '').trim();
+    const finalText = (chatInput?.value || voiceDraft || '').trim();
     exitVoiceConfirmMode();
     handleSend(finalText, null);
     return;
   }
-  handleSend(chatInput.value, null);
+  handleSend(chatInput?.value || '', null);
 }
 
-chatMic.addEventListener('click', onMicOrNoClick);
-chatSend.addEventListener('click', onSendOrYesClick);
+if (chatMic) chatMic.addEventListener('click', onMicOrNoClick);
+if (chatSend) chatSend.addEventListener('click', onSendOrYesClick);
 
 updateTapHint();
