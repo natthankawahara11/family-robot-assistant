@@ -1,5 +1,5 @@
 // /api/chat.js
-const OpenAI = require("openai");
+import OpenAI from "openai";
 
 // Groq ใช้ OpenAI-compatible endpoint
 const client = new OpenAI({
@@ -7,15 +7,15 @@ const client = new OpenAI({
   baseURL: "https://api.groq.com/openai/v1",
 });
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // CORS (เผื่อเปิดจาก iPhone/อุปกรณ์อื่น)
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS, GET");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // กันคนเปิดลิงก์ด้วย GET แล้วงง
+  // ให้เปิดลิงก์แล้วเห็นว่า API อยู่
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
@@ -49,8 +49,13 @@ module.exports = async function handler(req, res) {
 
     const cleanHistory = Array.isArray(history)
       ? history
-          .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
-          .slice(-12) // จำกัดความยาว history กัน token บวม
+          .filter(
+            (m) =>
+              m &&
+              (m.role === "user" || m.role === "assistant") &&
+              typeof m.content === "string"
+          )
+          .slice(-12)
       : [];
 
     const userMsg = String(message || "").slice(0, 6000);
@@ -62,7 +67,7 @@ module.exports = async function handler(req, res) {
     ];
 
     const completion = await client.chat.completions.create({
-      model: "llama-3.1-8b-instant", // เร็ว + เหมาะกับฟรี tier
+      model: "llama-3.1-8b-instant",
       messages,
       temperature: 0.7,
     });
@@ -70,10 +75,9 @@ module.exports = async function handler(req, res) {
     const reply = completion?.choices?.[0]?.message?.content?.trim() || "…";
     return res.status(200).json({ reply });
   } catch (err) {
-    // ส่งรายละเอียดกลับไปช่วย debug
     return res.status(500).json({
       error: "AI error",
       detail: err?.message || String(err),
     });
   }
-};
+}
