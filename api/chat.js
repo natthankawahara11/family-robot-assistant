@@ -3,13 +3,23 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export default async function handler(req, res) {
-  // CORS (เผื่อเปิดจากอุปกรณ์อื่น)
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  // ✅ ให้เปิดลิงก์แล้วเห็นว่า API อยู่
+  if (req.method === "GET") {
+    return res.status(200).json({
+      ok: true,
+      message: "API is running. Use POST with JSON { type, message }"
+    });
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
     const { type, message, history = [], profile = null } = req.body || {};
@@ -25,8 +35,7 @@ export default async function handler(req, res) {
         "You are a kind supportive companion. Be friendly, encouraging, and helpful.",
     };
 
-    const systemPrompt =
-      systemPromptByType[type] || "You are a helpful assistant.";
+    const systemPrompt = systemPromptByType[type] || "You are a helpful assistant.";
 
     const profileLine = profile?.name
       ? `User profile: name=${profile.name}, ageGroup=${profile.ageText || profile.ageKey || "unknown"}`
