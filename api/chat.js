@@ -1,19 +1,25 @@
-import OpenAI from "openai";
+// /api/chat.js
+const OpenAI = require("openai");
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Groq ใช้ OpenAI-compatible endpoint
+const client = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: "https://api.groq.com/openai/v1",
+});
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+  // CORS (เผื่อเปิดจาก iPhone/อุปกรณ์อื่น)
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS, GET");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // ✅ ให้เปิดลิงก์แล้วเห็นว่า API อยู่
+  // กันคนเปิดลิงก์ด้วย GET แล้วงง
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
-      message: "API is running. Use POST with JSON { type, message }"
+      message: "API is running. Use POST with JSON { type, message, history?, profile? }",
     });
   }
 
@@ -26,13 +32,13 @@ export default async function handler(req, res) {
 
     const systemPromptByType = {
       healthcare:
-        "You are a safe healthcare assistant. Give general wellness guidance only. If symptoms seem urgent, advise seeing a medical professional. Do not diagnose.",
+        "You are a safe healthcare assistant. Give general wellness guidance only. Do not diagnose. If urgent, advise seeing a medical professional.",
       sports:
-        "You are a friendly sports and fitness coach. Give safe, age-appropriate workout advice and ask clarifying questions when needed.",
+        "You are a friendly sports and fitness coach. Give safe, age-appropriate workout advice. Ask clarifying questions when needed.",
       education:
-        "You are a clear, patient tutor. Explain simply, step-by-step, then offer practice questions.",
+        "You are a clear, patient tutor. Explain simply step-by-step, then give practice questions.",
       community:
-        "You are a kind supportive companion. Be friendly, encouraging, and helpful.",
+        "You are a kind, supportive companion. Be friendly, encouraging, and helpful.",
     };
 
     const systemPrompt = systemPromptByType[type] || "You are a helpful assistant.";
@@ -41,21 +47,33 @@ export default async function handler(req, res) {
       ? `User profile: name=${profile.name}, ageGroup=${profile.ageText || profile.ageKey || "unknown"}`
       : "User profile: unknown";
 
+    const cleanHistory = Array.isArray(history)
+      ? history
+          .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+          .slice(-12) // จำกัดความยาว history กัน token บวม
+      : [];
+
+    const userMsg = String(message || "").slice(0, 6000);
+
     const messages = [
       { role: "system", content: `${systemPrompt}\n\n${profileLine}` },
-      ...(Array.isArray(history) ? history : []),
-      { role: "user", content: String(message || "").slice(0, 6000) },
+      ...cleanHistory,
+      { role: "user", content: userMsg },
     ];
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+    const completion = await client.chat.completions.create({
+      model: "llama-3.1-8b-instant", // เร็ว + เหมาะกับฟรี tier
       messages,
       temperature: 0.7,
     });
 
-    const reply = completion.choices?.[0]?.message?.content || "…";
+    const reply = completion?.choices?.[0]?.message?.content?.trim() || "…";
     return res.status(200).json({ reply });
   } catch (err) {
-    return res.status(500).json({ error: "AI error", detail: err?.message || String(err) });
+    // ส่งรายละเอียดกลับไปช่วย debug
+    return res.status(500).json({
+      error: "AI error",
+      detail: err?.message || String(err),
+    });
   }
-}
+};
