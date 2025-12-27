@@ -125,6 +125,24 @@ async function preloadAssets() {
 preloadAssets();
 
 // =========================================================
+// ✅ DIRECTION LOCK HELPERS (Fix iPhone Safari vertical scroll)
+// =========================================================
+function directionLockState() {
+  return { locked: false, isHorizontal: false, sx: 0, sy: 0 };
+}
+function shouldLockHorizontal(lock, x, y, threshold = 10) {
+  const dx = x - lock.sx;
+  const dy = y - lock.sy;
+
+  if (!lock.locked) {
+    if (Math.abs(dx) + Math.abs(dy) < threshold) return null; // ยังไม่ตัดสิน
+    lock.locked = true;
+    lock.isHorizontal = Math.abs(dx) > Math.abs(dy);
+  }
+  return lock.isHorizontal;
+}
+
+// =========================================================
 // ✅ APP
 // =========================================================
 const frameVideo = document.getElementById('frameVideo');
@@ -208,6 +226,10 @@ let startTranslate = 0;
 let isDragging = false;
 let sliderWidth = 0;
 
+// direction locks
+let sliderLock = directionLockState();
+let homeLock = directionLockState();
+
 // profiles/chat state
 let profiles = lsGet(LS_PROFILES_KEY, []);
 let chatDBByProfile = lsGet(LS_CHATS_KEY, {}); // { [profileId]: { healthcare:[], ... } }
@@ -226,12 +248,13 @@ function setMicLangUI() {
 setMicLangUI();
 
 if (micLangBtn) {
-  micLangBtn.addEventListener("click", () => {
-    // toggle
+  micLangBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     micLang = (micLang === "th-TH") ? "en-US" : "th-TH";
     setMicLangUI();
     scheduleSaveAll();
-  });
+  }, { passive: false });
 }
 
 // restore currentProfile by id
@@ -246,7 +269,6 @@ function ensureChatBucket(profileId) {
   if (!chatDBByProfile[profileId]) {
     chatDBByProfile[profileId] = { healthcare: [], sports: [], education: [], community: [] };
   } else {
-    // fill missing keys
     chatDBByProfile[profileId].healthcare ||= [];
     chatDBByProfile[profileId].sports ||= [];
     chatDBByProfile[profileId].education ||= [];
@@ -591,18 +613,34 @@ function goLeftAction() {
 if (btnRight) btnRight.addEventListener('click', goNext);
 if (btnLeft) btnLeft.addEventListener('click', goLeftAction);
 
+// ✅ FIXED: direction lock for slider (vertical pass-through)
 if (slider) {
   slider.addEventListener('touchstart', (e) => {
     if (sliderWidth === 0) updateSliderSize();
     isDragging = true;
     slider.style.transition = 'none';
-    startX = e.touches[0].clientX;
+
+    sliderLock = directionLockState();
+    sliderLock.sx = e.touches[0].clientX;
+    sliderLock.sy = e.touches[0].clientY;
+
+    startX = sliderLock.sx;
     startTranslate = -sliderWidth * currentIndex;
   }, { passive: true });
 
   slider.addEventListener('touchmove', (e) => {
     if (!isDragging) return;
+
     const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+
+    const isH = shouldLockHorizontal(sliderLock, x, y);
+    if (isH === null) return; // ยังไม่ชัด
+    if (!isH) return;         // แนวตั้ง -> ปล่อย scroll ผ่าน
+
+    // แนวนอนจริง -> กัน Safari scroll เพื่อให้ลากลื่น
+    e.preventDefault();
+
     const deltaX = x - startX;
     let nextTranslate = startTranslate + deltaX;
 
@@ -612,12 +650,19 @@ if (slider) {
     if (nextTranslate < minTranslate) nextTranslate = minTranslate;
 
     slider.style.transform = `translateX(${nextTranslate}px)`;
-  }, { passive: true });
+  }, { passive: false });
 
   function endDrag(e) {
     if (!isDragging) return;
     isDragging = false;
     slider.style.transition = 'transform 0.25s ease';
+
+    // ถ้าไม่ได้ intent แนวนอน คืนตำแหน่งเดิม
+    if (!sliderLock.locked || !sliderLock.isHorizontal) {
+      setIndex(currentIndex, true);
+      startIdleTimer();
+      return;
+    }
 
     const endX = e.changedTouches[0].clientX;
     const diff = endX - startX;
@@ -629,8 +674,8 @@ if (slider) {
 
     startIdleTimer();
   }
-  slider.addEventListener('touchend', endDrag);
-  slider.addEventListener('touchcancel', endDrag);
+  slider.addEventListener('touchend', endDrag, { passive: true });
+  slider.addEventListener('touchcancel', endDrag, { passive: true });
 }
 
 window.addEventListener('resize', () => {
@@ -725,6 +770,7 @@ function renderProfiles() {
     overlay.innerHTML = '<img src="Pic16.png" alt="Delete">';
 
     function deleteThisCard(e) {
+      e.preventDefault();
       e.stopPropagation();
       const id = card.dataset.id;
 
@@ -742,7 +788,7 @@ function renderProfiles() {
     }
 
     overlay.addEventListener('click', deleteThisCard);
-    overlay.addEventListener('touchend', deleteThisCard);
+    overlay.addEventListener('touchend', deleteThisCard, { passive: false });
 
     avatarWrap.appendChild(overlay);
 
@@ -879,12 +925,17 @@ function setHomeIndex(idx, withTransition = true) {
   homeCardsTrack.style.transform = `translateX(${tx}px)`;
 }
 
+// ✅ FIXED: direction lock for home cards (vertical pass-through)
 if (homeCardsWrapper && homeCardsTrack) {
   homeCardsWrapper.addEventListener('touchstart', (e) => {
     homeDragging = true;
     homeCardsTrack.style.transition = 'none';
-    homeStartX = e.touches[0].clientX;
 
+    homeLock = directionLockState();
+    homeLock.sx = e.touches[0].clientX;
+    homeLock.sy = e.touches[0].clientY;
+
+    homeStartX = homeLock.sx;
     homeStartTranslate = getTranslateX(homeCardsTrack);
 
     const bounds = calcHomeBounds();
@@ -898,7 +949,15 @@ if (homeCardsWrapper && homeCardsTrack) {
 
   homeCardsWrapper.addEventListener('touchmove', (e) => {
     if (!homeDragging) return;
+
     const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+
+    const isH = shouldLockHorizontal(homeLock, x, y);
+    if (isH === null) return;
+    if (!isH) return; // แนวตั้ง -> ปล่อยให้ scroll ได้
+
+    e.preventDefault(); // แนวนอน -> ลากลื่น
 
     const deltaX = (x - homeStartX) * 1.2;
     let nextTranslate = homeStartTranslate + deltaX;
@@ -913,15 +972,21 @@ if (homeCardsWrapper && homeCardsTrack) {
     if (dt > 0) homeVelocity = (x - homeLastX) / dt;
     homeLastX = x;
     homeLastTime = now;
-  }, { passive: true });
+  }, { passive: false });
 
   function endHomeDrag() {
     if (!homeDragging) return;
     homeDragging = false;
 
+    // ถ้าไม่ได้ intent แนวนอน ไม่ต้องเด้ง/โยน
+    if (!homeLock.locked || !homeLock.isHorizontal) {
+      startIdleTimer();
+      return;
+    }
+
     let current = getTranslateX(homeCardsTrack);
 
-    const projectionMs = 500;
+    const projectionMs = 450;
     let projected = current + homeVelocity * projectionMs;
 
     if (projected > homeMaxTranslate) projected = homeMaxTranslate;
@@ -932,8 +997,8 @@ if (homeCardsWrapper && homeCardsTrack) {
     startIdleTimer();
   }
 
-  homeCardsWrapper.addEventListener('touchend', endHomeDrag);
-  homeCardsWrapper.addEventListener('touchcancel', endHomeDrag);
+  homeCardsWrapper.addEventListener('touchend', endHomeDrag, { passive: true });
+  homeCardsWrapper.addEventListener('touchcancel', endHomeDrag, { passive: true });
 }
 
 // ✅ Card click -> go to Frame7 (only Card1-4)
@@ -962,12 +1027,19 @@ function renderChatHistory(type) {
   const list = db[type] || [];
 
   list.forEach(m => addBubbleToDOM(m.role, m.text, m.attachments, false));
-  scrollChatToBottom();
+  scrollChatToBottom(true);
 }
 
-function scrollChatToBottom() {
+function scrollChatToBottom(force = false) {
   if (!chatHistory) return;
-  chatHistory.scrollTop = chatHistory.scrollHeight;
+  // force: schedule in next frame to make iOS render height correctly
+  if (force) {
+    requestAnimationFrame(() => {
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    });
+  } else {
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+  }
 }
 
 function addBubbleToDOM(role, text, attachments = null, autoScroll = true) {
@@ -988,7 +1060,7 @@ function addBubbleToDOM(role, text, attachments = null, autoScroll = true) {
   bubble.textContent = finalText;
   row.appendChild(bubble);
   chatHistory.appendChild(row);
-  if (autoScroll) scrollChatToBottom();
+  if (autoScroll) scrollChatToBottom(true);
 }
 
 function pushMessage(type, role, text, attachments = null) {
@@ -1098,7 +1170,7 @@ async function handleSend(text, attachments = null) {
 
     const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
     if (lastBubble) lastBubble.textContent = reply;
-    scrollChatToBottom();
+    scrollChatToBottom(true);
     scheduleSaveAll();
   } catch (err) {
     const reply = await mockAI(activeChatType, msg);
@@ -1107,12 +1179,10 @@ async function handleSend(text, attachments = null) {
     list[thinkingIndex].text = failText;
     const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
     if (lastBubble) lastBubble.textContent = failText;
-    scrollChatToBottom();
+    scrollChatToBottom(true);
     scheduleSaveAll();
   }
 }
-
-if (chatSend) chatSend.addEventListener('click', () => { startIdleTimer(); handleSend(chatInput?.value || '', null); });
 
 if (chatInput) {
   chatInput.addEventListener('keydown', (e) => {
@@ -1162,7 +1232,6 @@ function startVoiceTimer() {
     if (voiceWave) voiceWave.textContent = waves[voiceSec % waves.length];
   }, 1000);
 }
-
 function stopVoiceTimer() { clearInterval(voiceTimer); voiceTimer = null; }
 
 function enterVoiceConfirmMode() {
@@ -1249,6 +1318,7 @@ function onSendOrYesClick() {
   handleSend(chatInput?.value || '', null);
 }
 
+// ✅ FIXED: อย่า add click ซ้ำหลายตัว (เดิม chatSend เคยผูก 2 อัน)
 if (chatMic) chatMic.addEventListener('click', onMicOrNoClick);
 if (chatSend) chatSend.addEventListener('click', onSendOrYesClick);
 
@@ -1257,10 +1327,8 @@ updateTapHint();
 // =========================================================
 // ✅ Initial screen
 // =========================================================
-// ถ้ามี profiles ใน localStorage แล้ว ให้เริ่มที่หน้าเลือก account (Frame5) จะดีสุด
+// ถ้ามี profiles ใน localStorage แล้ว: ไม่ force jump (ยังมี intro video ตามเดิม)
+// แต่ ensure ระบบเลือกโปรไฟล์พร้อมใช้งาน
 if (profiles.length > 0) {
-  // preload finish will show video overlay -> after it ends will go frame1.
-  // แต่เราจะให้ flow เดิมเหมือนเดิม (คุณชอบ intro video)
-  // แค่ ensure renderProfiles ตอนเข้า frame5
-  // (ไม่ force jump)
+  // nothing else here on purpose
 }
