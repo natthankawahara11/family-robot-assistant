@@ -1,3 +1,4 @@
+// app.js
 // ✅ same-origin เสมอ
 const SERVER_BASE = window.location.origin;
 
@@ -134,7 +135,7 @@ const ageCards = document.querySelectorAll('.age-card');
 const profilesList = document.getElementById('profilesList');
 
 const frame6ProfileImg = document.getElementById('frame6ProfileImg');
-const frame6ProfileBtn = document.querySelector('.frame6-profile'); // ✅ มีอยู่จริงใน HTML
+const frame6ProfileBtn = document.querySelector('.frame6-profile'); // ✅ HTML ใช้ class นี้จริง
 const tabHighlight = document.getElementById('tabHighlight');
 const tabHome = document.getElementById('tabHome');
 const tabHealthcare = document.getElementById('tabHealthcare');
@@ -285,6 +286,9 @@ function goToFrame5Accounts() {
 function goToFrame6() {
   if (!currentProfile && profiles.length > 0) currentProfile = profiles[0];
 
+  // ✅ ensure chat space exists for this profile
+  if (currentProfile) ensureProfileChat(currentProfile.id);
+
   hideAllFrames();
   if (frame6) frame6.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic17.png")';
@@ -302,7 +306,6 @@ function goFrame6ProfileToFrame5(e) {
   goToFrame5Accounts();
 }
 
-// ✅ FIX: เคยใช้ '#frame6ProfileBtn' แต่ใน HTML ไม่มี id นี้
 if (frame6ProfileBtn) {
   frame6ProfileBtn.addEventListener('touchstart', (e) => {
     e.preventDefault();
@@ -409,7 +412,6 @@ function handleUserInteraction(e) {
   if (!bootReady) return;
 
   if (e && e.target) {
-    // ✅ FIX: เปลี่ยนจาก '#frame6ProfileBtn' ที่ไม่มีจริง → '.frame6-profile'
     const block = e.target.closest(
       '.frame6-profile, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
       '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close'
@@ -604,6 +606,10 @@ function createProfile(ageKey) {
   };
 
   profiles.push(profile);
+
+  // ✅ create chat space for this new profile
+  ensureProfileChat(profile.id);
+
   goToFrame5Accounts();
   startIdleTimer();
 }
@@ -639,7 +645,14 @@ function renderProfiles() {
     function deleteThisCard(e) {
       e.stopPropagation();
       const id = card.dataset.id;
+
       profiles = profiles.filter(p => p.id !== id);
+
+      // ✅ also remove chat history of this profile
+      delete chatDBByProfile[id];
+
+      if (currentProfile?.id === id) currentProfile = null;
+
       deleteModeId = null;
       renderProfiles();
     }
@@ -661,6 +674,10 @@ function renderProfiles() {
     card.addEventListener('click', () => {
       if (deleteModeId) return;
       currentProfile = profile;
+
+      // ✅ ensure chat space exists for this profile
+      ensureProfileChat(currentProfile.id);
+
       goToFrame6();
       startIdleTimer();
     });
@@ -847,14 +864,35 @@ document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
 });
 
 // =========================================================
-// ✅ CHATBOT SYSTEM (4 types)
+// ✅ CHATBOT SYSTEM (4 types) — FIXED: แยกตาม account/profile
 // =========================================================
-const chatDB = { healthcare: [], sports: [], education: [], community: [] };
+
+// ✅ chat แยกตาม profileId + type
+const chatDBByProfile = {}; // { [profileId]: { healthcare:[], sports:[], education:[], community:[] } }
+
+function ensureProfileChat(profileId) {
+  const pid = profileId || "default";
+  if (!chatDBByProfile[pid]) {
+    chatDBByProfile[pid] = { healthcare: [], sports: [], education: [], community: [] };
+  }
+  return chatDBByProfile[pid];
+}
+
+function getActiveProfileId() {
+  return currentProfile?.id || "default";
+}
+
+function getChatList(type) {
+  const pid = getActiveProfileId();
+  const db = ensureProfileChat(pid);
+  if (!db[type]) db[type] = [];
+  return db[type];
+}
 
 function renderChatHistory(type) {
   if (!chatHistory) return;
   chatHistory.innerHTML = '';
-  const list = chatDB[type] || [];
+  const list = getChatList(type);
   list.forEach(m => addBubbleToDOM(m.role, m.text, m.attachments, false));
   scrollChatToBottom();
 }
@@ -886,8 +924,8 @@ function addBubbleToDOM(role, text, attachments = null, autoScroll = true) {
 }
 
 function pushMessage(type, role, text, attachments = null) {
-  if (!chatDB[type]) chatDB[type] = [];
-  chatDB[type].push({ role, text, attachments });
+  const list = getChatList(type);
+  list.push({ role, text, attachments });
   addBubbleToDOM(role, text, attachments, true);
 }
 
@@ -903,7 +941,7 @@ if (chatInput) {
 }
 
 function buildHistoryForServer(type, maxTurns = 14) {
-  const list = chatDB[type] || [];
+  const list = getChatList(type);
   const msgs = [];
 
   for (const m of list) {
@@ -937,6 +975,7 @@ async function callServerAI(type, userText) {
         message: userText,
         history,
         profile: currentProfile ? {
+          id: currentProfile.id,
           name: currentProfile.name,
           ageKey: currentProfile.ageKey,
           ageText: currentProfile.ageText
@@ -971,12 +1010,13 @@ async function handleSend(text, attachments = null) {
   if (chatInput) chatInput.value = '';
   updateTapHint();
 
-  const userPayload = msg || (attachments?.length ? `(sent attachments: ${attachments.length} file(s))` : "(sent attachments)");
+  const userPayload =
+    msg || (attachments?.length ? `(sent attachments: ${attachments.length} file(s))` : "(sent attachments)");
   pushMessage(activeChatType, 'user', userPayload, attachments);
 
   // thinking bubble
   pushMessage(activeChatType, 'bot', '…');
-  const list = chatDB[activeChatType];
+  const list = getChatList(activeChatType);
   const thinkingIndex = list.length - 1;
 
   try {
@@ -997,7 +1037,10 @@ async function handleSend(text, attachments = null) {
   }
 }
 
-if (chatSend) chatSend.addEventListener('click', () => { startIdleTimer(); handleSend(chatInput?.value || '', null); });
+if (chatSend) chatSend.addEventListener('click', () => {
+  startIdleTimer();
+  handleSend(chatInput?.value || '', null);
+});
 
 if (chatInput) {
   chatInput.addEventListener('keydown', (e) => {
