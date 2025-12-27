@@ -1,6 +1,36 @@
-// app.js
 // ✅ same-origin เสมอ
 const SERVER_BASE = window.location.origin;
+
+// =========================================================
+// ✅ LOCAL STORAGE (persist profiles + chats + settings)
+// =========================================================
+const LS_PROFILES_KEY = "fra_profiles_v1";
+const LS_CHATS_KEY = "fra_chats_v1";        // chat by profileId
+const LS_STATE_KEY = "fra_state_v1";        // currentProfileId, micLang
+
+function safeJSONParse(s, fallback) {
+  try { return JSON.parse(s); } catch (_) { return fallback; }
+}
+function lsGet(key, fallback) {
+  return safeJSONParse(localStorage.getItem(key) || "", fallback);
+}
+function lsSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
+}
+
+// debounce save (กันเขียนถี่เกิน)
+let _saveTimer = null;
+function scheduleSaveAll() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    lsSet(LS_PROFILES_KEY, profiles);
+    lsSet(LS_CHATS_KEY, chatDBByProfile);
+    lsSet(LS_STATE_KEY, {
+      currentProfileId: currentProfile?.id || null,
+      micLang
+    });
+  }, 150);
+}
 
 // =========================================================
 // ✅ PRELOAD SYSTEM
@@ -135,7 +165,7 @@ const ageCards = document.querySelectorAll('.age-card');
 const profilesList = document.getElementById('profilesList');
 
 const frame6ProfileImg = document.getElementById('frame6ProfileImg');
-const frame6ProfileBtn = document.querySelector('.frame6-profile'); // ✅ HTML ใช้ class นี้จริง
+const frame6ProfileBtn = document.querySelector('.frame6-profile');
 const tabHighlight = document.getElementById('tabHighlight');
 const tabHome = document.getElementById('tabHome');
 const tabHealthcare = document.getElementById('tabHealthcare');
@@ -165,6 +195,12 @@ const voiceWave = document.getElementById('voiceWave');
 
 const filePicker = document.getElementById('filePicker');
 
+// ✅ Mic language UI
+const micLangBtn = document.getElementById('micLangBtn');
+
+// =========================================================
+// ✅ STATE + RESTORE FROM localStorage
+// =========================================================
 const totalSlides = 3;
 let currentIndex = 0;
 let startX = 0;
@@ -172,10 +208,55 @@ let startTranslate = 0;
 let isDragging = false;
 let sliderWidth = 0;
 
-let profiles = [];
+// profiles/chat state
+let profiles = lsGet(LS_PROFILES_KEY, []);
+let chatDBByProfile = lsGet(LS_CHATS_KEY, {}); // { [profileId]: { healthcare:[], ... } }
+const savedState = lsGet(LS_STATE_KEY, { currentProfileId: null, micLang: "en-US" });
+
 let deleteModeId = null;
 let currentProfile = null;
 
+// mic language: "en-US" or "th-TH"
+let micLang = (savedState?.micLang === "th-TH") ? "th-TH" : "en-US";
+
+function setMicLangUI() {
+  if (!micLangBtn) return;
+  micLangBtn.textContent = (micLang === "th-TH") ? "TH" : "EN";
+}
+setMicLangUI();
+
+if (micLangBtn) {
+  micLangBtn.addEventListener("click", () => {
+    // toggle
+    micLang = (micLang === "th-TH") ? "en-US" : "th-TH";
+    setMicLangUI();
+    scheduleSaveAll();
+  });
+}
+
+// restore currentProfile by id
+if (profiles.length > 0) {
+  const id = savedState?.currentProfileId;
+  currentProfile = profiles.find(p => p?.id === id) || profiles[0];
+}
+
+// Ensure chat buckets exist
+function ensureChatBucket(profileId) {
+  if (!profileId) return null;
+  if (!chatDBByProfile[profileId]) {
+    chatDBByProfile[profileId] = { healthcare: [], sports: [], education: [], community: [] };
+  } else {
+    // fill missing keys
+    chatDBByProfile[profileId].healthcare ||= [];
+    chatDBByProfile[profileId].sports ||= [];
+    chatDBByProfile[profileId].education ||= [];
+    chatDBByProfile[profileId].community ||= [];
+  }
+  return chatDBByProfile[profileId];
+}
+if (currentProfile?.id) ensureChatBucket(currentProfile.id);
+
+// age labels
 const ageMap = {
   Age1: 'Early Kids Ages 5–8',
   Age2: 'Kids Ages 9–12',
@@ -192,7 +273,6 @@ const tabConfig = {
   community: { left: 623, width: 122 }
 };
 
-const tabOrder = ['home', 'healthcare', 'sports', 'education', 'community'];
 let currentTabName = 'home';
 
 const HOME_CARD_WIDTH = 340;
@@ -285,9 +365,7 @@ function goToFrame5Accounts() {
 
 function goToFrame6() {
   if (!currentProfile && profiles.length > 0) currentProfile = profiles[0];
-
-  // ✅ ensure chat space exists for this profile
-  if (currentProfile) ensureProfileChat(currentProfile.id);
+  if (currentProfile?.id) ensureChatBucket(currentProfile.id);
 
   hideAllFrames();
   if (frame6) frame6.style.display = 'block';
@@ -298,6 +376,8 @@ function goToFrame6() {
   setActiveTab('home');
   setHomeIndex(0, false);
   lastActiveFrame = 'frame6';
+
+  scheduleSaveAll();
 }
 
 function goFrame6ProfileToFrame5(e) {
@@ -414,7 +494,7 @@ function handleUserInteraction(e) {
   if (e && e.target) {
     const block = e.target.closest(
       '.frame6-profile, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
-      '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close'
+      '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang'
     );
     if (block) return;
   }
@@ -607,8 +687,10 @@ function createProfile(ageKey) {
 
   profiles.push(profile);
 
-  // ✅ create chat space for this new profile
-  ensureProfileChat(profile.id);
+  // create bucket + persist
+  ensureChatBucket(profile.id);
+  currentProfile = profile;
+  scheduleSaveAll();
 
   goToFrame5Accounts();
   startIdleTimer();
@@ -647,13 +729,15 @@ function renderProfiles() {
       const id = card.dataset.id;
 
       profiles = profiles.filter(p => p.id !== id);
-
-      // ✅ also remove chat history of this profile
-      delete chatDBByProfile[id];
-
-      if (currentProfile?.id === id) currentProfile = null;
-
       deleteModeId = null;
+
+      // remove chats of that profile
+      if (chatDBByProfile[id]) delete chatDBByProfile[id];
+
+      // pick new currentProfile if needed
+      if (currentProfile?.id === id) currentProfile = profiles[0] || null;
+
+      scheduleSaveAll();
       renderProfiles();
     }
 
@@ -674,10 +758,8 @@ function renderProfiles() {
     card.addEventListener('click', () => {
       if (deleteModeId) return;
       currentProfile = profile;
-
-      // ✅ ensure chat space exists for this profile
-      ensureProfileChat(currentProfile.id);
-
+      ensureChatBucket(profile.id);
+      scheduleSaveAll();
       goToFrame6();
       startIdleTimer();
     });
@@ -864,35 +946,21 @@ document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
 });
 
 // =========================================================
-// ✅ CHATBOT SYSTEM (4 types) — FIXED: แยกตาม account/profile
+// ✅ CHATBOT SYSTEM (4 types) — PER PROFILE + PERSIST
 // =========================================================
-
-// ✅ chat แยกตาม profileId + type
-const chatDBByProfile = {}; // { [profileId]: { healthcare:[], sports:[], education:[], community:[] } }
-
-function ensureProfileChat(profileId) {
-  const pid = profileId || "default";
-  if (!chatDBByProfile[pid]) {
-    chatDBByProfile[pid] = { healthcare: [], sports: [], education: [], community: [] };
-  }
-  return chatDBByProfile[pid];
-}
-
-function getActiveProfileId() {
-  return currentProfile?.id || "default";
-}
-
-function getChatList(type) {
-  const pid = getActiveProfileId();
-  const db = ensureProfileChat(pid);
-  if (!db[type]) db[type] = [];
-  return db[type];
+function getActiveChatDB() {
+  const pid = currentProfile?.id;
+  if (!pid) return { healthcare: [], sports: [], education: [], community: [] };
+  return ensureChatBucket(pid);
 }
 
 function renderChatHistory(type) {
   if (!chatHistory) return;
   chatHistory.innerHTML = '';
-  const list = getChatList(type);
+
+  const db = getActiveChatDB();
+  const list = db[type] || [];
+
   list.forEach(m => addBubbleToDOM(m.role, m.text, m.attachments, false));
   scrollChatToBottom();
 }
@@ -924,9 +992,12 @@ function addBubbleToDOM(role, text, attachments = null, autoScroll = true) {
 }
 
 function pushMessage(type, role, text, attachments = null) {
-  const list = getChatList(type);
-  list.push({ role, text, attachments });
+  const db = getActiveChatDB();
+  if (!db[type]) db[type] = [];
+  db[type].push({ role, text, attachments });
+
   addBubbleToDOM(role, text, attachments, true);
+  scheduleSaveAll();
 }
 
 function updateTapHint() {
@@ -941,7 +1012,8 @@ if (chatInput) {
 }
 
 function buildHistoryForServer(type, maxTurns = 14) {
-  const list = getChatList(type);
+  const db = getActiveChatDB();
+  const list = db[type] || [];
   const msgs = [];
 
   for (const m of list) {
@@ -1010,13 +1082,14 @@ async function handleSend(text, attachments = null) {
   if (chatInput) chatInput.value = '';
   updateTapHint();
 
-  const userPayload =
-    msg || (attachments?.length ? `(sent attachments: ${attachments.length} file(s))` : "(sent attachments)");
+  const userPayload = msg || (attachments?.length ? `(sent attachments: ${attachments.length} file(s))` : "(sent attachments)");
   pushMessage(activeChatType, 'user', userPayload, attachments);
 
   // thinking bubble
   pushMessage(activeChatType, 'bot', '…');
-  const list = getChatList(activeChatType);
+
+  const db = getActiveChatDB();
+  const list = db[activeChatType];
   const thinkingIndex = list.length - 1;
 
   try {
@@ -1026,6 +1099,7 @@ async function handleSend(text, attachments = null) {
     const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
     if (lastBubble) lastBubble.textContent = reply;
     scrollChatToBottom();
+    scheduleSaveAll();
   } catch (err) {
     const reply = await mockAI(activeChatType, msg);
     const failText = `⚠️ Server/AI error: ${err?.message || ''}\n\n(Fallback) ${reply}`;
@@ -1034,13 +1108,11 @@ async function handleSend(text, attachments = null) {
     const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
     if (lastBubble) lastBubble.textContent = failText;
     scrollChatToBottom();
+    scheduleSaveAll();
   }
 }
 
-if (chatSend) chatSend.addEventListener('click', () => {
-  startIdleTimer();
-  handleSend(chatInput?.value || '', null);
-});
+if (chatSend) chatSend.addEventListener('click', () => { startIdleTimer(); handleSend(chatInput?.value || '', null); });
 
 if (chatInput) {
   chatInput.addEventListener('keydown', (e) => {
@@ -1117,13 +1189,15 @@ function stopVoiceIfAny() {
 
 function startListening() {
   if (!hasSpeechAPI()) {
-    alert("Speech Recognition not supported on this browser (iPhone Safari usually not supported).");
+    alert("Speech Recognition not supported on this browser (iPhone Safari often not supported).");
     return;
   }
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SR();
-  recognition.lang = 'en-US';
+
+  // ✅ language from UI
+  recognition.lang = micLang; // "en-US" or "th-TH"
   recognition.interimResults = true;
   recognition.continuous = true;
 
@@ -1179,3 +1253,14 @@ if (chatMic) chatMic.addEventListener('click', onMicOrNoClick);
 if (chatSend) chatSend.addEventListener('click', onSendOrYesClick);
 
 updateTapHint();
+
+// =========================================================
+// ✅ Initial screen
+// =========================================================
+// ถ้ามี profiles ใน localStorage แล้ว ให้เริ่มที่หน้าเลือก account (Frame5) จะดีสุด
+if (profiles.length > 0) {
+  // preload finish will show video overlay -> after it ends will go frame1.
+  // แต่เราจะให้ flow เดิมเหมือนเดิม (คุณชอบ intro video)
+  // แค่ ensure renderProfiles ตอนเข้า frame5
+  // (ไม่ force jump)
+}
