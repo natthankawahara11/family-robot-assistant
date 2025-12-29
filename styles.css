@@ -6,6 +6,7 @@
   box-sizing:border-box;
   margin:0;
   padding:0;
+
   touch-action: manipulation;
 
   -webkit-touch-callout:none;
@@ -30,6 +31,17 @@ body{
   background:url("Pic4.png") center/cover no-repeat;
   background-color:#b3ebf2;
   font-family:"Poppins", sans-serif;
+}
+
+.hidden{ display:none !important; }
+
+/* ✅ Make clickable stuff easier on iPhone */
+.option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close,
+.frame3-btn-left, .frame3-btn-right, .frame4-btn-left, .frame4-btn-right,
+.frame6-tab, .frame6-card, .chat-icon, .mini-btn, .thread-item,
+.profile-card, .profile-option, .frame6-profile{
+  cursor:pointer;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
 
 /* ✅ BOOT LOADER */
@@ -59,7 +71,7 @@ body{
 
 .boot-title{
   font-size:20px;
-  font-weight:700;
+  font-weight:900;
   color:rgba(99,26,173,0.95);
   letter-spacing:0.2px;
   margin-bottom:10px;
@@ -67,7 +79,7 @@ body{
 
 .boot-sub{
   font-size:13px;
-  font-weight:500;
+  font-weight:600;
   color:rgba(0,0,0,0.55);
   margin-bottom:18px;
 }
@@ -96,7 +108,7 @@ body{
   gap:12px;
   font-size:12px;
   color:rgba(0,0,0,0.55);
-  font-weight:600;
+  font-weight:700;
 }
 
 .boot-spin{
@@ -110,8 +122,6 @@ body{
 }
 @keyframes spin{ to{ transform:rotate(360deg); } }
 
-.hidden{ display:none !important; }
-
 /* ✅ VIDEO */
 .frame-video{
   position:fixed;
@@ -123,7 +133,7 @@ body{
   align-items:center;
   justify-content:center;
   z-index:9999;
-  pointer-events:none; /* ✅ สำคัญ: ตอนซ่อนอย่าทับจอ */
+  pointer-events:none;
 }
 .frame-video video{
   width:100%;
@@ -132,9 +142,9 @@ body{
   border:none;
 }
 
-/* ✅ Z-INDEX กันทับแบบงงๆ */
+/* ✅ Z-INDEX */
 .frame-1{ z-index:1; }
-.frame-2, .frame-3, .frame-4, .frame-5, .frame-6, .frame-7{ z-index:2; }
+.frame-2, .frame-3, .frame-4, .frame-5, .frame-6, .frame-7, .frame-avatar{ z-index:2; }
 
 /* FRAME 1 */
 .frame-1{
@@ -162,7 +172,7 @@ body{
   position:absolute;
   left:52.1%;
   top:18.0%;
-  font-weight:700;
+  font-weight:900;
   font-size:2.2rem;
   color:#631aad;
 }
@@ -172,7 +182,7 @@ body{
   left:52.1%;
   top:28.8%;
   width:43.5%;
-  font-weight:500;
+  font-weight:600;
   font-size:1.2rem;
   line-height:1.3;
   color:#631aad;
@@ -185,7 +195,6 @@ body{
   height:15.8%;
   border-radius:18px;
   overflow:hidden;
-  cursor:pointer;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -217,7 +226,6 @@ body{
   overflow:hidden;
 }
 
-/* ✅ อนุญาตให้ scroll แนวตั้ง “ผ่าน” slider ได้ */
 #slider{ touch-action: pan-y; }
 
 .slider{
@@ -245,12 +253,9 @@ body{
   height:14.0%;
   border-radius:12px;
   overflow:hidden;
-  cursor:pointer;
   display:flex;
   align-items:center;
   justify-content:center;
-  -webkit-tap-highlight-color:rgba(0,0,0,0);
-  outline:none;
   touch-action: manipulation;
 }
 .frame2-btn-left{ left:6.0%; }
@@ -274,9 +279,6 @@ body{
   top:7.2%;
   width:4.7%;
   height:6.8%;
-  cursor:pointer;
-  -webkit-tap-highlight-color:rgba(0,0,0,0);
-  outline:none;
   touch-action: manipulation;
 }
 .frame2-close img{ width:100%; height:100%; object-fit:contain; }
@@ -299,12 +301,9 @@ body{
   height:14.0%;
   border-radius:12px;
   overflow:hidden;
-  cursor:pointer;
   display:flex;
   align-items:center;
   justify-content:center;
-  -webkit-tap-highlight-color:rgba(0,0,0,0);
-  outline:none;
   touch-action: manipulation;
 }
 .frame3-btn-left{ left:6.0%; }
@@ -319,7 +318,7 @@ body{
   border:none;
   background:transparent;
   font-size:1rem;
-  font-weight:500;
+  font-weight:700;
   color:#000;
   font-family:"Poppins", sans-serif;
   outline:none;
@@ -334,7 +333,6 @@ body{
   height:29.7%;
   border-radius:50%;
   overflow:hidden;
-  cursor:pointer;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -359,7 +357,6 @@ body{
   height:30.2%;
   border-radius:50%;
   overflow:hidden;
-  cursor:pointer;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -391,15 +388,15 @@ body{
 
 .age-title{
   position:absolute;
-  top:12.4%;
+  top:11%;
   left:50%;
   transform:translateX(-50%);
   width:86%;
-  font-weight:500;
-  font-size:18px;
-  color:rgba(99,26,173,0.75);
+  font-weight:700;
+  font-size:16px;
+  color:rgba(99,26,173,0.78);
   text-align:center;
-  line-height:1.4;
+  line-height:1.35;
 }
 
 .frame4-btn-left, .frame4-btn-right{
@@ -409,33 +406,31 @@ body{
   height:14.0%;
   border-radius:12px;
   overflow:hidden;
-  cursor:pointer;
   display:flex;
   align-items:center;
   justify-content:center;
-  -webkit-tap-highlight-color:rgba(0,0,0,0);
-  outline:none;
   touch-action: manipulation;
 }
 .frame4-btn-left{ left:6.0%; }
-.frame4-btn-right{ left:77.5%; display:flex; }
+.frame4-btn-right{ left:77.5%; }
 .frame4-btn-left img, .frame4-btn-right img{ width:100%; height:100%; object-fit:contain; }
 
-/* ✅ NEW: iPhone-like Age Wheel Panel */
+/* ✅ iPhone-style wheel panel: smaller + tighter */
 .age-wheel-panel{
   position:absolute;
   left:50%;
   top:52%;
   transform:translate(-50%, -50%);
-  width:min(680px, 90vw);
-  height:340px;
-  border-radius:24px;
+  width:min(560px, 88vw);
+  height:270px;
+  border-radius:20px;
   background:rgba(255,255,255,0.65);
   border:1px solid rgba(255,255,255,0.7);
-  box-shadow:0 12px 28px rgba(0,0,0,0.12);
+  box-shadow:0 10px 22px rgba(0,0,0,0.12);
+
   display:flex;
-  gap:16px;
-  padding:16px;
+  gap:8px;
+  padding:12px;
   align-items:center;
 }
 
@@ -443,82 +438,76 @@ body{
   flex:1;
   display:flex;
   flex-direction:column;
-  align-items:flex-start;
   justify-content:center;
-  gap:6px;
-  padding-left:8px;
+  gap:4px;
+  padding-left:4px;
 }
 
 .age-big{
-  font-size:64px;
-  font-weight:800;
+  font-size:52px;
+  font-weight:900;
   color:rgba(99,26,173,0.92);
   line-height:1;
 }
 
 .age-small{
-  font-size:15px;
-  font-weight:700;
+  font-size:13px;
+  font-weight:900;
   color:rgba(0,0,0,0.55);
 }
 
 .age-tip{
-  font-size:12px;
-  font-weight:700;
-  color:rgba(0,0,0,0.40);
-  margin-top:6px;
+  font-size:11px;
+  font-weight:900;
+  color:rgba(0,0,0,0.38);
+  margin-top:4px;
 }
 
 .age-wheel-right{
-  width:170px;
-  height:290px;
+  width:150px;
+  height:240px;
   position:relative;
   display:flex;
   align-items:center;
   justify-content:center;
 }
 
-/* ✅ Wheel (momentum + snap) */
 .age-wheel{
-  width:170px;
-  height:290px;
-  border-radius:18px;
+  width:150px;
+  height:240px;
+  border-radius:16px;
   background:rgba(255,255,255,0.55);
   border:1px solid rgba(0,0,0,0.08);
   overflow-y:auto;
-  overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
   scroll-snap-type:y mandatory;
   overscroll-behavior:contain;
   touch-action: pan-y;
-  padding:92px 0; /* top/bottom padding to allow center alignment */
+  padding:76px 0;
 }
 
-.age-wheel::-webkit-scrollbar{ width:0px; height:0px; }
-
 .age-item{
-  height:46px;
+  height:42px;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-weight:800;
-  font-size:20px;
+  font-weight:900;
+  font-size:18px;
   color:rgba(0,0,0,0.35);
   scroll-snap-align:center;
 }
 
 .age-item.active{
   color:rgba(99,26,173,0.92);
-  font-size:24px;
+  font-size:22px;
 }
 
-/* highlight center (เหมือน iPhone picker) */
 .age-wheel-highlight{
   position:absolute;
-  left:12px;
-  right:12px;
-  height:46px;
-  border-radius:14px;
+  left:10px;
+  right:10px;
+  height:42px;
+  border-radius:12px;
   border:2px solid rgba(99,26,173,0.28);
   box-shadow:0 8px 18px rgba(99,26,173,0.10);
   pointer-events:none;
@@ -526,15 +515,14 @@ body{
   transform:translateY(-50%);
 }
 
-/* ✅ iPhone 14 sizing tweak */
 @media (max-width: 430px){
-  .age-title{ font-size:16px; width:90%; }
-  .age-wheel-panel{ height:320px; width:92vw; }
-  .age-big{ font-size:56px; }
-  .age-wheel-right{ width:150px; }
-  .age-wheel{ width:150px; }
-  .age-item{ height:44px; }
-  .age-wheel-highlight{ height:44px; }
+  .age-title{ font-size:15px; width:92%; top:10.5%; }
+  .age-wheel-panel{ width:92vw; height:260px; gap:6px; padding:10px; }
+  .age-big{ font-size:48px; }
+  .age-wheel-right{ width:138px; }
+  .age-wheel{ width:138px; height:232px; padding:72px 0; }
+  .age-item{ height:40px; }
+  .age-wheel-highlight{ height:40px; }
 }
 
 /* FRAME 5 */
@@ -553,7 +541,7 @@ body{
   top:12.4%;
   left:50%;
   transform:translateX(-50%);
-  font-weight:700;
+  font-weight:900;
   font-size:32px;
   color:#631AAD;
   white-space:nowrap;
@@ -564,7 +552,7 @@ body{
   top:23.2%;
   left:50%;
   transform:translateX(-50%);
-  font-weight:500;
+  font-weight:700;
   font-size:20px;
   color:rgba(99,26,173,0.75);
   white-space:nowrap;
@@ -588,7 +576,6 @@ body{
   position:relative;
   width:160px;
   text-align:center;
-  cursor:pointer;
   touch-action: manipulation;
 }
 
@@ -616,7 +603,7 @@ body{
 
 .profile-name{
   margin-top:8px;
-  font-weight:600;
+  font-weight:800;
   font-size:20px;
   color:rgba(99,26,173,0.75);
   word-break:break-word;
@@ -630,7 +617,6 @@ body{
   height:100%;
   transform:translate(-50%, -50%);
   display:none;
-  cursor:pointer;
   border-radius:999px;
   overflow:hidden;
 }
@@ -666,7 +652,6 @@ body{
   border-radius:999px;
   border:4px solid #fff;
   overflow:hidden;
-  cursor:pointer;
   z-index:50;
   pointer-events:auto;
   touch-action: manipulation;
@@ -712,11 +697,8 @@ body{
   position:absolute;
   top:53px;
   font-size:15px;
-  font-weight:500;
-  cursor:pointer;
+  font-weight:700;
   z-index:2;
-  -webkit-tap-highlight-color:rgba(0,0,0,0);
-  outline:none;
   touch-action: manipulation;
 }
 
@@ -753,7 +735,6 @@ body{
   flex:0 0 340px;
   height:210px;
   position:relative;
-  cursor:pointer;
   touch-action: manipulation;
 }
 .frame6-card img{
@@ -770,7 +751,6 @@ body{
   height:23.71px;
   right:30px;
   bottom:25px;
-  cursor:pointer;
   touch-action: manipulation;
 }
 .frame6-card-menu img{ width:100%; height:100%; object-fit:contain; display:block; }
@@ -821,23 +801,21 @@ body{
   width:40px;
   height:40px;
   opacity:0.65;
-  cursor:pointer;
-  -webkit-tap-highlight-color:rgba(0,0,0,0);
   touch-action: manipulation;
 }
 .chat-back img{ width:100%; height:100%; object-fit:contain; display:block; }
 
+/* ✅ right header (751–912 zone) */
 .history-label{
   position:absolute;
-  left:769px;
-  top:83px;
-  font-weight:600;
+  left:751px;
+  top:78px;
+  font-weight:900;
   font-size:12px;
-  color:rgba(0,0,0,0.5);
+  color:rgba(0,0,0,0.55);
   pointer-events:none;
 }
 
-/* ✅ IMPORTANT: smooth scroll in iOS */
 .chat-history{
   position:absolute;
   left:50px;
@@ -870,9 +848,9 @@ body{
   border:1px solid rgba(231,231,231,1);
   box-shadow:2px 3px 4px rgba(0,0,0,0.25);
   border-radius:12px;
-  font-weight:600;
+  font-weight:700;
   font-size:15px;
-  color:rgba(0,0,0,0.5);
+  color:rgba(0,0,0,0.55);
   white-space:pre-wrap;
   word-break:break-word;
 }
@@ -897,7 +875,7 @@ body{
   position:absolute;
   left:229px;
   top:365px;
-  font-weight:600;
+  font-weight:800;
   font-size:20px;
   color:rgba(0,0,0,0.5);
   pointer-events:none;
@@ -920,9 +898,9 @@ body{
   border:none;
   outline:none;
   background:transparent;
-  font-weight:600;
+  font-weight:800;
   font-size:15px;
-  color:rgba(0,0,0,0.5);
+  color:rgba(0,0,0,0.55);
   padding:6px 8px;
   touch-action: manipulation;
 }
@@ -931,9 +909,7 @@ body{
   position:absolute;
   width:40px;
   height:40px;
-  cursor:pointer;
   pointer-events:auto;
-  -webkit-tap-highlight-color:rgba(0,0,0,0);
   touch-action: manipulation;
 }
 
@@ -967,7 +943,7 @@ body{
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  font-weight:600;
+  font-weight:700;
   color:rgba(0,0,0,0.55);
   pointer-events:none;
 }
@@ -975,16 +951,13 @@ body{
 .voice-time{ font-size:12px; line-height:12px; }
 .voice-wave{ font-size:12px; line-height:14px; letter-spacing:1px; }
 
-/* =========================================================
-   ✅ NEW: Threads + Mic language UI (Frame 7)
-   ========================================================= */
+/* ✅ Threads controls */
 .chat-threads-controls{
   position:absolute;
-  right:18px;
-  top:78px;
+  right:6px;
+  top:72px;
   display:flex;
-  gap:8px;
-  z-index:20;
+  z-index:40;
   pointer-events:auto;
 }
 
@@ -994,23 +967,22 @@ body{
   border-radius:10px;
   border:1px solid rgba(0,0,0,0.12);
   background:rgba(255,255,255,0.75);
-  font-weight:700;
+  font-weight:900;
   font-size:12px;
   color:rgba(0,0,0,0.65);
-  cursor:pointer;
 }
 
 .chat-threads-panel{
   position:absolute;
-  right:18px;
-  top:112px;
-  width:220px;
-  height:240px;
+  left:751px;
+  top:105px;
+  width:155px;
+  height:220px;
   border-radius:16px;
   background:rgba(255,255,255,0.86);
   border:1px solid rgba(0,0,0,0.10);
   box-shadow:0 14px 28px rgba(0,0,0,0.16);
-  display:none;
+  display:flex;
   flex-direction:column;
   overflow:hidden;
   z-index:30;
@@ -1023,21 +995,15 @@ body{
   height:38px;
   display:flex;
   align-items:center;
-  justify-content:space-between;
+  justify-content:flex-start;
   padding:0 10px;
   border-bottom:1px solid rgba(0,0,0,0.08);
 }
+
 .threads-title{
-  font-weight:800;
+  font-weight:900;
   font-size:12px;
   color:rgba(0,0,0,0.55);
-}
-.threads-close{
-  border:none;
-  background:transparent;
-  cursor:pointer;
-  font-weight:900;
-  color:rgba(0,0,0,0.45);
 }
 
 .threads-list{
@@ -1052,24 +1018,25 @@ body{
 
 .thread-item{
   width:100%;
+  min-height:40px;
   border-radius:12px;
   border:1px solid rgba(0,0,0,0.08);
-  background:rgba(255,255,255,0.8);
-  padding:8px 8px;
-  cursor:pointer;
+  background:rgba(255,255,255,0.82);
+  padding:9px 8px;
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:8px;
+  touch-action: manipulation;
 }
 
 .thread-item.active{
-  border-color:rgba(99,26,173,0.35);
-  box-shadow:0 6px 14px rgba(99,26,173,0.12);
+  border-color:rgba(99,26,173,0.38);
+  box-shadow:0 8px 16px rgba(99,26,173,0.14);
 }
 
 .thread-title{
-  font-weight:800;
+  font-weight:900;
   font-size:12px;
   color:rgba(0,0,0,0.6);
   overflow:hidden;
@@ -1078,14 +1045,7 @@ body{
   flex:1;
 }
 
-.thread-del{
-  border:none;
-  background:transparent;
-  cursor:pointer;
-  font-size:14px;
-  opacity:0.55;
-}
-
+/* Mic language */
 .mic-lang{
   position:absolute;
   left:485px;
@@ -1107,8 +1067,8 @@ body{
   background:rgba(255,255,255,0.75);
   font-weight:900;
   font-size:12px;
-  cursor:pointer;
   color:rgba(0,0,0,0.65);
+  touch-action: manipulation;
 }
 
 .mic-lang-menu{
@@ -1128,16 +1088,11 @@ body{
 
 .mic-lang-item{
   padding:10px 10px;
-  font-weight:800;
+  font-weight:900;
   font-size:12px;
-  cursor:pointer;
   color:rgba(0,0,0,0.65);
+  touch-action: manipulation;
 }
 .mic-lang-item:hover{
   background:rgba(99,26,173,0.08);
-}
-
-/* keep tap highlight off */
-.mini-btn, .mic-lang-btn, .threads-close, .thread-item, .thread-del{
-  -webkit-tap-highlight-color:rgba(0,0,0,0);
 }
