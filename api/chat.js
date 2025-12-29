@@ -1,9 +1,14 @@
 const OpenAI = require("openai");
 
-const client = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY,
-  baseURL: "https://api.groq.com/openai/v1",
-});
+const GROQ_KEY = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || "";
+
+let client = null;
+if (GROQ_KEY) {
+  client = new OpenAI({
+    apiKey: GROQ_KEY,
+    baseURL: "https://api.groq.com/openai/v1",
+  });
+}
 
 function getAgeBand(profile) {
   const ageNumber = Number(profile?.ageNumber);
@@ -164,6 +169,13 @@ module.exports = async function handler(req, res) {
     const { type, message, history = [], profile = null } = req.body || {};
     const userMsg = String(message || "").slice(0, 6000);
 
+    // ✅ ถ้าไม่มี key -> อย่าทำให้เป็น 500 (จะดูเหมือนเว็บพังตลอด)
+    if (!client) {
+      return res.status(200).json({
+        reply: "AI is not configured yet (missing GROQ_API_KEY). Please set it in your deployment environment."
+      });
+    }
+
     const cleanHistory = Array.isArray(history)
       ? history
           .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
@@ -186,9 +198,9 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ reply });
   } catch (err) {
     console.error("CHAT_API_ERROR:", err);
-    return res.status(500).json({
-      error: "AI error",
-      detail: err?.message || String(err),
+    // ✅ อย่าส่ง 500 ให้หน้าเว็บดู “เกิดปัญหาตลอด”
+    return res.status(200).json({
+      reply: "AI is temporarily unavailable. Please try again in a moment."
     });
   }
 };
