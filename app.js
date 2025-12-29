@@ -54,7 +54,6 @@ function preloadImage(url) {
     img.decoding = "async";
 
     img.onload = async () => {
-      // ✅ iOS Safari can crash when calling img.decode() on many large images
       if (!isIOS()) {
         try { if (img.decode) await img.decode(); } catch (_) {}
       }
@@ -97,7 +96,6 @@ function domImgUrls() {
 }
 
 async function preloadAssets() {
-  // ✅ Stage preload: load only critical first, then lazy-load the rest
   const criticalImgs = uniq([
     "Pic4.png","Pic3.png","Pic1.png","Pic2.png",
     "Pic5.png","Pic12.png","Pic15.png","Pic17.png","Pic18.png",
@@ -110,8 +108,6 @@ async function preloadAssets() {
 
   const allImgs = uniq([...cssBgUrls(), ...domImgUrls()]);
   const restImgs = allImgs.filter(u => !criticalImgs.includes(u));
-
-  // ✅ iPhone: DON'T fetch video during preload (can spike memory)
   const vids = isIOS() ? [] : ["Face.webm"];
 
   const tasks = [
@@ -132,7 +128,6 @@ async function preloadAssets() {
 
   updateUI("Starting…");
 
-  // ✅ Concurrency limiter (prevents iOS memory spike)
   const CONCURRENCY = isIOS() ? 2 : 6;
   let i = 0;
 
@@ -252,7 +247,6 @@ const chatBackBtn = document.getElementById('chatBackBtn');
 const chatAdd = document.getElementById('chatAdd');
 const chatMic = document.getElementById('chatMic');
 const chatSend = document.getElementById('chatSend');
-const chatAddImg = document.getElementById('chatAddImg');
 const chatMicImg = document.getElementById('chatMicImg');
 const chatSendImg = document.getElementById('chatSendImg');
 
@@ -262,17 +256,14 @@ const voiceWave = document.getElementById('voiceWave');
 
 const filePicker = document.getElementById('filePicker');
 
-// mic language menu
 const micLangWrap = document.getElementById('micLangWrap');
 const micLangBtn = document.getElementById('micLangBtn');
 const micLangMenu = document.getElementById('micLangMenu');
 
-// Threads UI
 const newChatBtn = document.getElementById('newChatBtn');
 const threadsList = document.getElementById('threadsList');
 const threadHeader = document.getElementById('threadHeader');
 
-// Delete modal
 const deleteModal = document.getElementById('deleteModal');
 const deleteCancelBtn = document.getElementById('deleteCancelBtn');
 const deleteYesBtn = document.getElementById('deleteYesBtn');
@@ -294,7 +285,7 @@ let profiles = lsGet(LS_PROFILES_KEY, []);
 let chatDBByProfile = lsGet(LS_CHATS_KEY, {});
 const savedState = lsGet(LS_STATE_KEY, { currentProfileId: null, micLang: "en-US" });
 
-let deleteModeId = null;          // overlay active profile id
+let deleteModeId = null;
 let currentProfile = null;
 
 let micLang = (savedState?.micLang === "th-TH") ? "th-TH" : "en-US";
@@ -427,7 +418,7 @@ function renderThreadsList() {
 if (currentProfile?.id) ensureChatBucket(currentProfile.id);
 
 // =========================================================
-// ✅ AGE BAND (NEW)
+// ✅ AGE BAND
 // =========================================================
 function ageBandFromNumber(n) {
   const a = Math.max(0, Math.min(140, Math.round(Number(n) || 0)));
@@ -664,7 +655,7 @@ function handleUserInteraction(e) {
 })();
 
 // =========================================================
-// ✅ TAP BINDER (strong on iPhone)
+// ✅ TAP BINDER
 // =========================================================
 function bindTap(el, fn) {
   if (!el) return;
@@ -844,7 +835,7 @@ bindTap(frame4Back, () => { goToFrame3Keep(); startIdleTimer(); });
 bindTap(frame4Next, () => { createProfileFromAgeNumber(); startIdleTimer(); });
 
 // =========================================================
-// ✅ AGE WHEEL SYSTEM (fix alignment)
+// ✅ AGE WHEEL SYSTEM
 // =========================================================
 let ageWheelReady = false;
 let ageNumber = 18;
@@ -958,7 +949,7 @@ function createProfileFromAgeNumber() {
 }
 
 // =========================================================
-// ✅ FRAME 5 (Profiles) - FIX tap + long press delete flow
+// ✅ FRAME 5 (Profiles) - delete flow
 // =========================================================
 let suppressProfileClickUntil = 0;
 let pendingDeleteProfileId = null;
@@ -1026,7 +1017,6 @@ function renderProfiles() {
     img.alt = profile.name;
     avatarWrap.appendChild(img);
 
-    // ✅ overlay image = Pic16
     const overlay = document.createElement('div');
     overlay.className = 'profile-delete-overlay';
     overlay.innerHTML = '<img src="Pic16.png" alt="Delete mode">';
@@ -1069,7 +1059,7 @@ function renderProfiles() {
     card.addEventListener('touchend', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (isProfileClickSuppressed()) return; // ✅ block release-tap after long press
+      if (isProfileClickSuppressed()) return;
       onPickOrAskDelete(e);
     }, { passive: false });
 
@@ -1102,7 +1092,6 @@ function renderProfiles() {
   });
 }
 
-// ✅ long-press: show/hide Pic16 immediately (while holding)
 function attachLongPressDeleteToggle(card, id) {
   let timer = null;
   let fired = false;
@@ -1276,13 +1265,62 @@ if (homeCardsWrapper && homeCardsTrack) {
   homeCardsWrapper.addEventListener('touchcancel', endHomeDrag, { passive: true });
 }
 
-document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
-  bindTap(card, (e) => {
-    if (e?.target?.closest?.('.frame6-card-menu')) return;
-    const type = card.getAttribute('data-card');
-    goToFrame7(type);
+/* =========================================================
+   ✅ FIX Frame6: “tap-only” open card (ไม่ยิงตอน touchstart)
+   - ถ้าลากเกิน threshold -> ถือว่า swipe, ไม่เปิด
+   - ไม่ block event เพื่อให้ wrapper รับ swipe ได้
+   ========================================================= */
+function bindCardTapOnly(cardEl, onTap) {
+  if (!cardEl) return;
+
+  const TH = 12; // px threshold
+  let sx = 0, sy = 0;
+  let moved = false;
+
+  cardEl.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    sx = t.clientX;
+    sy = t.clientY;
+    moved = false;
+  }, { passive: true });
+
+  cardEl.addEventListener("touchmove", (e) => {
+    const t = e.touches[0];
+    const dx = t.clientX - sx;
+    const dy = t.clientY - sy;
+    if (Math.abs(dx) > TH || Math.abs(dy) > TH) moved = true;
+  }, { passive: true });
+
+  cardEl.addEventListener("touchend", (e) => {
+    if (moved) return; // ✅ swipe -> ไม่เปิด
+    const isMenu = e.target?.closest?.(".frame6-card-menu");
+    if (isMenu) return;
+    onTap(e);
+  }, { passive: true });
+
+  // desktop click
+  cardEl.addEventListener("click", (e) => {
+    e.preventDefault();
+    const isMenu = e.target?.closest?.(".frame6-card-menu");
+    if (isMenu) return;
+    onTap(e);
   });
-});
+}
+
+function attachFrame6CardHandlers() {
+  document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
+    // ✅ กัน bind ซ้ำ
+    if (card.dataset.bound === "1") return;
+    card.dataset.bound = "1";
+
+    bindCardTapOnly(card, () => {
+      const type = card.getAttribute('data-card');
+      goToFrame7(type);
+    });
+  });
+}
+// เรียกหนึ่งครั้งตอนโหลด
+attachFrame6CardHandlers();
 
 // =========================================================
 // ✅ FRAME 7 Chatbot
@@ -1433,7 +1471,7 @@ function buildHistoryForServer(type, maxTurns = 14) {
     if (!txt) continue;
 
     if (txt === '…') continue;
-    if (txt.startsWith('⚠️ Server/AI error:')) continue;
+    if (txt.startsWith('⚠️')) continue; // ✅ ไม่เอาข้อความ error ไปป้อนซ้ำ
 
     if (m.role === 'user') msgs.push({ role: 'user', content: txt });
     if (m.role === 'bot') msgs.push({ role: 'assistant', content: txt });
@@ -1568,13 +1606,13 @@ async function handleSend(text, attachments = null) {
 
     scrollChatToBottom(true);
     scheduleSaveAll();
-  } catch (err) {
+  } catch (_) {
+    // ✅ ไม่โชว์ “เว็บพัง” ยาวๆ อีกแล้ว — ให้ตอบ fallback แบบเนียนๆ
     const reply = await mockAI(activeChatType, msg);
-    const failText = `⚠️ Server/AI error: ${err?.message || ''}\n\n(Fallback) ${reply}`;
+    list[thinkingIndex].text = reply;
 
-    list[thinkingIndex].text = failText;
     const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
-    if (lastBubble) lastBubble.textContent = failText;
+    if (lastBubble) lastBubble.textContent = reply;
 
     scrollChatToBottom(true);
     scheduleSaveAll();
@@ -1701,7 +1739,8 @@ function stopVoiceIfAny() {
 
 function startListening() {
   if (!hasSpeechAPI()) {
-    alert("Speech Recognition not supported on this browser (iPhone Safari often not supported).");
+    // ✅ ไม่ใช้ alert แล้ว (ดูเหมือนเว็บ error) -> ส่งเป็นข้อความแทน
+    pushMessage(activeChatType, 'bot', "Mic is not supported on this browser.");
     return;
   }
 
