@@ -32,7 +32,7 @@ function scheduleSaveAll() {
 }
 
 // =========================================================
-// ✅ PRELOAD SYSTEM (real preload)
+// ✅ PRELOAD SYSTEM (iPhone-safe staged preload)
 // =========================================================
 const bootLoader = document.getElementById('bootLoader');
 const bootBarFill = document.getElementById('bootBarFill');
@@ -43,14 +43,24 @@ let bootReady = false;
 
 function uniq(arr) { return Array.from(new Set(arr.filter(Boolean))); }
 
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 function preloadImage(url) {
   return new Promise((resolve) => {
     const img = new Image();
     img.decoding = "async";
+
     img.onload = async () => {
-      try { if (img.decode) await img.decode(); } catch (_) {}
+      // ✅ iOS Safari can crash when calling img.decode() on many large images
+      if (!isIOS()) {
+        try { if (img.decode) await img.decode(); } catch (_) {}
+      }
       resolve({ url, ok: true });
     };
+
     img.onerror = () => resolve({ url, ok: false });
     img.src = url;
   });
@@ -87,11 +97,26 @@ function domImgUrls() {
 }
 
 async function preloadAssets() {
-  const imgs = uniq([...cssBgUrls(), ...domImgUrls()]);
-  const vids = ["Face.webm"];
+  // ✅ Stage preload: load only critical first, then lazy-load the rest
+  const criticalImgs = uniq([
+    "Pic4.png","Pic3.png","Pic1.png","Pic2.png",
+    "Pic5.png","Pic12.png","Pic15.png","Pic17.png","Pic18.png",
+    "Pic6.png","Pic7.png","Pic9.png",
+    "Pic13.png",
+    "Profile1.png",
+    "ChatBot_GoBack.png","ChatBot_Add.png","ChatBot_Mic.png","ChatBot_Send.png",
+    "Pic16.png",
+  ]);
+
+  const allImgs = uniq([...cssBgUrls(), ...domImgUrls()]);
+  const restImgs = allImgs.filter(u => !criticalImgs.includes(u));
+
+  // ✅ iPhone: DON'T fetch video during preload (can spike memory)
+  const vids = isIOS() ? [] : ["Face.webm"];
 
   const tasks = [
-    ...imgs.map(u => ({ type: "img", url: u })),
+    ...criticalImgs.map(u => ({ type: "img", url: u })),
+    ...restImgs.map(u => ({ type: "img", url: u })),
     ...vids.map(u => ({ type: "vid", url: u })),
   ];
 
@@ -107,14 +132,24 @@ async function preloadAssets() {
 
   updateUI("Starting…");
 
-  for (const t of tasks) {
-    try {
-      if (t.type === "img") await preloadImage(t.url);
-      else await preloadVideo(t.url);
-    } catch (_) {}
-    done++;
-    updateUI(`Loading: ${t.url}`);
+  // ✅ Concurrency limiter (prevents iOS memory spike)
+  const CONCURRENCY = isIOS() ? 2 : 6;
+  let i = 0;
+
+  async function worker() {
+    while (i < tasks.length) {
+      const t = tasks[i++];
+      try {
+        if (t.type === "img") await preloadImage(t.url);
+        else await preloadVideo(t.url);
+      } catch (_) {}
+      done++;
+      updateUI(`Loading: ${t.url}`);
+    }
   }
+
+  const workers = Array.from({ length: CONCURRENCY }, () => worker());
+  await Promise.all(workers);
 
   try {
     if (document.fonts && document.fonts.ready) {
@@ -354,6 +389,8 @@ function setActiveThread(type, threadId) {
   renderChatHistory(type);
   updateThreadHeader();
 }
+
+let activeChatType = "healthcare";
 
 function updateThreadHeader() {
   if (!threadHeader) return;
@@ -666,8 +703,9 @@ function setIndex(idx, withTransition = true) {
   updateDots();
 }
 
+// ✅ Frame1 -> Frame2 ONLY
 function showFrame2FromWelcome() {
-  goToFrame2(); // ✅ Frame1 -> Frame2 only
+  goToFrame2();
   startIdleTimer();
 }
 
@@ -856,7 +894,6 @@ function scrollAgeWheelTo(n) {
   const a = Math.max(0, Math.min(140, Math.round(Number(n) || 0)));
   const itemH = getWheelItemHeight();
 
-  // ✅ snap using exact item height (no magic padding mismatch)
   ageWheel.scrollTo({ top: a * itemH, behavior: "smooth" });
 
   setTimeout(() => {
@@ -964,7 +1001,6 @@ if (deleteYesBtn) bindTap(deleteYesBtn, () => {
 });
 
 if (deleteModal) {
-  // tap outside card => cancel
   deleteModal.addEventListener("click", (e) => {
     if (e.target === deleteModal) hideDeleteModal();
   });
@@ -990,10 +1026,10 @@ function renderProfiles() {
     img.alt = profile.name;
     avatarWrap.appendChild(img);
 
-    // ✅ overlay image = Pic6 (as requested)
+    // ✅ overlay image = Pic16
     const overlay = document.createElement('div');
     overlay.className = 'profile-delete-overlay';
-    overlay.innerHTML = '<img src="Pic6.png" alt="Delete mode">';
+    overlay.innerHTML = '<img src="Pic16.png" alt="Delete mode">';
     avatarWrap.appendChild(overlay);
 
     const nameEl = document.createElement('div');
@@ -1005,11 +1041,9 @@ function renderProfiles() {
 
     attachLongPressDeleteToggle(card, profile.id);
 
-    // ✅ click/tap behaviour
     const onPickOrAskDelete = (e) => {
       if (isProfileClickSuppressed()) return;
 
-      // if delete overlay is ON for this card -> ask confirm, NOT delete immediately
       if (deleteModeId === profile.id) {
         showDeleteModal(profile.id);
         return;
@@ -1029,14 +1063,13 @@ function renderProfiles() {
     });
 
     card.addEventListener('touchstart', (e) => {
-      // IMPORTANT: don't preventDefault here (so long press detection works clean)
-      // but still stopPropagation to avoid video overlay taps
       e.stopPropagation();
     }, { passive: true });
 
     card.addEventListener('touchend', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (isProfileClickSuppressed()) return; // ✅ block release-tap after long press
       onPickOrAskDelete(e);
     }, { passive: false });
 
@@ -1060,7 +1093,6 @@ function renderProfiles() {
 
   profilesList.appendChild(addCard);
 
-  // refresh overlay state
   const cards = profilesList.querySelectorAll('.profile-card');
   cards.forEach(c => {
     const id = c.dataset.id;
@@ -1070,30 +1102,33 @@ function renderProfiles() {
   });
 }
 
+// ✅ long-press: show/hide Pic16 immediately (while holding)
 function attachLongPressDeleteToggle(card, id) {
   let timer = null;
   let fired = false;
 
-  const start = (ev) => {
+  const THRESHOLD_MS = 520;
+
+  const start = () => {
     fired = false;
     clearTimeout(timer);
+
     timer = setTimeout(() => {
       fired = true;
-      suppressProfileClicks(500); // ✅ prevent release tap from triggering click
 
-      // toggle delete overlay only for this card
       if (deleteModeId === id) deleteModeId = null;
       else deleteModeId = id;
 
-      // IMPORTANT: long-press must NOT open modal
+      suppressProfileClicks(650);
       renderProfiles();
-    }, 550);
+    }, THRESHOLD_MS);
   };
 
   const cancel = () => {
     clearTimeout(timer);
     timer = null;
-    if (fired) suppressProfileClicks(350);
+
+    if (fired) suppressProfileClicks(450);
   };
 
   card.addEventListener('touchstart', start, { passive: true });
@@ -1258,8 +1293,6 @@ const cardToTitle = {
   education: "Education Chatbot",
   community: "Community Chatbot",
 };
-
-let activeChatType = "healthcare";
 
 function updateChatScale() {
   if (!chatStage) return;
@@ -1441,15 +1474,73 @@ async function callServerAI(type, userText) {
   }
 }
 
+// ✅ fallback responds by age (front-end only)
+function frontAgeStyle(profile) {
+  const key = profile?.ageKey || "unknown";
+  const styles = {
+    Baby: { short: true },
+    Child: { short: true },
+    YoungChild: { short: true },
+    PreTeen: { short: false },
+    Teen: { short: false },
+    YoungAdult: { short: false },
+    Adult: { short: false },
+    MidAdult: { short: false },
+    OlderAdult: { short: false },
+    Senior: { short: false },
+    Elderly: { short: false },
+    VeryElderly: { short: false },
+    unknown: { short: false },
+  };
+  return styles[key] || styles.unknown;
+}
+
 async function mockAI(type, userText) {
   const t = (userText || '').toLowerCase();
   await new Promise(r => setTimeout(r, 200));
 
-  if (type === 'community') return "I’m here with you 😊 Tell me what’s on your mind.";
-  if (type === 'healthcare') return t.includes('pain') ? "Rest, hydrate, monitor symptoms, and seek care if severe." : "HealthCare mode ✅ Tell me your symptoms.";
-  if (type === 'sports') return "Sports&Fitness ✅ Tell me your goal and experience.";
-  if (type === 'education') return "Education ✅ Tell me the subject and what you don’t understand.";
-  return "Hi! How can I help?";
+  const style = frontAgeStyle(currentProfile);
+  const name = currentProfile?.name || "there";
+  const S = (kidText, normalText) => style.short ? kidText : normalText;
+
+  if (type === 'community') {
+    return S(
+      `Hi ${name} 😊 Tell me one thing that happened today.`,
+      `I’m here with you, ${name} 😊 What’s on your mind right now?`
+    );
+  }
+
+  if (type === 'healthcare') {
+    if (t.includes('pain') || t.includes('hurt') || t.includes('เจ็บ') || t.includes('ปวด')) {
+      return S(
+        `I’m sorry 😟 Tell an adult. Rest and drink water.`,
+        `Rest, hydrate, and monitor symptoms. If pain is severe or unusual, seek medical care.`
+      );
+    }
+    return S(
+      `Tell me: where does it hurt?`,
+      `HealthCare mode ✅ Tell me your symptoms, how long it’s been, and how severe it is (1–10).`
+    );
+  }
+
+  if (type === 'sports') {
+    return S(
+      `What sport do you like?`,
+      `Sports&Fitness ✅ Tell me your goal, experience, and any injuries.`
+    );
+  }
+
+  if (type === 'education') {
+    return S(
+      `What subject? Math or English?`,
+      `Education ✅ Tell me the subject and what part you don’t understand. I’ll explain step-by-step.`
+    );
+  }
+
+  return S(
+    `Hi ${name}! What do you need help with?`,
+    `Hi ${name}! How can I help?`
+  );
 }
 
 async function handleSend(text, attachments = null) {
