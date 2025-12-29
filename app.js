@@ -184,7 +184,11 @@ const profileOptions = document.querySelectorAll('.frame-avatar .profile-option'
 
 const frame4Back = document.getElementById('frame4Back');
 const frame4Next = document.getElementById('frame4Next');
-const ageCards = document.querySelectorAll('.age-card');
+
+// ✅ NEW wheel elements
+const ageWheel = document.getElementById('ageWheel');
+const ageNumberBig = document.getElementById('ageNumberBig');
+const ageBandLabel = document.getElementById('ageBandLabel');
 
 const profilesList = document.getElementById('profilesList');
 
@@ -219,7 +223,7 @@ const voiceWave = document.getElementById('voiceWave');
 
 const filePicker = document.getElementById('filePicker');
 
-// ✅ Mic language UI (ถ้าคุณยังไม่ได้ใส่ปุ่มใน HTML ก็ไม่เป็นไร มันจะ skip เอง)
+// ✅ Mic language UI
 const micLangBtn = document.getElementById('micLangBtn');
 
 // =========================================================
@@ -284,7 +288,7 @@ function ensureChatBucket(profileId) {
 }
 if (currentProfile?.id) ensureChatBucket(currentProfile.id);
 
-// age labels
+// age labels (legacy)
 const ageMap = {
   Age1: 'Early Kids Ages 5–8',
   Age2: 'Kids Ages 9–12',
@@ -292,6 +296,15 @@ const ageMap = {
   Age4: 'Adults Ages 18–59',
   Age5: 'Older Adults Ages 60+'
 };
+
+function ageBandFromNumber(n) {
+  const a = Math.max(0, Math.min(140, Math.round(Number(n) || 0)));
+  if (a <= 8)  return { ageKey: "Age1", ageText: "Early Kids Ages 5–8" };
+  if (a <= 12) return { ageKey: "Age2", ageText: "Kids Ages 9–12" };
+  if (a <= 17) return { ageKey: "Age3", ageText: "Teens Ages 13–17" };
+  if (a <= 59) return { ageKey: "Age4", ageText: "Adults Ages 18–59" };
+  return { ageKey: "Age5", ageText: "Older Adults Ages 60+" };
+}
 
 const tabConfig = {
   home: { left: 174, width: 76 },
@@ -316,6 +329,89 @@ let homeMaxTranslate = 0;
 let homeLastX = 0;
 let homeLastTime = 0;
 let homeVelocity = 0;
+
+// =========================================================
+// ✅ AGE WHEEL (iPhone-like)
+// =========================================================
+let selectedAgeNumber = 18;
+let _ageScrollTimer = null;
+
+function setAgeUI(n) {
+  selectedAgeNumber = Math.max(0, Math.min(140, Math.round(Number(n) || 0)));
+  if (ageNumberBig) ageNumberBig.textContent = String(selectedAgeNumber);
+
+  const band = ageBandFromNumber(selectedAgeNumber);
+  if (ageBandLabel) ageBandLabel.textContent = band.ageText;
+
+  if (ageWheel) {
+    const items = ageWheel.querySelectorAll('.age-item');
+    items.forEach((el) => {
+      const v = Number(el.getAttribute('data-age'));
+      el.classList.toggle('active', v === selectedAgeNumber);
+    });
+  }
+}
+
+function snapWheelToAge(age, smooth = true) {
+  if (!ageWheel) return;
+  const item = ageWheel.querySelector(`.age-item[data-age="${age}"]`);
+  if (!item) return;
+
+  const top = item.offsetTop - (ageWheel.clientHeight / 2) + (item.clientHeight / 2);
+  ageWheel.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+  setAgeUI(age);
+}
+
+function snapToNearestAge(smooth = true) {
+  if (!ageWheel) return;
+  const centerY = ageWheel.scrollTop + ageWheel.clientHeight / 2;
+  const items = ageWheel.querySelectorAll('.age-item');
+  let bestAge = selectedAgeNumber;
+  let bestDist = Infinity;
+
+  items.forEach((el) => {
+    const mid = el.offsetTop + el.clientHeight / 2;
+    const d = Math.abs(mid - centerY);
+    if (d < bestDist) {
+      bestDist = d;
+      bestAge = Number(el.getAttribute('data-age'));
+    }
+  });
+
+  snapWheelToAge(bestAge, smooth);
+}
+
+function buildAgeWheel() {
+  if (!ageWheel) return;
+  ageWheel.innerHTML = '';
+
+  for (let i = 0; i <= 140; i++) {
+    const item = document.createElement('div');
+    item.className = 'age-item';
+    item.textContent = String(i);
+    item.setAttribute('data-age', String(i));
+    item.setAttribute('role', 'option');
+
+    item.addEventListener('click', () => {
+      snapWheelToAge(i, true);
+      startIdleTimer();
+    });
+
+    ageWheel.appendChild(item);
+  }
+
+  requestAnimationFrame(() => {
+    snapWheelToAge(selectedAgeNumber, false);
+    setAgeUI(selectedAgeNumber);
+  });
+
+  ageWheel.addEventListener('scroll', () => {
+    clearTimeout(_ageScrollTimer);
+    _ageScrollTimer = setTimeout(() => {
+      snapToNearestAge(true);
+    }, 90);
+  }, { passive: true });
+}
 
 // ---- VIDEO / IDLE STATE ----
 let startupMode = true;
@@ -381,6 +477,10 @@ function goToFrame4Age() {
   if (frame4) frame4.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic15.png")';
   lastActiveFrame = 'frame4';
+
+  // build wheel once
+  if (ageWheel && !ageWheel.hasChildNodes()) buildAgeWheel();
+  requestAnimationFrame(() => snapWheelToAge(selectedAgeNumber, false));
 }
 
 function goToFrame5Accounts() {
@@ -485,18 +585,17 @@ function focusChatInput() {
 function showVideoOverlay() {
   if (!frameVideo) return;
   frameVideo.style.display = 'flex';
-  frameVideo.style.pointerEvents = 'auto';   // ✅
+  frameVideo.style.pointerEvents = 'auto';
   isVideoVisible = true;
 }
 
 function hideVideoOverlay() {
   if (!frameVideo) return;
   frameVideo.style.display = 'none';
-  frameVideo.style.pointerEvents = 'none';  // ✅ กัน overlay ทับจอ iPhone
+  frameVideo.style.pointerEvents = 'none';
   isVideoVisible = false;
 }
 
-// ✅ กันตั้งแต่เริ่ม: เผื่อ HTML ตั้ง display:none แต่ยังทับด้วย pointer-events
 if (frameVideo) frameVideo.style.pointerEvents = 'none';
 if (bootLoader) bootLoader.style.pointerEvents = 'auto';
 
@@ -528,7 +627,7 @@ function handleUserInteraction(e) {
   if (e && e.target) {
     const block = e.target.closest(
       '.frame6-profile, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
-      '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang'
+      '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang, .age-wheel'
     );
     if (block) return;
   }
@@ -539,7 +638,10 @@ function handleUserInteraction(e) {
     if (startupMode) {
       startupMode = false;
       clearTimeout(startupTimer);
-      goToFrame1();
+
+      // ✅ ถ้ามี account แล้ว ข้ามไป Frame5 (เลือกโปรไฟล์) หรือจะไป Frame6 ก็ได้
+      if (profiles.length > 0) goToFrame5Accounts();
+      else goToFrame1();
     } else {
       restoreLastFrame();
     }
@@ -561,12 +663,14 @@ function handleUserInteraction(e) {
       if (startupMode) {
         startupMode = false;
         hideVideoOverlay();
-        goToFrame1();
+
+        if (profiles.length > 0) goToFrame5Accounts();
+        else goToFrame1();
+
         startIdleTimer();
       }
     }, 20000);
 
-    // ✅ iPhone: ใช้ touchend ด้วยให้แน่น
     ['touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
       document.addEventListener(evt, handleUserInteraction, { passive: true });
     });
@@ -602,28 +706,50 @@ function setIndex(idx, withTransition = true) {
   updateDots();
 }
 
-// ✅ iPhone: add touchend to option cards
-function showFrame2FromWelcome() { goToFrame2(); startIdleTimer(); }
+// ✅ NEW: Frame1 option flow (มี account -> ไป Frame6 เลย)
+function onWelcomeOptionClick() {
+  startIdleTimer();
+
+  if (profiles.length > 0) {
+    // เลือก currentProfile ให้พร้อม
+    if (!currentProfile) currentProfile = profiles[0];
+    goToFrame6();
+  } else {
+    goToFrame2();
+  }
+}
+
 if (option1) {
-  option1.addEventListener('click', showFrame2FromWelcome);
-  option1.addEventListener('touchend', showFrame2FromWelcome, { passive: true });
+  option1.addEventListener('click', onWelcomeOptionClick);
+  option1.addEventListener('touchend', onWelcomeOptionClick, { passive: true });
 }
 if (option2) {
-  option2.addEventListener('click', showFrame2FromWelcome);
-  option2.addEventListener('touchend', showFrame2FromWelcome, { passive: true });
+  option2.addEventListener('click', onWelcomeOptionClick);
+  option2.addEventListener('touchend', onWelcomeOptionClick, { passive: true });
 }
 
 if (frame2Close) {
-  frame2Close.addEventListener('click', () => { goToFrame3New(); startIdleTimer(); });
-  frame2Close.addEventListener('touchend', () => { goToFrame3New(); startIdleTimer(); }, { passive: true });
+  const toNextFromFrame2Close = () => {
+    if (profiles.length > 0) goToFrame5Accounts();
+    else goToFrame3New();
+    startIdleTimer();
+  };
+  frame2Close.addEventListener('click', toNextFromFrame2Close);
+  frame2Close.addEventListener('touchend', toNextFromFrame2Close, { passive: true });
 }
 
 function goNext() {
-  if (currentIndex < totalSlides - 1) setIndex(currentIndex + 1, true);
-  else {
-    if (profiles.length > 0) goToFrame5Accounts();
-    else goToFrame3New();
+  // ✅ ถ้ามี account อยู่แล้ว กด Pic7 ใน Frame2 ให้ไป Frame5 เลย
+  if (profiles.length > 0) {
+    goToFrame5Accounts();
+    startIdleTimer();
+    return;
   }
+
+  // ✅ ถ้าไม่มี account ทำแบบเดิม
+  if (currentIndex < totalSlides - 1) setIndex(currentIndex + 1, true);
+  else goToFrame3New();
+
   startIdleTimer();
 }
 
@@ -768,39 +894,38 @@ if (frame4Back) {
   frame4Back.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
   frame4Back.addEventListener('touchend', () => { goToFrame3Keep(); startIdleTimer(); }, { passive: true });
 }
-if (frame4Next) {
-  frame4Next.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
-  frame4Next.addEventListener('touchend', () => { goToFrame3Keep(); startIdleTimer(); }, { passive: true });
-}
 
-function createProfile(ageKey) {
+function createProfileFromAgeNumber(ageNum) {
   const name = (nicknameInput?.value || '').trim() || 'Guest';
   const avatarSrc = avatarImage?.src || 'Pic13.png';
-  const ageText = ageMap[ageKey] || '';
+
+  const a = Math.max(0, Math.min(140, Math.round(Number(ageNum) || 0)));
+  const band = ageBandFromNumber(a);
 
   const profile = {
     id: Date.now().toString() + Math.random().toString(16).slice(2),
-    name, avatarSrc, ageKey, ageText
+    name,
+    avatarSrc,
+    ageNumber: a,
+    ageKey: band.ageKey,
+    ageText: band.ageText
   };
 
   profiles.push(profile);
-
   ensureChatBucket(profile.id);
   currentProfile = profile;
   scheduleSaveAll();
-
   goToFrame5Accounts();
   startIdleTimer();
 }
 
-ageCards.forEach(card => {
-  const handler = () => {
-    const ageKey = card.getAttribute('data-age');
-    createProfile(ageKey);
+if (frame4Next) {
+  const nextFromFrame4 = () => {
+    createProfileFromAgeNumber(selectedAgeNumber);
   };
-  card.addEventListener('click', handler);
-  card.addEventListener('touchend', handler, { passive: true });
-});
+  frame4Next.addEventListener('click', nextFromFrame4);
+  frame4Next.addEventListener('touchend', nextFromFrame4, { passive: true });
+}
 
 function renderProfiles() {
   if (!profilesList) return;
@@ -1176,7 +1301,8 @@ async function callServerAI(type, userText) {
           id: currentProfile.id,
           name: currentProfile.name,
           ageKey: currentProfile.ageKey,
-          ageText: currentProfile.ageText
+          ageText: currentProfile.ageText,
+          ageNumber: currentProfile.ageNumber
         } : null
       })
     });
@@ -1326,7 +1452,7 @@ function startListening() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SR();
 
-  recognition.lang = micLang; // "en-US" or "th-TH"
+  recognition.lang = micLang;
   recognition.interimResults = true;
   recognition.continuous = true;
 
@@ -1382,10 +1508,3 @@ if (chatMic) chatMic.addEventListener('click', onMicOrNoClick);
 if (chatSend) chatSend.addEventListener('click', onSendOrYesClick);
 
 updateTapHint();
-
-// =========================================================
-// ✅ Initial screen
-// =========================================================
-if (profiles.length > 0) {
-  // keep intro flow as-is
-}
