@@ -30,6 +30,18 @@
     </div>
   </div>
 
+  <!-- ✅ Delete confirm modal -->
+  <div class="modal" id="deleteModal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-title">Delete this account?</div>
+      <div class="modal-sub">This action cannot be undone.</div>
+      <div class="modal-actions">
+        <button class="modal-btn ghost" id="deleteCancelBtn" type="button">Cancel</button>
+        <button class="modal-btn danger" id="deleteYesBtn" type="button">Yes, delete</button>
+      </div>
+    </div>
+  </div>
+
   <!-- VIDEO OVERLAY -->
   <div class="frame-video" id="frameVideo" style="display:none;">
     <video id="introVideo" autoplay muted loop playsinline preload="auto">
@@ -117,7 +129,6 @@
     <div class="frame4-btn-left" id="frame4Back"><img src="Pic6.png" alt="Back to nickname" decoding="async"></div>
     <div class="frame4-btn-right" id="frame4Next"><img src="Pic7.png" alt="Next (age)" decoding="async"></div>
 
-    <!-- ✅ iPhone-like wheel -->
     <div class="age-wheel-panel" id="ageWheelPanel" aria-label="Age Wheel Panel">
       <div class="age-wheel-left">
         <div class="age-big" id="ageNumberBig">18</div>
@@ -189,15 +200,12 @@
   <!-- FRAME 7: Chatbot -->
   <div class="frame-7" id="frame7">
     <div class="stage" id="chatStage">
-      <!-- ✅ RIGHT HEADER TITLE -->
       <div class="history-label" id="threadHeader">History</div>
 
-      <!-- ✅ +New moved up and near right -->
       <div class="chat-threads-controls">
         <button class="mini-btn" id="newChatBtn" type="button">+ New</button>
       </div>
 
-      <!-- ✅ Threads panel always visible -->
       <div class="chat-threads-panel show" id="threadsPanel">
         <div class="threads-head">
           <div class="threads-title" id="threadsTitle">History</div>
@@ -221,7 +229,6 @@
 
         <div class="chat-icon" id="chatAdd"><img id="chatAddImg" src="ChatBot_Add.png" alt="Add" decoding="async"></div>
 
-        <!-- ✅ Mic Language Menu -->
         <div class="mic-lang" id="micLangWrap" title="Mic language">
           <button class="mic-lang-btn" id="micLangBtn" type="button">EN</button>
           <div class="mic-lang-menu" id="micLangMenu">
