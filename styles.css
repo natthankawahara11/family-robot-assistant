@@ -394,9 +394,9 @@ body{
   top:12.4%;
   left:50%;
   transform:translateX(-50%);
-  width:80%;
+  width:86%;
   font-weight:500;
-  font-size:20px;
+  font-size:18px;
   color:rgba(99,26,173,0.75);
   text-align:center;
   line-height:1.4;
@@ -421,74 +421,121 @@ body{
 .frame4-btn-right{ left:77.5%; display:flex; }
 .frame4-btn-left img, .frame4-btn-right img{ width:100%; height:100%; object-fit:contain; }
 
-/* ✅ NEW: Age Slider Panel */
-.age-slider-panel{
+/* ✅ NEW: iPhone-like Age Wheel Panel */
+.age-wheel-panel{
   position:absolute;
   left:50%;
   top:52%;
   transform:translate(-50%, -50%);
-  width:min(680px, 86vw);
-  height:320px;
+  width:min(680px, 90vw);
+  height:340px;
   border-radius:24px;
   background:rgba(255,255,255,0.65);
   border:1px solid rgba(255,255,255,0.7);
   box-shadow:0 12px 28px rgba(0,0,0,0.12);
   display:flex;
-  gap:18px;
-  padding:18px 18px;
+  gap:16px;
+  padding:16px;
   align-items:center;
 }
 
-.age-slider-left{
+.age-wheel-left{
   flex:1;
   display:flex;
   flex-direction:column;
   align-items:flex-start;
   justify-content:center;
   gap:6px;
-  padding-left:10px;
+  padding-left:8px;
 }
+
 .age-big{
   font-size:64px;
   font-weight:800;
   color:rgba(99,26,173,0.92);
   line-height:1;
 }
+
 .age-small{
-  font-size:16px;
-  font-weight:600;
+  font-size:15px;
+  font-weight:700;
   color:rgba(0,0,0,0.55);
 }
+
 .age-tip{
   font-size:12px;
-  font-weight:600;
-  color:rgba(0,0,0,0.4);
+  font-weight:700;
+  color:rgba(0,0,0,0.40);
   margin-top:6px;
 }
 
-.age-slider-right{
-  width:140px;
-  height:280px;
+.age-wheel-right{
+  width:170px;
+  height:290px;
+  position:relative;
   display:flex;
   align-items:center;
   justify-content:center;
-  position:relative;
 }
 
-.age-range{
-  width:260px; /* will be rotated */
-  transform:rotate(-90deg);
-  touch-action: none;
+/* ✅ Wheel (momentum + snap) */
+.age-wheel{
+  width:170px;
+  height:290px;
+  border-radius:18px;
+  background:rgba(255,255,255,0.55);
+  border:1px solid rgba(0,0,0,0.08);
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:y mandatory;
+  overscroll-behavior:contain;
+  touch-action: pan-y;
+  padding:92px 0; /* top/bottom padding to allow center alignment */
 }
 
-.age-range-min, .age-range-max{
+.age-wheel::-webkit-scrollbar{ width:0px; height:0px; }
+
+.age-item{
+  height:46px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:800;
+  font-size:20px;
+  color:rgba(0,0,0,0.35);
+  scroll-snap-align:center;
+}
+
+.age-item.active{
+  color:rgba(99,26,173,0.92);
+  font-size:24px;
+}
+
+/* highlight center (เหมือน iPhone picker) */
+.age-wheel-highlight{
   position:absolute;
-  font-size:12px;
-  font-weight:700;
-  color:rgba(0,0,0,0.45);
+  left:12px;
+  right:12px;
+  height:46px;
+  border-radius:14px;
+  border:2px solid rgba(99,26,173,0.28);
+  box-shadow:0 8px 18px rgba(99,26,173,0.10);
+  pointer-events:none;
+  top:50%;
+  transform:translateY(-50%);
 }
-.age-range-min{ bottom:0; left:50%; transform:translateX(-50%); }
-.age-range-max{ top:0; left:50%; transform:translateX(-50%); }
+
+/* ✅ iPhone 14 sizing tweak */
+@media (max-width: 430px){
+  .age-title{ font-size:16px; width:90%; }
+  .age-wheel-panel{ height:320px; width:92vw; }
+  .age-big{ font-size:56px; }
+  .age-wheel-right{ width:150px; }
+  .age-wheel{ width:150px; }
+  .age-item{ height:44px; }
+  .age-wheel-highlight{ height:44px; }
+}
 
 /* FRAME 5 */
 .frame-5{
@@ -1094,4 +1141,3 @@ body{
 .mini-btn, .mic-lang-btn, .threads-close, .thread-item, .thread-del{
   -webkit-tap-highlight-color:rgba(0,0,0,0);
 }
-
