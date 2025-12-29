@@ -213,8 +213,7 @@ body{
   overflow:hidden;
 }
 
-/* ✅ อนุญาตให้ scroll แนวตั้ง “ผ่าน” slider ได้
-   และเราจะกันด้วย JS เฉพาะตอนลากแนวนอนจริง */
+/* ✅ อนุญาตให้ scroll แนวตั้ง “ผ่าน” slider ได้ */
 #slider{ touch-action: pan-y; }
 
 .slider{
@@ -415,25 +414,77 @@ body{
   touch-action: manipulation;
 }
 .frame4-btn-left{ left:6.0%; }
-.frame4-btn-right{ left:77.5%; display:none; }
+.frame4-btn-right{ left:77.5%; display:flex; }
 .frame4-btn-left img, .frame4-btn-right img{ width:100%; height:100%; object-fit:contain; }
 
-.age-card{
+/* ✅ NEW: Age Slider Panel */
+.age-slider-panel{
   position:absolute;
+  left:50%;
+  top:52%;
+  transform:translate(-50%, -50%);
+  width:min(680px, 86vw);
+  height:320px;
   border-radius:24px;
-  overflow:hidden;
-  cursor:pointer;
+  background:rgba(255,255,255,0.65);
+  border:1px solid rgba(255,255,255,0.7);
+  box-shadow:0 12px 28px rgba(0,0,0,0.12);
+  display:flex;
+  gap:18px;
+  padding:18px 18px;
+  align-items:center;
+}
+
+.age-slider-left{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:center;
+  gap:6px;
+  padding-left:10px;
+}
+.age-big{
+  font-size:64px;
+  font-weight:800;
+  color:rgba(99,26,173,0.92);
+  line-height:1;
+}
+.age-small{
+  font-size:16px;
+  font-weight:600;
+  color:rgba(0,0,0,0.55);
+}
+.age-tip{
+  font-size:12px;
+  font-weight:600;
+  color:rgba(0,0,0,0.4);
+  margin-top:6px;
+}
+
+.age-slider-right{
+  width:140px;
+  height:280px;
   display:flex;
   align-items:center;
   justify-content:center;
-  touch-action: manipulation;
+  position:relative;
 }
-.age-card img{ width:100%; height:100%; object-fit:contain; }
-.age-1{ left:4.4%; top:34.1%; width:18.3%; height:37.6%; }
-.age-2{ left:23.7%; top:28.9%; width:18.3%; height:42.8%; }
-.age-3{ left:42.8%; top:34.1%; width:18.3%; height:37.6%; }
-.age-4{ left:62.0%; top:34.1%; width:18.3%; height:37.6%; }
-.age-5{ left:81.2%; top:31.2%; width:18.3%; height:40.5%; }
+
+.age-range{
+  width:260px; /* will be rotated */
+  transform:rotate(-90deg);
+  touch-action: none;
+}
+
+.age-range-min, .age-range-max{
+  position:absolute;
+  font-size:12px;
+  font-weight:700;
+  color:rgba(0,0,0,0.45);
+}
+.age-range-min{ bottom:0; left:50%; transform:translateX(-50%); }
+.age-range-max{ top:0; left:50%; transform:translateX(-50%); }
 
 /* FRAME 5 */
 .frame-5{
@@ -632,10 +683,8 @@ body{
   bottom:0;
   overflow:hidden;
   -webkit-overflow-scrolling:touch;
-  touch-action: pan-y; /* ✅ allow vertical scroll pass-through */
+  touch-action: pan-y;
 }
-
-/* ✅ allow vertical pass-through, horizontal drag decided in JS */
 #homeCards{ touch-action: pan-y; }
 
 .frame6-home-cards{
@@ -755,7 +804,6 @@ body{
   pointer-events:auto;
   padding-right:10px;
 }
-
 .chat-history::-webkit-scrollbar{ width:6px; }
 .chat-history::-webkit-scrollbar-thumb{ background:rgba(0,0,0,0.15); border-radius:99px; }
 
@@ -875,3 +923,170 @@ body{
 
 .voice-time{ font-size:12px; line-height:12px; }
 .voice-wave{ font-size:12px; line-height:14px; letter-spacing:1px; }
+
+/* =========================================================
+   ✅ NEW: Threads + Mic language UI (Frame 7)
+   ========================================================= */
+.chat-threads-controls{
+  position:absolute;
+  right:18px;
+  top:78px;
+  display:flex;
+  gap:8px;
+  z-index:20;
+  pointer-events:auto;
+}
+
+.mini-btn{
+  height:28px;
+  padding:0 10px;
+  border-radius:10px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.75);
+  font-weight:700;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+  cursor:pointer;
+}
+
+.chat-threads-panel{
+  position:absolute;
+  right:18px;
+  top:112px;
+  width:220px;
+  height:240px;
+  border-radius:16px;
+  background:rgba(255,255,255,0.86);
+  border:1px solid rgba(0,0,0,0.10);
+  box-shadow:0 14px 28px rgba(0,0,0,0.16);
+  display:none;
+  flex-direction:column;
+  overflow:hidden;
+  z-index:30;
+  pointer-events:auto;
+}
+
+.chat-threads-panel.show{ display:flex; }
+
+.threads-head{
+  height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 10px;
+  border-bottom:1px solid rgba(0,0,0,0.08);
+}
+.threads-title{
+  font-weight:800;
+  font-size:12px;
+  color:rgba(0,0,0,0.55);
+}
+.threads-close{
+  border:none;
+  background:transparent;
+  cursor:pointer;
+  font-weight:900;
+  color:rgba(0,0,0,0.45);
+}
+
+.threads-list{
+  flex:1;
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:8px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.thread-item{
+  width:100%;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.08);
+  background:rgba(255,255,255,0.8);
+  padding:8px 8px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+
+.thread-item.active{
+  border-color:rgba(99,26,173,0.35);
+  box-shadow:0 6px 14px rgba(99,26,173,0.12);
+}
+
+.thread-title{
+  font-weight:800;
+  font-size:12px;
+  color:rgba(0,0,0,0.6);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  flex:1;
+}
+
+.thread-del{
+  border:none;
+  background:transparent;
+  cursor:pointer;
+  font-size:14px;
+  opacity:0.55;
+}
+
+.mic-lang{
+  position:absolute;
+  left:485px;
+  top:360px;
+  width:40px;
+  height:40px;
+  pointer-events:auto;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:25;
+}
+
+.mic-lang-btn{
+  width:40px;
+  height:40px;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.75);
+  font-weight:900;
+  font-size:12px;
+  cursor:pointer;
+  color:rgba(0,0,0,0.65);
+}
+
+.mic-lang-menu{
+  position:absolute;
+  bottom:46px;
+  left:0;
+  width:72px;
+  border-radius:14px;
+  background:rgba(255,255,255,0.9);
+  border:1px solid rgba(0,0,0,0.10);
+  box-shadow:0 12px 24px rgba(0,0,0,0.16);
+  display:none;
+  overflow:hidden;
+}
+
+.mic-lang-menu.show{ display:block; }
+
+.mic-lang-item{
+  padding:10px 10px;
+  font-weight:800;
+  font-size:12px;
+  cursor:pointer;
+  color:rgba(0,0,0,0.65);
+}
+.mic-lang-item:hover{
+  background:rgba(99,26,173,0.08);
+}
+
+/* keep tap highlight off */
+.mini-btn, .mic-lang-btn, .threads-close, .thread-item, .thread-del{
+  -webkit-tap-highlight-color:rgba(0,0,0,0);
+}
