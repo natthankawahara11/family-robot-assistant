@@ -6,15 +6,24 @@ const client = new OpenAI({
 });
 
 function getAgeBand(profile) {
+  // ✅ prefer ageNumber if provided
+  const ageNumber = Number(profile?.ageNumber);
+  if (Number.isFinite(ageNumber)) {
+    const a = Math.max(0, Math.min(140, ageNumber));
+    if (a <= 8) return { id: "Age1", label: "Ages 5–8 (Early Kids)" };
+    if (a <= 12) return { id: "Age2", label: "Ages 9–12 (Kids)" };
+    if (a <= 17) return { id: "Age3", label: "Ages 13–17 (Teens)" };
+    if (a <= 59) return { id: "Age4", label: "Ages 18–59 (Adults)" };
+    return { id: "Age5", label: "Ages 60+ (Older Adults)" };
+  }
+
   const key = profile?.ageKey || "";
-  // รองรับทั้ง Age1..Age5 และเผื่อมีส่งเป็นข้อความ
   if (key === "Age1") return { id: "Age1", label: "Ages 5–8 (Early Kids)" };
   if (key === "Age2") return { id: "Age2", label: "Ages 9–12 (Kids)" };
   if (key === "Age3") return { id: "Age3", label: "Ages 13–17 (Teens)" };
   if (key === "Age4") return { id: "Age4", label: "Ages 18–59 (Adults)" };
   if (key === "Age5") return { id: "Age5", label: "Ages 60+ (Older Adults)" };
 
-  // fallback: ลองเดาจาก ageText
   const t = (profile?.ageText || "").toLowerCase();
   if (t.includes("5") && t.includes("8")) return { id: "Age1", label: "Ages 5–8 (Early Kids)" };
   if (t.includes("9") && t.includes("12")) return { id: "Age2", label: "Ages 9–12 (Kids)" };
@@ -29,13 +38,12 @@ function buildSystemPrompt(type, profile) {
   const age = getAgeBand(profile);
   const name = profile?.name ? String(profile.name).slice(0, 60) : "User";
 
-  // “กฎตามช่วงอายุ” ที่ใช้ร่วมกันทุกบอท
   const ageStyle = {
     Age1: [
       "Use very simple words and short sentences.",
       "Ask only 1 question at a time.",
       "Be gentle and encouraging. Use friendly tone.",
-      "Avoid scary details. For health topics, always recommend asking a parent/guardian.",
+      "Avoid scary details. For health topics, recommend asking a parent/guardian.",
     ],
     Age2: [
       "Use simple explanations but can be a bit more detailed than Age1.",
@@ -57,7 +65,7 @@ function buildSystemPrompt(type, profile) {
     ],
     Age5: [
       "Use respectful, calm tone.",
-      "Prioritize safety, fall-risk, joint care, and medication caution (no medical advice beyond general info).",
+      "Prioritize safety, joint care, and medication caution (no medical advice beyond general info).",
       "Keep instructions easy to follow and not too fast/complex.",
       "Encourage seeing a clinician for symptoms or existing conditions.",
     ],
@@ -130,7 +138,6 @@ module.exports = async function handler(req, res) {
     const { type, message, history = [], profile = null } = req.body || {};
     const userMsg = String(message || "").slice(0, 6000);
 
-    // clean history (กันพัง/กัน token บวม)
     const cleanHistory = Array.isArray(history)
       ? history
           .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
