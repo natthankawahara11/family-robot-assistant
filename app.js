@@ -108,12 +108,16 @@ async function preloadAssets() {
 
   const allImgs = uniq([...cssBgUrls(), ...domImgUrls()]);
   const restImgs = allImgs.filter(u => !criticalImgs.includes(u));
-  const vids = isIOS() ? [] : ["Face.webm"];
 
+  // ✅ iOS ใช้ mp4, non-iOS ใช้ webm
+  const vids = isIOS() ? ["Face.mp4"] : ["Face.webm"];
+
+  // ✅ เพิ่ม “fonts” เป็น task ด้วย เพื่อไม่ให้ 100% ค้างรอ fonts
   const tasks = [
     ...criticalImgs.map(u => ({ type: "img", url: u })),
     ...restImgs.map(u => ({ type: "img", url: u })),
     ...vids.map(u => ({ type: "vid", url: u })),
+    { type: "fonts", url: "fonts" }, // ✅ เพิ่ม
   ];
 
   let done = 0;
@@ -134,10 +138,16 @@ async function preloadAssets() {
   async function worker() {
     while (i < tasks.length) {
       const t = tasks[i++];
+
       try {
         if (t.type === "img") await preloadImage(t.url);
-        else await preloadVideo(t.url);
+        else if (t.type === "vid") await preloadVideo(t.url);
+        else if (t.type === "fonts") {
+          updateUI("Loading fonts…");
+          if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        }
       } catch (_) {}
+
       done++;
       updateUI(`Loading: ${t.url}`);
     }
@@ -145,13 +155,6 @@ async function preloadAssets() {
 
   const workers = Array.from({ length: CONCURRENCY }, () => worker());
   await Promise.all(workers);
-
-  try {
-    if (document.fonts && document.fonts.ready) {
-      updateUI("Loading fonts…");
-      await document.fonts.ready;
-    }
-  } catch (_) {}
 
   updateUI("Finalizing…");
 
@@ -1808,3 +1811,4 @@ updateTapHint();
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
