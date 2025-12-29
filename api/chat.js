@@ -6,75 +6,103 @@ const client = new OpenAI({
 });
 
 function getAgeBand(profile) {
-  // ✅ prefer ageNumber if provided
+  // ✅ prefer ageNumber
   const ageNumber = Number(profile?.ageNumber);
   if (Number.isFinite(ageNumber)) {
     const a = Math.max(0, Math.min(140, ageNumber));
-    if (a <= 8) return { id: "Age1", label: "Ages 5–8 (Early Kids)" };
-    if (a <= 12) return { id: "Age2", label: "Ages 9–12 (Kids)" };
-    if (a <= 17) return { id: "Age3", label: "Ages 13–17 (Teens)" };
-    if (a <= 59) return { id: "Age4", label: "Ages 18–59 (Adults)" };
-    return { id: "Age5", label: "Ages 60+ (Older Adults)" };
+
+    if (a <= 2)  return { id: "Baby",       label: "Baby Age: 0–2" };
+    if (a <= 5)  return { id: "Child",      label: "Child Age: 3–5" };
+    if (a <= 8)  return { id: "YoungChild", label: "Young Child Age: 6–8" };
+    if (a <= 12) return { id: "PreTeen",    label: "Pre-Teen Age: 9–12" };
+    if (a <= 17) return { id: "Teen",       label: "Teen Age: 13–17" };
+    if (a <= 24) return { id: "YoungAdult", label: "Young Adult Age: 18–24" };
+    if (a <= 34) return { id: "Adult",      label: "Adult Age: 25–34" };
+    if (a <= 44) return { id: "MidAdult",   label: "Mid Adult Age: 35–44" };
+    if (a <= 54) return { id: "OlderAdult", label: "Older Adult Age: 45–54" };
+    if (a <= 64) return { id: "Senior",     label: "Senior Age: 55–64" };
+    if (a <= 74) return { id: "Elderly",    label: "Elderly Age: 65–74" };
+    return          { id: "VeryElderly", label: "Very Elderly Age: 75+" };
   }
 
-  const key = profile?.ageKey || "";
-  if (key === "Age1") return { id: "Age1", label: "Ages 5–8 (Early Kids)" };
-  if (key === "Age2") return { id: "Age2", label: "Ages 9–12 (Kids)" };
-  if (key === "Age3") return { id: "Age3", label: "Ages 13–17 (Teens)" };
-  if (key === "Age4") return { id: "Age4", label: "Ages 18–59 (Adults)" };
-  if (key === "Age5") return { id: "Age5", label: "Ages 60+ (Older Adults)" };
-
-  const t = (profile?.ageText || "").toLowerCase();
-  if (t.includes("5") && t.includes("8")) return { id: "Age1", label: "Ages 5–8 (Early Kids)" };
-  if (t.includes("9") && t.includes("12")) return { id: "Age2", label: "Ages 9–12 (Kids)" };
-  if (t.includes("13") && t.includes("17")) return { id: "Age3", label: "Ages 13–17 (Teens)" };
-  if (t.includes("18") || t.includes("59")) return { id: "Age4", label: "Ages 18–59 (Adults)" };
-  if (t.includes("60")) return { id: "Age5", label: "Ages 60+ (Older Adults)" };
-
-  return { id: "unknown", label: "Unknown age group" };
+  // fallback
+  const key = profile?.ageKey || "unknown";
+  const text = profile?.ageText || "Unknown age group";
+  return { id: key, label: text };
 }
 
 function buildSystemPrompt(type, profile) {
   const age = getAgeBand(profile);
   const name = profile?.name ? String(profile.name).slice(0, 60) : "User";
 
-  const ageStyle = {
-    Age1: [
-      "Use very simple words and short sentences.",
-      "Ask only 1 question at a time.",
-      "Be gentle and encouraging. Use friendly tone.",
-      "Avoid scary details. For health topics, recommend asking a parent/guardian.",
+  const ageStyleMap = {
+    Baby: [
+      "Use ultra-simple language and very short sentences.",
+      "Be gentle and calm.",
+      "Avoid scary details. Encourage caregiver involvement.",
+      "For health concerns: advise seeing a parent/guardian and clinician when needed."
     ],
-    Age2: [
-      "Use simple explanations but can be a bit more detailed than Age1.",
-      "Give step-by-step instructions with examples.",
+    Child: [
+      "Use simple words and short steps.",
+      "Ask 1 question at a time.",
+      "Be friendly and encouraging.",
+      "For health: suggest telling a parent/guardian for serious symptoms."
+    ],
+    YoungChild: [
+      "Use simple explanations with small steps and examples.",
+      "Be encouraging and clear.",
+      "Avoid complex medical wording; no diagnosis."
+    ],
+    PreTeen: [
+      "Use clear explanations, short steps, and examples.",
       "Encourage good habits and safety.",
-      "For health topics, suggest telling a parent/guardian for anything serious.",
+      "For health: suggest talking to a trusted adult if serious."
     ],
-    Age3: [
-      "Use clear explanations, slightly more mature tone.",
-      "Support autonomy but emphasize safety and healthy boundaries.",
+    Teen: [
+      "Use clear, respectful tone.",
       "Give actionable steps and reasoning.",
-      "For health/mental wellbeing, recommend trusted adult/professional when needed.",
+      "For health/mental wellbeing: suggest trusted adult/professional when needed."
     ],
-    Age4: [
+    YoungAdult: [
       "Use practical, direct guidance.",
-      "Include pros/cons and options.",
-      "Keep it efficient and realistic.",
-      "For health: do not diagnose; recommend professional care when appropriate.",
+      "Offer options and pros/cons.",
+      "No diagnosis or prescribing."
     ],
-    Age5: [
-      "Use respectful, calm tone.",
-      "Prioritize safety, joint care, and medication caution (no medical advice beyond general info).",
-      "Keep instructions easy to follow and not too fast/complex.",
-      "Encourage seeing a clinician for symptoms or existing conditions.",
+    Adult: [
+      "Practical, efficient guidance.",
+      "Include options, trade-offs, and next steps.",
+      "No diagnosis; recommend clinician when appropriate."
+    ],
+    MidAdult: [
+      "Practical, direct guidance with safety emphasis.",
+      "Include options, trade-offs, and next steps."
+    ],
+    OlderAdult: [
+      "Calm, respectful guidance.",
+      "Safety first; avoid medication advice.",
+      "Recommend professional care when appropriate."
+    ],
+    Senior: [
+      "Respectful and calm.",
+      "Prioritize safety and easy steps.",
+      "Recommend clinician when appropriate."
+    ],
+    Elderly: [
+      "Respectful and calm.",
+      "Prioritize safety; keep instructions easy.",
+      "Recommend clinician when appropriate."
+    ],
+    VeryElderly: [
+      "Respectful and calm.",
+      "Keep instructions simple and safe.",
+      "Recommend clinician when appropriate."
     ],
     unknown: [
-      "Be clear, safe, and ask a quick clarifying question if age matters.",
-    ],
-  }[age.id] || [
-    "Be clear, safe, and age-appropriate.",
-  ];
+      "Be clear, safe, and ask a quick clarifying question if age matters."
+    ]
+  };
+
+  const ageStyle = ageStyleMap[age.id] || ageStyleMap.unknown;
 
   const baseSafety = [
     "Never claim you are a doctor. No diagnosis. No prescribing medication.",
