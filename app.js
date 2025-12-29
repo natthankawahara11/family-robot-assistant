@@ -5,8 +5,8 @@ const SERVER_BASE = window.location.origin;
 // ✅ LOCAL STORAGE
 // =========================================================
 const LS_PROFILES_KEY = "fra_profiles_v1";
-const LS_CHATS_KEY = "fra_chats_v2";        // ✅ new threads-based
-const LS_STATE_KEY = "fra_state_v1";        // currentProfileId, micLang
+const LS_CHATS_KEY = "fra_chats_v2";
+const LS_STATE_KEY = "fra_state_v1";
 
 function safeJSONParse(s, fallback) {
   try { return JSON.parse(s); } catch (_) { return fallback; }
@@ -116,7 +116,6 @@ async function preloadAssets() {
     updateUI(`Loading: ${t.url}`);
   }
 
-  // ✅ wait fonts
   try {
     if (document.fonts && document.fonts.ready) {
       updateUI("Loading fonts…");
@@ -238,6 +237,11 @@ const newChatBtn = document.getElementById('newChatBtn');
 const threadsList = document.getElementById('threadsList');
 const threadHeader = document.getElementById('threadHeader');
 
+// Delete modal
+const deleteModal = document.getElementById('deleteModal');
+const deleteCancelBtn = document.getElementById('deleteCancelBtn');
+const deleteYesBtn = document.getElementById('deleteYesBtn');
+
 // =========================================================
 // ✅ STATE + RESTORE
 // =========================================================
@@ -252,15 +256,14 @@ let sliderLock = directionLockState();
 let homeLock = directionLockState();
 
 let profiles = lsGet(LS_PROFILES_KEY, []);
-let chatDBByProfile = lsGet(LS_CHATS_KEY, {}); // threads-based
+let chatDBByProfile = lsGet(LS_CHATS_KEY, {});
 const savedState = lsGet(LS_STATE_KEY, { currentProfileId: null, micLang: "en-US" });
 
-let deleteModeId = null;
+let deleteModeId = null;          // overlay active profile id
 let currentProfile = null;
 
 let micLang = (savedState?.micLang === "th-TH") ? "th-TH" : "en-US";
 
-// restore currentProfile by id
 if (profiles.length > 0) {
   const id = savedState?.currentProfileId;
   currentProfile = profiles.find(p => p?.id === id) || profiles[0];
@@ -284,7 +287,6 @@ function ensureChatBucket(profileId) {
     return chatDBByProfile[profileId];
   }
 
-  // migration from old array storage if any
   const old = chatDBByProfile[profileId];
   ["healthcare","sports","education","community"].forEach((k) => {
     if (Array.isArray(old[k])) {
@@ -356,7 +358,6 @@ function setActiveThread(type, threadId) {
 function updateThreadHeader() {
   if (!threadHeader) return;
   const t = getActiveThread(activeChatType);
-  // ✅ "History" label stays, but show active chat title under it by using header text = title
   threadHeader.textContent = t?.title || "History";
 }
 
@@ -386,7 +387,6 @@ function renderThreadsList() {
   });
 }
 
-// ensure bucket for current profile
 if (currentProfile?.id) ensureChatBucket(currentProfile.id);
 
 // =========================================================
@@ -504,7 +504,6 @@ function goToFrame4Age() {
   document.body.style.backgroundImage = 'url("Pic15.png")';
   lastActiveFrame = 'frame4';
   initAgeWheelIfNeeded();
-  // ensure centered on current age
   scrollAgeWheelTo(ageNumber);
 }
 
@@ -582,7 +581,8 @@ function handleUserInteraction(e) {
     const block = e.target.closest(
       '.frame6-profile, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
       '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, ' +
-      '.frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang, .mini-btn, .thread-item'
+      '.frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang, .mini-btn, .thread-item,' +
+      '.modal, .modal-card, .modal-btn'
     );
     if (block) return;
   }
@@ -627,6 +627,15 @@ function handleUserInteraction(e) {
 })();
 
 // =========================================================
+// ✅ TAP BINDER (strong on iPhone)
+// =========================================================
+function bindTap(el, fn) {
+  if (!el) return;
+  el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fn(e); });
+  el.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); fn(e); }, { passive: false });
+}
+
+// =========================================================
 // ✅ SLIDER (Frame2)
 // =========================================================
 function updateDots() {
@@ -662,18 +671,10 @@ function showFrame2FromWelcome() {
   startIdleTimer();
 }
 
-// iPhone: use touchstart (stronger than touchend)
-function bindTap(el, fn) {
-  if (!el) return;
-  el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fn(e); });
-  el.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); fn(e); }, { passive: false });
-}
-
 bindTap(option1, showFrame2FromWelcome);
 bindTap(option2, showFrame2FromWelcome);
 
 bindTap(frame2Close, () => {
-  // ✅ if account exists go Frame5 else new
   if (profiles.length > 0) goToFrame5Accounts();
   else goToFrame3New();
   startIdleTimer();
@@ -682,7 +683,6 @@ bindTap(frame2Close, () => {
 function goNext() {
   if (currentIndex < totalSlides - 1) setIndex(currentIndex + 1, true);
   else {
-    // ✅ last slide: if account exists go Frame5, else setup
     if (profiles.length > 0) goToFrame5Accounts();
     else goToFrame3New();
   }
@@ -698,7 +698,6 @@ function goLeftAction() {
 bindTap(btnRight, goNext);
 bindTap(btnLeft, goLeftAction);
 
-// direction lock for slider
 if (slider) {
   slider.addEventListener('touchstart', (e) => {
     if (sliderWidth === 0) updateSliderSize();
@@ -804,15 +803,10 @@ if (nicknameInput) {
 }
 
 bindTap(frame4Back, () => { goToFrame3Keep(); startIdleTimer(); });
-
-// ✅ Frame4 Next: create profile and go Frame5
-bindTap(frame4Next, () => {
-  createProfileFromAgeNumber();
-  startIdleTimer();
-});
+bindTap(frame4Next, () => { createProfileFromAgeNumber(); startIdleTimer(); });
 
 // =========================================================
-// ✅ AGE WHEEL SYSTEM
+// ✅ AGE WHEEL SYSTEM (fix alignment)
 // =========================================================
 let ageWheelReady = false;
 let ageNumber = 18;
@@ -820,7 +814,6 @@ let ageNumber = 18;
 function initAgeWheelIfNeeded() {
   if (!ageWheel || ageWheelReady) return;
 
-  // build items 0..140
   const frag = document.createDocumentFragment();
   for (let i = 0; i <= 140; i++) {
     const div = document.createElement('div');
@@ -831,7 +824,6 @@ function initAgeWheelIfNeeded() {
   }
   ageWheel.appendChild(frag);
 
-  // scroll handler -> find nearest to center
   let raf = null;
   function onScroll() {
     if (raf) cancelAnimationFrame(raf);
@@ -841,7 +833,6 @@ function initAgeWheelIfNeeded() {
   }
   ageWheel.addEventListener('scroll', onScroll, { passive: true });
 
-  // tap an item -> snap
   ageWheel.addEventListener('click', (e) => {
     const item = e.target?.closest?.('.age-item');
     if (!item) return;
@@ -851,26 +842,23 @@ function initAgeWheelIfNeeded() {
 
   ageWheelReady = true;
 
-  // initial
   updateAgeUI(ageNumber);
   updateActiveAgeFromWheel(true);
 }
 
 function getWheelItemHeight() {
   const first = ageWheel?.querySelector?.('.age-item');
-  return first ? first.getBoundingClientRect().height : 42;
+  return first ? first.getBoundingClientRect().height : 38;
 }
 
 function scrollAgeWheelTo(n) {
   if (!ageWheel) return;
   const a = Math.max(0, Math.min(140, Math.round(Number(n) || 0)));
   const itemH = getWheelItemHeight();
-  // padding-top in CSS = 76px, scroll center = 76 + (a*itemH)
-  const topPadding = 76;
-  const target = (a * itemH);
-  ageWheel.scrollTo({ top: target, behavior: "smooth" });
 
-  // update after a short delay (ensure snap)
+  // ✅ snap using exact item height (no magic padding mismatch)
+  ageWheel.scrollTo({ top: a * itemH, behavior: "smooth" });
+
   setTimeout(() => {
     ageNumber = a;
     updateAgeUI(ageNumber);
@@ -883,7 +871,6 @@ function updateActiveAgeFromWheel(forceSnap) {
   const itemH = getWheelItemHeight();
   const scrollTop = ageWheel.scrollTop;
 
-  // nearest index
   let idx = Math.round(scrollTop / itemH);
   idx = Math.max(0, Math.min(140, idx));
 
@@ -934,8 +921,58 @@ function createProfileFromAgeNumber() {
 }
 
 // =========================================================
-// ✅ FRAME 5 (Profiles)
+// ✅ FRAME 5 (Profiles) - FIX tap + long press delete flow
 // =========================================================
+let suppressProfileClickUntil = 0;
+let pendingDeleteProfileId = null;
+
+function suppressProfileClicks(ms = 350) {
+  suppressProfileClickUntil = Date.now() + ms;
+}
+function isProfileClickSuppressed() {
+  return Date.now() < suppressProfileClickUntil;
+}
+
+function showDeleteModal(profileId) {
+  pendingDeleteProfileId = profileId;
+  if (!deleteModal) return;
+  deleteModal.classList.add("show");
+  deleteModal.setAttribute("aria-hidden", "false");
+}
+
+function hideDeleteModal() {
+  pendingDeleteProfileId = null;
+  if (!deleteModal) return;
+  deleteModal.classList.remove("show");
+  deleteModal.setAttribute("aria-hidden", "true");
+}
+
+if (deleteCancelBtn) bindTap(deleteCancelBtn, () => hideDeleteModal());
+if (deleteYesBtn) bindTap(deleteYesBtn, () => {
+  if (!pendingDeleteProfileId) return;
+  const id = pendingDeleteProfileId;
+
+  profiles = profiles.filter(p => p.id !== id);
+  deleteModeId = null;
+
+  if (chatDBByProfile[id]) delete chatDBByProfile[id];
+  if (currentProfile?.id === id) currentProfile = profiles[0] || null;
+
+  scheduleSaveAll();
+  hideDeleteModal();
+  renderProfiles();
+});
+
+if (deleteModal) {
+  // tap outside card => cancel
+  deleteModal.addEventListener("click", (e) => {
+    if (e.target === deleteModal) hideDeleteModal();
+  });
+  deleteModal.addEventListener("touchstart", (e) => {
+    if (e.target === deleteModal) hideDeleteModal();
+  }, { passive: true });
+}
+
 function renderProfiles() {
   if (!profilesList) return;
   profilesList.innerHTML = '';
@@ -953,28 +990,10 @@ function renderProfiles() {
     img.alt = profile.name;
     avatarWrap.appendChild(img);
 
+    // ✅ overlay image = Pic6 (as requested)
     const overlay = document.createElement('div');
     overlay.className = 'profile-delete-overlay';
-    overlay.innerHTML = '<img src="Pic16.png" alt="Delete">';
-
-    function deleteThisCard(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      const id = card.dataset.id;
-
-      profiles = profiles.filter(p => p.id !== id);
-      deleteModeId = null;
-
-      if (chatDBByProfile[id]) delete chatDBByProfile[id];
-      if (currentProfile?.id === id) currentProfile = profiles[0] || null;
-
-      scheduleSaveAll();
-      renderProfiles();
-    }
-
-    overlay.addEventListener('click', deleteThisCard);
-    overlay.addEventListener('touchstart', (e) => { e.preventDefault(); deleteThisCard(e); }, { passive: false });
-
+    overlay.innerHTML = '<img src="Pic6.png" alt="Delete mode">';
     avatarWrap.appendChild(overlay);
 
     const nameEl = document.createElement('div');
@@ -984,10 +1003,18 @@ function renderProfiles() {
     card.appendChild(avatarWrap);
     card.appendChild(nameEl);
 
-    attachLongPress(card, profile.id);
+    attachLongPressDeleteToggle(card, profile.id);
 
-    const pickProfile = (e) => {
-      if (deleteModeId) return;
+    // ✅ click/tap behaviour
+    const onPickOrAskDelete = (e) => {
+      if (isProfileClickSuppressed()) return;
+
+      // if delete overlay is ON for this card -> ask confirm, NOT delete immediately
+      if (deleteModeId === profile.id) {
+        showDeleteModal(profile.id);
+        return;
+      }
+
       currentProfile = profile;
       ensureChatBucket(profile.id);
       scheduleSaveAll();
@@ -995,8 +1022,23 @@ function renderProfiles() {
       startIdleTimer();
     };
 
-    card.addEventListener('click', pickProfile);
-    card.addEventListener('touchstart', (e) => { e.preventDefault(); pickProfile(e); }, { passive: false });
+    card.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onPickOrAskDelete(e);
+    });
+
+    card.addEventListener('touchstart', (e) => {
+      // IMPORTANT: don't preventDefault here (so long press detection works clean)
+      // but still stopPropagation to avoid video overlay taps
+      e.stopPropagation();
+    }, { passive: true });
+
+    card.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onPickOrAskDelete(e);
+    }, { passive: false });
 
     profilesList.appendChild(card);
   });
@@ -1017,17 +1059,41 @@ function renderProfiles() {
   bindTap(addCard, () => { goToFrame3New(); startIdleTimer(); });
 
   profilesList.appendChild(addCard);
+
+  // refresh overlay state
+  const cards = profilesList.querySelectorAll('.profile-card');
+  cards.forEach(c => {
+    const id = c.dataset.id;
+    if (!id) return;
+    if (id === deleteModeId) c.classList.add('show-delete');
+    else c.classList.remove('show-delete');
+  });
 }
 
-function attachLongPress(card, id) {
+function attachLongPressDeleteToggle(card, id) {
   let timer = null;
+  let fired = false;
 
   const start = (ev) => {
-    timer = setTimeout(() => { toggleDeleteMode(id); }, 600);
+    fired = false;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      fired = true;
+      suppressProfileClicks(500); // ✅ prevent release tap from triggering click
+
+      // toggle delete overlay only for this card
+      if (deleteModeId === id) deleteModeId = null;
+      else deleteModeId = id;
+
+      // IMPORTANT: long-press must NOT open modal
+      renderProfiles();
+    }, 550);
   };
 
   const cancel = () => {
-    if (timer) { clearTimeout(timer); timer = null; }
+    clearTimeout(timer);
+    timer = null;
+    if (fired) suppressProfileClicks(350);
   };
 
   card.addEventListener('touchstart', start, { passive: true });
@@ -1035,16 +1101,6 @@ function attachLongPress(card, id) {
 
   ['touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach(evt => {
     card.addEventListener(evt, cancel);
-  });
-}
-
-function toggleDeleteMode(id) {
-  deleteModeId = (deleteModeId === id) ? null : id;
-
-  const cards = profilesList?.querySelectorAll('.profile-card') || [];
-  cards.forEach(c => {
-    if (c.dataset.id === deleteModeId) c.classList.add('show-delete');
-    else c.classList.remove('show-delete');
   });
 }
 
@@ -1080,7 +1136,6 @@ bindTap(tabSports, () => { setActiveTab('sports'); startIdleTimer(); });
 bindTap(tabEducation, () => { setActiveTab('education'); startIdleTimer(); });
 bindTap(tabCommunity, () => { setActiveTab('community'); startIdleTimer(); });
 
-// Profile icon -> Frame5
 bindTap(frame6ProfileBtn, () => { goToFrame5Accounts(); startIdleTimer(); });
 
 // home card swipe helpers
@@ -1112,7 +1167,6 @@ function setHomeIndex(idx, withTransition = true) {
   homeCardsTrack.style.transform = `translateX(${tx}px)`;
 }
 
-// swipe home cards
 if (homeCardsWrapper && homeCardsTrack) {
   homeCardsWrapper.addEventListener('touchstart', (e) => {
     homeDragging = true;
@@ -1187,7 +1241,6 @@ if (homeCardsWrapper && homeCardsTrack) {
   homeCardsWrapper.addEventListener('touchcancel', endHomeDrag, { passive: true });
 }
 
-// card click -> Frame7
 document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
   bindTap(card, (e) => {
     if (e?.target?.closest?.('.frame6-card-menu')) return;
@@ -1236,7 +1289,6 @@ function goToFrame7(chatType) {
   updateChatScale();
   startIdleTimer();
 
-  // ensure at least one thread exists
   getActiveThread(activeChatType);
 
   renderChatHistory(activeChatType);
@@ -1250,7 +1302,6 @@ function focusChatInput() {
   setTimeout(() => chatInput.focus({ preventScroll: true }), 50);
 }
 
-// +New create new thread
 if (newChatBtn) {
   newChatBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -1267,7 +1318,6 @@ if (newChatBtn) {
   }, { passive: false });
 }
 
-// chat back
 bindTap(chatBackBtn, () => {
   startIdleTimer();
   stopVoiceIfAny();
@@ -1391,7 +1441,6 @@ async function callServerAI(type, userText) {
   }
 }
 
-// fallback
 async function mockAI(type, userText) {
   const t = (userText || '').toLowerCase();
   await new Promise(r => setTimeout(r, 200));
@@ -1413,7 +1462,6 @@ async function handleSend(text, attachments = null) {
   const userPayload = msg || (attachments?.length ? `(sent attachments: ${attachments.length} file(s))` : "(sent attachments)");
   pushMessage(activeChatType, 'user', userPayload, attachments);
 
-  // thinking bubble
   pushMessage(activeChatType, 'bot', '…');
 
   const thread = getActiveThread(activeChatType);
