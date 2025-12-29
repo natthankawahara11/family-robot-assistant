@@ -5,7 +5,7 @@
   <title>Chatbot Welcome</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <link rel="apple-touch-icon" sizes="180x180" href="Profile1.png" />
 
   <link rel="stylesheet" href="styles.css" />
@@ -51,18 +51,18 @@
       is here to support you.
     </div>
 
-    <div class="option-card option-card-1">
+    <div class="option-card option-card-1" id="welcomeOption1">
       <img src="Pic1.png" alt="Option 1" loading="eager" decoding="async">
     </div>
 
-    <div class="option-card option-card-2">
+    <div class="option-card option-card-2" id="welcomeOption2">
       <img src="Pic2.png" alt="Option 2" loading="eager" decoding="async">
     </div>
   </div>
 
   <!-- FRAME 2: Carousel -->
   <div class="frame-2">
-    <div class="frame2-close">
+    <div class="frame2-close" id="frame2CloseBtn">
       <img src="Pic9.png" alt="Go to profile setup" decoding="async">
     </div>
 
@@ -108,7 +108,7 @@
     <div class="profile-option profile-10"><img src="Profile10.png" alt="Profile 10" decoding="async"></div>
   </div>
 
-  <!-- FRAME 4: Age select (✅ NEW: iPhone-like wheel 0–140) -->
+  <!-- FRAME 4: Age wheel (0–140) -->
   <div class="frame-4" id="frame4">
     <div class="age-title">
       Select your age (0–140). We’ll customize the assistant for you.
@@ -117,17 +117,17 @@
     <div class="frame4-btn-left" id="frame4Back"><img src="Pic6.png" alt="Back to nickname" decoding="async"></div>
     <div class="frame4-btn-right" id="frame4Next"><img src="Pic7.png" alt="Next (age)" decoding="async"></div>
 
-    <!-- ✅ NEW: Wheel Panel -->
+    <!-- ✅ iPhone-like wheel -->
     <div class="age-wheel-panel" id="ageWheelPanel" aria-label="Age Wheel Panel">
       <div class="age-wheel-left">
         <div class="age-big" id="ageNumberBig">18</div>
-        <div class="age-small" id="ageBandLabel">Adults Ages 18–59</div>
-        <div class="age-tip">Scroll the wheel</div>
+        <div class="age-small" id="ageBandLabel">Young Adult Age: 18–24</div>
+        <div class="age-tip">Swipe the wheel</div>
       </div>
 
       <div class="age-wheel-right">
-        <div class="age-wheel" id="ageWheel" role="listbox" aria-label="Age wheel"></div>
-        <div class="age-wheel-highlight" aria-hidden="true"></div>
+        <div class="age-wheel" id="ageWheel" aria-label="Age Wheel"></div>
+        <div class="age-wheel-highlight"></div>
       </div>
     </div>
   </div>
@@ -189,19 +189,18 @@
   <!-- FRAME 7: Chatbot -->
   <div class="frame-7" id="frame7">
     <div class="stage" id="chatStage">
-      <div class="history-label">History</div>
+      <!-- ✅ RIGHT HEADER TITLE -->
+      <div class="history-label" id="threadHeader">History</div>
 
-      <!-- ✅ NEW: Threads UI controls (right side) -->
+      <!-- ✅ +New moved up and near right -->
       <div class="chat-threads-controls">
         <button class="mini-btn" id="newChatBtn" type="button">+ New</button>
-        <button class="mini-btn" id="chatsToggleBtn" type="button">Chats ▾</button>
       </div>
 
-      <!-- ✅ Threads panel -->
-      <div class="chat-threads-panel" id="threadsPanel">
+      <!-- ✅ Threads panel always visible -->
+      <div class="chat-threads-panel show" id="threadsPanel">
         <div class="threads-head">
-          <div class="threads-title">Chats</div>
-          <button class="threads-close" id="threadsCloseBtn" type="button">✕</button>
+          <div class="threads-title" id="threadsTitle">History</div>
         </div>
         <div class="threads-list" id="threadsList"></div>
       </div>
