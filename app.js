@@ -2,10 +2,10 @@
 const SERVER_BASE = window.location.origin;
 
 // =========================================================
-// ✅ LOCAL STORAGE (persist profiles + chats + settings)
+// ✅ LOCAL STORAGE
 // =========================================================
 const LS_PROFILES_KEY = "fra_profiles_v1";
-const LS_CHATS_KEY = "fra_chats_v1";        // chat by profileId
+const LS_CHATS_KEY = "fra_chats_v2";        // ✅ new threads-based
 const LS_STATE_KEY = "fra_state_v1";        // currentProfileId, micLang
 
 function safeJSONParse(s, fallback) {
@@ -18,7 +18,6 @@ function lsSet(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
 }
 
-// debounce save (กันเขียนถี่เกิน)
 let _saveTimer = null;
 function scheduleSaveAll() {
   clearTimeout(_saveTimer);
@@ -33,7 +32,7 @@ function scheduleSaveAll() {
 }
 
 // =========================================================
-// ✅ PRELOAD SYSTEM
+// ✅ PRELOAD SYSTEM (real preload)
 // =========================================================
 const bootLoader = document.getElementById('bootLoader');
 const bootBarFill = document.getElementById('bootBarFill');
@@ -48,7 +47,10 @@ function preloadImage(url) {
   return new Promise((resolve) => {
     const img = new Image();
     img.decoding = "async";
-    img.onload = () => resolve({ url, ok: true });
+    img.onload = async () => {
+      try { if (img.decode) await img.decode(); } catch (_) {}
+      resolve({ url, ok: true });
+    };
     img.onerror = () => resolve({ url, ok: false });
     img.src = url;
   });
@@ -71,7 +73,6 @@ function domImgUrls() {
     "Pic1.png","Pic2.png","Pic3.png",
     "Pic6.png","Pic7.png","Pic8.png","Pic9.png","Pic10.png","Pic11.png",
     "Pic13.png",
-    "Age1.png","Age2.png","Age3.png","Age4.png","Age5.png",
     "Profile1.png","Profile2.png","Profile3.png","Profile4.png","Profile5.png",
     "Profile6.png","Profile7.png","Profile8.png","Profile9.png","Profile10.png",
     "ProfileAdd.png",
@@ -79,8 +80,6 @@ function domImgUrls() {
     "Bluetooth.png",
     "Card1.png","Card2.png","Card3.png","Card4.png","Card5.png","Card6.png",
     "Fix_Menu.png",
-    "Pin_Header.png",
-    "Pin.png","Unpin.png",
     "ChatBot_GoBack.png",
     "ChatBot_Add.png","ChatBot_Mic.png","ChatBot_Send.png",
     "ChatBot_No.png","ChatBot_Yes.png",
@@ -117,9 +116,16 @@ async function preloadAssets() {
     updateUI(`Loading: ${t.url}`);
   }
 
+  // ✅ wait fonts
+  try {
+    if (document.fonts && document.fonts.ready) {
+      updateUI("Loading fonts…");
+      await document.fonts.ready;
+    }
+  } catch (_) {}
+
   updateUI("Finalizing…");
 
-  // ✅ IMPORTANT: กัน bootLoader ทับจอใน iPhone
   if (bootLoader) {
     bootLoader.classList.add('hidden');
     bootLoader.style.pointerEvents = 'none';
@@ -131,7 +137,7 @@ async function preloadAssets() {
 preloadAssets();
 
 // =========================================================
-// ✅ DIRECTION LOCK HELPERS (Fix iPhone Safari vertical scroll)
+// ✅ DIRECTION LOCK HELPERS
 // =========================================================
 function directionLockState() {
   return { locked: false, isHorizontal: false, sx: 0, sy: 0 };
@@ -141,7 +147,7 @@ function shouldLockHorizontal(lock, x, y, threshold = 10) {
   const dy = y - lock.sy;
 
   if (!lock.locked) {
-    if (Math.abs(dx) + Math.abs(dy) < threshold) return null; // ยังไม่ตัดสิน
+    if (Math.abs(dx) + Math.abs(dy) < threshold) return null;
     lock.locked = true;
     lock.isHorizontal = Math.abs(dx) > Math.abs(dy);
   }
@@ -149,7 +155,7 @@ function shouldLockHorizontal(lock, x, y, threshold = 10) {
 }
 
 // =========================================================
-// ✅ APP
+// ✅ APP DOM
 // =========================================================
 const frameVideo = document.getElementById('frameVideo');
 
@@ -162,13 +168,13 @@ const frame5 = document.getElementById('frame5');
 const frame6 = document.getElementById('frame6');
 const frame7 = document.getElementById('frame7');
 
-const option1 = document.querySelector('.option-card-1');
-const option2 = document.querySelector('.option-card-2');
+const option1 = document.getElementById('welcomeOption1');
+const option2 = document.getElementById('welcomeOption2');
 
 const slider = document.getElementById('slider');
 const btnLeft = document.getElementById('btnLeft');
 const btnRight = document.getElementById('btnRight');
-const frame2Close = document.querySelector('.frame2-close');
+const frame2Close = document.getElementById('frame2CloseBtn');
 
 const dot1 = document.getElementById('dot1');
 const dot2 = document.getElementById('dot2');
@@ -185,7 +191,6 @@ const profileOptions = document.querySelectorAll('.frame-avatar .profile-option'
 const frame4Back = document.getElementById('frame4Back');
 const frame4Next = document.getElementById('frame4Next');
 
-// ✅ NEW wheel elements
 const ageWheel = document.getElementById('ageWheel');
 const ageNumberBig = document.getElementById('ageNumberBig');
 const ageBandLabel = document.getElementById('ageBandLabel');
@@ -193,7 +198,7 @@ const ageBandLabel = document.getElementById('ageBandLabel');
 const profilesList = document.getElementById('profilesList');
 
 const frame6ProfileImg = document.getElementById('frame6ProfileImg');
-const frame6ProfileBtn = document.querySelector('.frame6-profile');
+const frame6ProfileBtn = document.getElementById('frame6ProfileBtn');
 const tabHighlight = document.getElementById('tabHighlight');
 const tabHome = document.getElementById('tabHome');
 const tabHealthcare = document.getElementById('tabHealthcare');
@@ -223,11 +228,18 @@ const voiceWave = document.getElementById('voiceWave');
 
 const filePicker = document.getElementById('filePicker');
 
-// ✅ Mic language UI
+// mic language menu
+const micLangWrap = document.getElementById('micLangWrap');
 const micLangBtn = document.getElementById('micLangBtn');
+const micLangMenu = document.getElementById('micLangMenu');
+
+// Threads UI
+const newChatBtn = document.getElementById('newChatBtn');
+const threadsList = document.getElementById('threadsList');
+const threadHeader = document.getElementById('threadHeader');
 
 // =========================================================
-// ✅ STATE + RESTORE FROM localStorage
+// ✅ STATE + RESTORE
 // =========================================================
 const totalSlides = 3;
 let currentIndex = 0;
@@ -236,36 +248,17 @@ let startTranslate = 0;
 let isDragging = false;
 let sliderWidth = 0;
 
-// direction locks
 let sliderLock = directionLockState();
 let homeLock = directionLockState();
 
-// profiles/chat state
 let profiles = lsGet(LS_PROFILES_KEY, []);
-let chatDBByProfile = lsGet(LS_CHATS_KEY, {}); // { [profileId]: { healthcare:[], ... } }
+let chatDBByProfile = lsGet(LS_CHATS_KEY, {}); // threads-based
 const savedState = lsGet(LS_STATE_KEY, { currentProfileId: null, micLang: "en-US" });
 
 let deleteModeId = null;
 let currentProfile = null;
 
-// mic language: "en-US" or "th-TH"
 let micLang = (savedState?.micLang === "th-TH") ? "th-TH" : "en-US";
-
-function setMicLangUI() {
-  if (!micLangBtn) return;
-  micLangBtn.textContent = (micLang === "th-TH") ? "TH" : "EN";
-}
-setMicLangUI();
-
-if (micLangBtn) {
-  micLangBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    micLang = (micLang === "th-TH") ? "en-US" : "th-TH";
-    setMicLangUI();
-    scheduleSaveAll();
-  }, { passive: false });
-}
 
 // restore currentProfile by id
 if (profiles.length > 0) {
@@ -273,39 +266,152 @@ if (profiles.length > 0) {
   currentProfile = profiles.find(p => p?.id === id) || profiles[0];
 }
 
-// Ensure chat buckets exist
+// =========================================================
+// ✅ CHAT THREADS MODEL + MIGRATION
+// =========================================================
 function ensureChatBucket(profileId) {
   if (!profileId) return null;
+
+  const fresh = () => ({
+    healthcare: { threads: [], activeThreadId: null },
+    sports: { threads: [], activeThreadId: null },
+    education: { threads: [], activeThreadId: null },
+    community: { threads: [], activeThreadId: null },
+  });
+
   if (!chatDBByProfile[profileId]) {
-    chatDBByProfile[profileId] = { healthcare: [], sports: [], education: [], community: [] };
-  } else {
-    chatDBByProfile[profileId].healthcare ||= [];
-    chatDBByProfile[profileId].sports ||= [];
-    chatDBByProfile[profileId].education ||= [];
-    chatDBByProfile[profileId].community ||= [];
+    chatDBByProfile[profileId] = fresh();
+    return chatDBByProfile[profileId];
   }
-  return chatDBByProfile[profileId];
+
+  // migration from old array storage if any
+  const old = chatDBByProfile[profileId];
+  ["healthcare","sports","education","community"].forEach((k) => {
+    if (Array.isArray(old[k])) {
+      const id = "t_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+      old[k] = { threads: [{ id, title: "Chat 1", messages: old[k] }], activeThreadId: id };
+    } else if (!old[k]) {
+      old[k] = { threads: [], activeThreadId: null };
+    } else {
+      old[k].threads ||= [];
+      old[k].activeThreadId ||= (old[k].threads[0]?.id || null);
+    }
+  });
+
+  return old;
 }
+
+function getActiveChatDB() {
+  const pid = currentProfile?.id;
+  if (!pid) return {
+    healthcare: { threads: [], activeThreadId: null },
+    sports: { threads: [], activeThreadId: null },
+    education: { threads: [], activeThreadId: null },
+    community: { threads: [], activeThreadId: null },
+  };
+  return ensureChatBucket(pid);
+}
+
+function getTypeStore(type) {
+  const db = getActiveChatDB();
+  db[type] ||= { threads: [], activeThreadId: null };
+  return db[type];
+}
+
+function createNewThread(type, autoRender = true) {
+  const store = getTypeStore(type);
+  const nextNum = store.threads.length + 1;
+  const id = "t_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+
+  const thread = { id, title: `Chat ${nextNum}`, messages: [] };
+  store.threads.unshift(thread);
+  store.activeThreadId = id;
+
+  scheduleSaveAll();
+  if (autoRender) {
+    renderThreadsList();
+    renderChatHistory(type);
+    updateThreadHeader();
+  }
+  return thread;
+}
+
+function getActiveThread(type) {
+  const store = getTypeStore(type);
+  let t = store.threads.find(x => x.id === store.activeThreadId);
+  if (!t) t = createNewThread(type, false);
+  return t;
+}
+
+function setActiveThread(type, threadId) {
+  const store = getTypeStore(type);
+  if (!store.threads.some(t => t.id === threadId)) return;
+  store.activeThreadId = threadId;
+  scheduleSaveAll();
+  renderThreadsList();
+  renderChatHistory(type);
+  updateThreadHeader();
+}
+
+function updateThreadHeader() {
+  if (!threadHeader) return;
+  const t = getActiveThread(activeChatType);
+  // ✅ "History" label stays, but show active chat title under it by using header text = title
+  threadHeader.textContent = t?.title || "History";
+}
+
+function renderThreadsList() {
+  if (!threadsList) return;
+  const store = getTypeStore(activeChatType);
+  threadsList.innerHTML = "";
+
+  store.threads.forEach((t) => {
+    const row = document.createElement("div");
+    row.className = "thread-item" + (t.id === store.activeThreadId ? " active" : "");
+
+    const title = document.createElement("div");
+    title.className = "thread-title";
+    title.textContent = t.title;
+
+    row.appendChild(title);
+
+    row.addEventListener("click", () => setActiveThread(activeChatType, t.id));
+    row.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setActiveThread(activeChatType, t.id);
+    }, { passive: false });
+
+    threadsList.appendChild(row);
+  });
+}
+
+// ensure bucket for current profile
 if (currentProfile?.id) ensureChatBucket(currentProfile.id);
 
-// age labels (legacy)
-const ageMap = {
-  Age1: 'Early Kids Ages 5–8',
-  Age2: 'Kids Ages 9–12',
-  Age3: 'Teens Ages 13–17',
-  Age4: 'Adults Ages 18–59',
-  Age5: 'Older Adults Ages 60+'
-};
-
+// =========================================================
+// ✅ AGE BAND (NEW)
+// =========================================================
 function ageBandFromNumber(n) {
   const a = Math.max(0, Math.min(140, Math.round(Number(n) || 0)));
-  if (a <= 8)  return { ageKey: "Age1", ageText: "Early Kids Ages 5–8" };
-  if (a <= 12) return { ageKey: "Age2", ageText: "Kids Ages 9–12" };
-  if (a <= 17) return { ageKey: "Age3", ageText: "Teens Ages 13–17" };
-  if (a <= 59) return { ageKey: "Age4", ageText: "Adults Ages 18–59" };
-  return { ageKey: "Age5", ageText: "Older Adults Ages 60+" };
+
+  if (a <= 2)  return { ageKey: "Baby",       ageText: "Baby Age: 0–2" };
+  if (a <= 5)  return { ageKey: "Child",      ageText: "Child Age: 3–5" };
+  if (a <= 8)  return { ageKey: "YoungChild", ageText: "Young Child Age: 6–8" };
+  if (a <= 12) return { ageKey: "PreTeen",    ageText: "Pre-Teen Age: 9–12" };
+  if (a <= 17) return { ageKey: "Teen",       ageText: "Teen Age: 13–17" };
+  if (a <= 24) return { ageKey: "YoungAdult", ageText: "Young Adult Age: 18–24" };
+  if (a <= 34) return { ageKey: "Adult",      ageText: "Adult Age: 25–34" };
+  if (a <= 44) return { ageKey: "MidAdult",   ageText: "Mid Adult Age: 35–44" };
+  if (a <= 54) return { ageKey: "OlderAdult", ageText: "Older Adult Age: 45–54" };
+  if (a <= 64) return { ageKey: "Senior",     ageText: "Senior Age: 55–64" };
+  if (a <= 74) return { ageKey: "Elderly",    ageText: "Elderly Age: 65–74" };
+  return        { ageKey: "VeryElderly", ageText: "Very Elderly Age: 75+" };
 }
 
+// =========================================================
+// ✅ TABS / HOME CARDS
+// =========================================================
 const tabConfig = {
   home: { left: 174, width: 76 },
   healthcare: { left: 259, width: 115 },
@@ -330,89 +436,6 @@ let homeLastX = 0;
 let homeLastTime = 0;
 let homeVelocity = 0;
 
-// =========================================================
-// ✅ AGE WHEEL (iPhone-like)
-// =========================================================
-let selectedAgeNumber = 18;
-let _ageScrollTimer = null;
-
-function setAgeUI(n) {
-  selectedAgeNumber = Math.max(0, Math.min(140, Math.round(Number(n) || 0)));
-  if (ageNumberBig) ageNumberBig.textContent = String(selectedAgeNumber);
-
-  const band = ageBandFromNumber(selectedAgeNumber);
-  if (ageBandLabel) ageBandLabel.textContent = band.ageText;
-
-  if (ageWheel) {
-    const items = ageWheel.querySelectorAll('.age-item');
-    items.forEach((el) => {
-      const v = Number(el.getAttribute('data-age'));
-      el.classList.toggle('active', v === selectedAgeNumber);
-    });
-  }
-}
-
-function snapWheelToAge(age, smooth = true) {
-  if (!ageWheel) return;
-  const item = ageWheel.querySelector(`.age-item[data-age="${age}"]`);
-  if (!item) return;
-
-  const top = item.offsetTop - (ageWheel.clientHeight / 2) + (item.clientHeight / 2);
-  ageWheel.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
-  setAgeUI(age);
-}
-
-function snapToNearestAge(smooth = true) {
-  if (!ageWheel) return;
-  const centerY = ageWheel.scrollTop + ageWheel.clientHeight / 2;
-  const items = ageWheel.querySelectorAll('.age-item');
-  let bestAge = selectedAgeNumber;
-  let bestDist = Infinity;
-
-  items.forEach((el) => {
-    const mid = el.offsetTop + el.clientHeight / 2;
-    const d = Math.abs(mid - centerY);
-    if (d < bestDist) {
-      bestDist = d;
-      bestAge = Number(el.getAttribute('data-age'));
-    }
-  });
-
-  snapWheelToAge(bestAge, smooth);
-}
-
-function buildAgeWheel() {
-  if (!ageWheel) return;
-  ageWheel.innerHTML = '';
-
-  for (let i = 0; i <= 140; i++) {
-    const item = document.createElement('div');
-    item.className = 'age-item';
-    item.textContent = String(i);
-    item.setAttribute('data-age', String(i));
-    item.setAttribute('role', 'option');
-
-    item.addEventListener('click', () => {
-      snapWheelToAge(i, true);
-      startIdleTimer();
-    });
-
-    ageWheel.appendChild(item);
-  }
-
-  requestAnimationFrame(() => {
-    snapWheelToAge(selectedAgeNumber, false);
-    setAgeUI(selectedAgeNumber);
-  });
-
-  ageWheel.addEventListener('scroll', () => {
-    clearTimeout(_ageScrollTimer);
-    _ageScrollTimer = setTimeout(() => {
-      snapToNearestAge(true);
-    }, 90);
-  }, { passive: true });
-}
-
 // ---- VIDEO / IDLE STATE ----
 let startupMode = true;
 let startupTimer = null;
@@ -420,6 +443,9 @@ let idleTimer = null;
 let isVideoVisible = false;
 let lastActiveFrame = null;
 
+// =========================================================
+// ✅ FRAME NAV
+// =========================================================
 function hideAllFrames() {
   [frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7].forEach(f => {
     if (f) f.style.display = 'none';
@@ -477,10 +503,9 @@ function goToFrame4Age() {
   if (frame4) frame4.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic15.png")';
   lastActiveFrame = 'frame4';
-
-  // build wheel once
-  if (ageWheel && !ageWheel.hasChildNodes()) buildAgeWheel();
-  requestAnimationFrame(() => snapWheelToAge(selectedAgeNumber, false));
+  initAgeWheelIfNeeded();
+  // ensure centered on current age
+  scrollAgeWheelTo(ageNumber);
 }
 
 function goToFrame5Accounts() {
@@ -508,80 +533,23 @@ function goToFrame6() {
   scheduleSaveAll();
 }
 
-function goFrame6ProfileToFrame5(e) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
-  startIdleTimer();
-  goToFrame5Accounts();
+function restoreLastFrame() {
+  switch (lastActiveFrame) {
+    case 'frame1': goToFrame1(); break;
+    case 'frame2': goToFrame2(); break;
+    case 'frame3': goToFrame3Keep(); break;
+    case 'frameAvatar': goToAvatarFrame(); break;
+    case 'frame4': goToFrame4Age(); break;
+    case 'frame5': goToFrame5Accounts(); break;
+    case 'frame6': goToFrame6(); break;
+    case 'frame7': goToFrame7(activeChatType); break;
+    default: goToFrame1(); break;
+  }
 }
 
-if (frame6ProfileBtn) {
-  frame6ProfileBtn.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    goFrame6ProfileToFrame5(e);
-  }, { passive: false, capture: true });
-
-  frame6ProfileBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    goFrame6ProfileToFrame5(e);
-  }, { capture: true });
-}
-
-if (frame6ProfileImg) {
-  frame6ProfileImg.addEventListener('touchstart', goFrame6ProfileToFrame5, { passive: false, capture: true });
-  frame6ProfileImg.addEventListener('click', goFrame6ProfileToFrame5, { capture: true });
-}
-
-// ---------- Frame7 (Chatbot) ----------
-const cardToTitle = {
-  healthcare: "HealthCare Chatbot",
-  sports: "Sports&Fitness Chatbot",
-  education: "Education Chatbot",
-  community: "Community Chatbot",
-};
-
-let activeChatType = "healthcare";
-
-function updateChatScale() {
-  if (!chatStage) return;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const baseW = 864;
-  const baseH = 444;
-  const s = Math.min(vw / baseW, vh / baseH);
-  chatStage.style.setProperty('--s', s.toString());
-}
-
-window.addEventListener('resize', () => {
-  if (frame7 && frame7.style.display === 'block') updateChatScale();
-});
-
-function goToFrame7(chatType) {
-  activeChatType = chatType || "healthcare";
-  hideAllFrames();
-
-  if (frame7) frame7.style.backgroundImage = 'url("Pic18.png")';
-  document.body.style.backgroundImage = 'url("Pic18.png")';
-
-  if (frame7) frame7.style.display = 'block';
-  lastActiveFrame = 'frame7';
-
-  if (chatTitle) chatTitle.textContent = cardToTitle[activeChatType] || "Chatbot";
-  updateChatScale();
-  startIdleTimer();
-  renderChatHistory(activeChatType);
-  focusChatInput();
-}
-
-function focusChatInput() {
-  if (!chatInput) return;
-  setTimeout(() => chatInput.focus({ preventScroll: true }), 50);
-}
-
-// -------- VIDEO OVERLAY FUNCTIONS --------
+// =========================================================
+// ✅ VIDEO OVERLAY
+// =========================================================
 function showVideoOverlay() {
   if (!frameVideo) return;
   frameVideo.style.display = 'flex';
@@ -607,27 +575,14 @@ function startIdleTimer() {
   }, 20000);
 }
 
-function restoreLastFrame() {
-  switch (lastActiveFrame) {
-    case 'frame1': goToFrame1(); break;
-    case 'frame2': goToFrame2(); break;
-    case 'frame3': goToFrame3Keep(); break;
-    case 'frameAvatar': goToAvatarFrame(); break;
-    case 'frame4': goToFrame4Age(); break;
-    case 'frame5': goToFrame5Accounts(); break;
-    case 'frame6': goToFrame6(); break;
-    case 'frame7': goToFrame7(activeChatType); break;
-    default: goToFrame1(); break;
-  }
-}
-
 function handleUserInteraction(e) {
   if (!bootReady) return;
 
   if (e && e.target) {
     const block = e.target.closest(
       '.frame6-profile, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
-      '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang, .age-wheel'
+      '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, ' +
+      '.frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang, .mini-btn, .thread-item'
     );
     if (block) return;
   }
@@ -638,10 +593,7 @@ function handleUserInteraction(e) {
     if (startupMode) {
       startupMode = false;
       clearTimeout(startupTimer);
-
-      // ✅ ถ้ามี account แล้ว ข้ามไป Frame5 (เลือกโปรไฟล์) หรือจะไป Frame6 ก็ได้
-      if (profiles.length > 0) goToFrame5Accounts();
-      else goToFrame1();
+      goToFrame1();
     } else {
       restoreLastFrame();
     }
@@ -663,10 +615,7 @@ function handleUserInteraction(e) {
       if (startupMode) {
         startupMode = false;
         hideVideoOverlay();
-
-        if (profiles.length > 0) goToFrame5Accounts();
-        else goToFrame1();
-
+        goToFrame1();
         startIdleTimer();
       }
     }, 20000);
@@ -677,7 +626,9 @@ function handleUserInteraction(e) {
   }, 30);
 })();
 
-// ---------- Slider + Frame 2 ----------
+// =========================================================
+// ✅ SLIDER (Frame2)
+// =========================================================
 function updateDots() {
   const dots = [dot1, dot2, dot3].filter(Boolean);
   dots.forEach(dot => {
@@ -706,50 +657,35 @@ function setIndex(idx, withTransition = true) {
   updateDots();
 }
 
-// ✅ NEW: Frame1 option flow (มี account -> ไป Frame6 เลย)
-function onWelcomeOptionClick() {
+function showFrame2FromWelcome() {
+  goToFrame2(); // ✅ Frame1 -> Frame2 only
   startIdleTimer();
-
-  if (profiles.length > 0) {
-    // เลือก currentProfile ให้พร้อม
-    if (!currentProfile) currentProfile = profiles[0];
-    goToFrame6();
-  } else {
-    goToFrame2();
-  }
 }
 
-if (option1) {
-  option1.addEventListener('click', onWelcomeOptionClick);
-  option1.addEventListener('touchend', onWelcomeOptionClick, { passive: true });
-}
-if (option2) {
-  option2.addEventListener('click', onWelcomeOptionClick);
-  option2.addEventListener('touchend', onWelcomeOptionClick, { passive: true });
+// iPhone: use touchstart (stronger than touchend)
+function bindTap(el, fn) {
+  if (!el) return;
+  el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fn(e); });
+  el.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); fn(e); }, { passive: false });
 }
 
-if (frame2Close) {
-  const toNextFromFrame2Close = () => {
-    if (profiles.length > 0) goToFrame5Accounts();
-    else goToFrame3New();
-    startIdleTimer();
-  };
-  frame2Close.addEventListener('click', toNextFromFrame2Close);
-  frame2Close.addEventListener('touchend', toNextFromFrame2Close, { passive: true });
-}
+bindTap(option1, showFrame2FromWelcome);
+bindTap(option2, showFrame2FromWelcome);
+
+bindTap(frame2Close, () => {
+  // ✅ if account exists go Frame5 else new
+  if (profiles.length > 0) goToFrame5Accounts();
+  else goToFrame3New();
+  startIdleTimer();
+});
 
 function goNext() {
-  // ✅ ถ้ามี account อยู่แล้ว กด Pic7 ใน Frame2 ให้ไป Frame5 เลย
-  if (profiles.length > 0) {
-    goToFrame5Accounts();
-    startIdleTimer();
-    return;
-  }
-
-  // ✅ ถ้าไม่มี account ทำแบบเดิม
   if (currentIndex < totalSlides - 1) setIndex(currentIndex + 1, true);
-  else goToFrame3New();
-
+  else {
+    // ✅ last slide: if account exists go Frame5, else setup
+    if (profiles.length > 0) goToFrame5Accounts();
+    else goToFrame3New();
+  }
   startIdleTimer();
 }
 
@@ -759,16 +695,10 @@ function goLeftAction() {
   startIdleTimer();
 }
 
-if (btnRight) {
-  btnRight.addEventListener('click', goNext);
-  btnRight.addEventListener('touchend', goNext, { passive: true });
-}
-if (btnLeft) {
-  btnLeft.addEventListener('click', goLeftAction);
-  btnLeft.addEventListener('touchend', goLeftAction, { passive: true });
-}
+bindTap(btnRight, goNext);
+bindTap(btnLeft, goLeftAction);
 
-// ✅ FIXED: direction lock for slider (vertical pass-through)
+// direction lock for slider
 if (slider) {
   slider.addEventListener('touchstart', (e) => {
     if (sliderWidth === 0) updateSliderSize();
@@ -839,42 +769,25 @@ window.addEventListener('resize', () => {
   }
 });
 
-// ---------- Frame 3 / Avatar / Age ----------
-if (frame3Back) {
-  frame3Back.addEventListener('click', () => {
-    goToFrame2();
-    setIndex(totalSlides - 1, false);
-    startIdleTimer();
-  });
-  frame3Back.addEventListener('touchend', () => {
-    goToFrame2();
-    setIndex(totalSlides - 1, false);
-    startIdleTimer();
-  }, { passive: true });
-}
+// =========================================================
+// ✅ FRAME 3 / AVATAR / FRAME 4
+// =========================================================
+bindTap(frame3Back, () => {
+  goToFrame2();
+  setIndex(totalSlides - 1, false);
+  startIdleTimer();
+});
 
-if (frame3Next) {
-  frame3Next.addEventListener('click', () => { goToFrame4Age(); startIdleTimer(); });
-  frame3Next.addEventListener('touchend', () => { goToFrame4Age(); startIdleTimer(); }, { passive: true });
-}
-if (avatarBtn) {
-  avatarBtn.addEventListener('click', () => { goToAvatarFrame(); startIdleTimer(); });
-  avatarBtn.addEventListener('touchend', () => { goToAvatarFrame(); startIdleTimer(); }, { passive: true });
-}
+bindTap(frame3Next, () => { goToFrame4Age(); startIdleTimer(); });
+bindTap(avatarBtn, () => { goToAvatarFrame(); startIdleTimer(); });
 
 profileOptions.forEach(option => {
-  option.addEventListener('click', () => {
+  bindTap(option, () => {
     const img = option.querySelector('img');
     if (img && avatarImage) avatarImage.src = img.src;
     goToFrame3Keep();
     startIdleTimer();
   });
-  option.addEventListener('touchend', () => {
-    const img = option.querySelector('img');
-    if (img && avatarImage) avatarImage.src = img.src;
-    goToFrame3Keep();
-    startIdleTimer();
-  }, { passive: true });
 });
 
 if (nicknameInput) {
@@ -890,23 +803,124 @@ if (nicknameInput) {
   });
 }
 
-if (frame4Back) {
-  frame4Back.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
-  frame4Back.addEventListener('touchend', () => { goToFrame3Keep(); startIdleTimer(); }, { passive: true });
+bindTap(frame4Back, () => { goToFrame3Keep(); startIdleTimer(); });
+
+// ✅ Frame4 Next: create profile and go Frame5
+bindTap(frame4Next, () => {
+  createProfileFromAgeNumber();
+  startIdleTimer();
+});
+
+// =========================================================
+// ✅ AGE WHEEL SYSTEM
+// =========================================================
+let ageWheelReady = false;
+let ageNumber = 18;
+
+function initAgeWheelIfNeeded() {
+  if (!ageWheel || ageWheelReady) return;
+
+  // build items 0..140
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i <= 140; i++) {
+    const div = document.createElement('div');
+    div.className = 'age-item';
+    div.textContent = String(i);
+    div.dataset.age = String(i);
+    frag.appendChild(div);
+  }
+  ageWheel.appendChild(frag);
+
+  // scroll handler -> find nearest to center
+  let raf = null;
+  function onScroll() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      updateActiveAgeFromWheel(false);
+    });
+  }
+  ageWheel.addEventListener('scroll', onScroll, { passive: true });
+
+  // tap an item -> snap
+  ageWheel.addEventListener('click', (e) => {
+    const item = e.target?.closest?.('.age-item');
+    if (!item) return;
+    const a = Number(item.dataset.age);
+    if (Number.isFinite(a)) scrollAgeWheelTo(a);
+  });
+
+  ageWheelReady = true;
+
+  // initial
+  updateAgeUI(ageNumber);
+  updateActiveAgeFromWheel(true);
 }
 
-function createProfileFromAgeNumber(ageNum) {
+function getWheelItemHeight() {
+  const first = ageWheel?.querySelector?.('.age-item');
+  return first ? first.getBoundingClientRect().height : 42;
+}
+
+function scrollAgeWheelTo(n) {
+  if (!ageWheel) return;
+  const a = Math.max(0, Math.min(140, Math.round(Number(n) || 0)));
+  const itemH = getWheelItemHeight();
+  // padding-top in CSS = 76px, scroll center = 76 + (a*itemH)
+  const topPadding = 76;
+  const target = (a * itemH);
+  ageWheel.scrollTo({ top: target, behavior: "smooth" });
+
+  // update after a short delay (ensure snap)
+  setTimeout(() => {
+    ageNumber = a;
+    updateAgeUI(ageNumber);
+    highlightActiveItem(ageNumber);
+  }, 80);
+}
+
+function updateActiveAgeFromWheel(forceSnap) {
+  if (!ageWheel) return;
+  const itemH = getWheelItemHeight();
+  const scrollTop = ageWheel.scrollTop;
+
+  // nearest index
+  let idx = Math.round(scrollTop / itemH);
+  idx = Math.max(0, Math.min(140, idx));
+
+  ageNumber = idx;
+  updateAgeUI(ageNumber);
+  highlightActiveItem(ageNumber);
+
+  if (forceSnap) {
+    ageWheel.scrollTop = idx * itemH;
+  }
+}
+
+function highlightActiveItem(n) {
+  if (!ageWheel) return;
+  const items = ageWheel.querySelectorAll('.age-item');
+  items.forEach((el) => el.classList.remove('active'));
+  const target = ageWheel.querySelector(`.age-item[data-age="${n}"]`);
+  if (target) target.classList.add('active');
+}
+
+function updateAgeUI(n) {
+  if (ageNumberBig) ageNumberBig.textContent = String(n);
+  const band = ageBandFromNumber(n);
+  if (ageBandLabel) ageBandLabel.textContent = band.ageText;
+}
+
+function createProfileFromAgeNumber() {
   const name = (nicknameInput?.value || '').trim() || 'Guest';
   const avatarSrc = avatarImage?.src || 'Pic13.png';
 
-  const a = Math.max(0, Math.min(140, Math.round(Number(ageNum) || 0)));
-  const band = ageBandFromNumber(a);
+  const band = ageBandFromNumber(ageNumber);
 
   const profile = {
     id: Date.now().toString() + Math.random().toString(16).slice(2),
     name,
     avatarSrc,
-    ageNumber: a,
+    ageNumber,
     ageKey: band.ageKey,
     ageText: band.ageText
   };
@@ -915,18 +929,13 @@ function createProfileFromAgeNumber(ageNum) {
   ensureChatBucket(profile.id);
   currentProfile = profile;
   scheduleSaveAll();
+
   goToFrame5Accounts();
-  startIdleTimer();
 }
 
-if (frame4Next) {
-  const nextFromFrame4 = () => {
-    createProfileFromAgeNumber(selectedAgeNumber);
-  };
-  frame4Next.addEventListener('click', nextFromFrame4);
-  frame4Next.addEventListener('touchend', nextFromFrame4, { passive: true });
-}
-
+// =========================================================
+// ✅ FRAME 5 (Profiles)
+// =========================================================
 function renderProfiles() {
   if (!profilesList) return;
   profilesList.innerHTML = '';
@@ -957,7 +966,6 @@ function renderProfiles() {
       deleteModeId = null;
 
       if (chatDBByProfile[id]) delete chatDBByProfile[id];
-
       if (currentProfile?.id === id) currentProfile = profiles[0] || null;
 
       scheduleSaveAll();
@@ -965,7 +973,7 @@ function renderProfiles() {
     }
 
     overlay.addEventListener('click', deleteThisCard);
-    overlay.addEventListener('touchend', deleteThisCard, { passive: false });
+    overlay.addEventListener('touchstart', (e) => { e.preventDefault(); deleteThisCard(e); }, { passive: false });
 
     avatarWrap.appendChild(overlay);
 
@@ -978,7 +986,7 @@ function renderProfiles() {
 
     attachLongPress(card, profile.id);
 
-    const pickProfile = () => {
+    const pickProfile = (e) => {
       if (deleteModeId) return;
       currentProfile = profile;
       ensureChatBucket(profile.id);
@@ -986,8 +994,9 @@ function renderProfiles() {
       goToFrame6();
       startIdleTimer();
     };
+
     card.addEventListener('click', pickProfile);
-    card.addEventListener('touchend', pickProfile, { passive: true });
+    card.addEventListener('touchstart', (e) => { e.preventDefault(); pickProfile(e); }, { passive: false });
 
     profilesList.appendChild(card);
   });
@@ -1005,9 +1014,7 @@ function renderProfiles() {
   avatarWrap.appendChild(addImg);
   addCard.appendChild(avatarWrap);
 
-  const addHandler = () => { goToFrame3New(); startIdleTimer(); };
-  addCard.addEventListener('click', addHandler);
-  addCard.addEventListener('touchend', addHandler, { passive: true });
+  bindTap(addCard, () => { goToFrame3New(); startIdleTimer(); });
 
   profilesList.appendChild(addCard);
 }
@@ -1016,7 +1023,6 @@ function attachLongPress(card, id) {
   let timer = null;
 
   const start = (ev) => {
-    if (ev.type === 'mousedown') ev.preventDefault();
     timer = setTimeout(() => { toggleDeleteMode(id); }, 600);
   };
 
@@ -1042,7 +1048,9 @@ function toggleDeleteMode(id) {
   });
 }
 
-// ---------- Tabs logic ----------
+// =========================================================
+// ✅ FRAME 6 Tabs
+// =========================================================
 function setActiveTab(name) {
   const cfg = tabConfig[name];
   if (!cfg || !tabHighlight) return;
@@ -1066,26 +1074,23 @@ function setActiveTab(name) {
   if (homeCardsWrapper) homeCardsWrapper.style.display = (name === 'home') ? 'block' : 'none';
 }
 
-if (tabHome) tabHome.addEventListener('click', () => { setActiveTab('home'); startIdleTimer(); });
-if (tabHealthcare) tabHealthcare.addEventListener('click', () => { setActiveTab('healthcare'); startIdleTimer(); });
-if (tabSports) tabSports.addEventListener('click', () => { setActiveTab('sports'); startIdleTimer(); });
-if (tabEducation) tabEducation.addEventListener('click', () => { setActiveTab('education'); startIdleTimer(); });
-if (tabCommunity) tabCommunity.addEventListener('click', () => { setActiveTab('community'); startIdleTimer(); });
+bindTap(tabHome, () => { setActiveTab('home'); startIdleTimer(); });
+bindTap(tabHealthcare, () => { setActiveTab('healthcare'); startIdleTimer(); });
+bindTap(tabSports, () => { setActiveTab('sports'); startIdleTimer(); });
+bindTap(tabEducation, () => { setActiveTab('education'); startIdleTimer(); });
+bindTap(tabCommunity, () => { setActiveTab('community'); startIdleTimer(); });
 
-// ---------- Home cards slide logic ----------
+// Profile icon -> Frame5
+bindTap(frame6ProfileBtn, () => { goToFrame5Accounts(); startIdleTimer(); });
+
+// home card swipe helpers
 function getTranslateX(el) {
   const t = window.getComputedStyle(el).transform;
   if (!t || t === 'none') return 0;
   const m2 = t.match(/^matrix\((.+)\)$/);
-  if (m2) {
-    const parts = m2[1].split(',').map(s => parseFloat(s.trim()));
-    return parts[4] || 0;
-  }
+  if (m2) return parseFloat(m2[1].split(',')[4]) || 0;
   const m3 = t.match(/^matrix3d\((.+)\)$/);
-  if (m3) {
-    const parts = m3[1].split(',').map(s => parseFloat(s.trim()));
-    return parts[12] || 0;
-  }
+  if (m3) return parseFloat(m3[1].split(',')[12]) || 0;
   return 0;
 }
 
@@ -1107,7 +1112,7 @@ function setHomeIndex(idx, withTransition = true) {
   homeCardsTrack.style.transform = `translateX(${tx}px)`;
 }
 
-// ✅ FIXED: direction lock for home cards (vertical pass-through)
+// swipe home cards
 if (homeCardsWrapper && homeCardsTrack) {
   homeCardsWrapper.addEventListener('touchstart', (e) => {
     homeDragging = true;
@@ -1182,30 +1187,102 @@ if (homeCardsWrapper && homeCardsTrack) {
   homeCardsWrapper.addEventListener('touchcancel', endHomeDrag, { passive: true });
 }
 
-// ✅ Card click -> go to Frame7 (only Card1-4)
+// card click -> Frame7
 document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
-  card.addEventListener('click', (e) => {
-    if (e.target.closest('.frame6-card-menu')) return;
+  bindTap(card, (e) => {
+    if (e?.target?.closest?.('.frame6-card-menu')) return;
     const type = card.getAttribute('data-card');
     goToFrame7(type);
   });
 });
 
 // =========================================================
-// ✅ CHATBOT SYSTEM (4 types) — PER PROFILE + PERSIST
+// ✅ FRAME 7 Chatbot
 // =========================================================
-function getActiveChatDB() {
-  const pid = currentProfile?.id;
-  if (!pid) return { healthcare: [], sports: [], education: [], community: [] };
-  return ensureChatBucket(pid);
+const cardToTitle = {
+  healthcare: "HealthCare Chatbot",
+  sports: "Sports&Fitness Chatbot",
+  education: "Education Chatbot",
+  community: "Community Chatbot",
+};
+
+let activeChatType = "healthcare";
+
+function updateChatScale() {
+  if (!chatStage) return;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const baseW = 864;
+  const baseH = 444;
+  const s = Math.min(vw / baseW, vh / baseH);
+  chatStage.style.setProperty('--s', s.toString());
 }
 
+window.addEventListener('resize', () => {
+  if (frame7 && frame7.style.display === 'block') updateChatScale();
+});
+
+function goToFrame7(chatType) {
+  activeChatType = chatType || "healthcare";
+  hideAllFrames();
+
+  if (frame7) frame7.style.backgroundImage = 'url("Pic18.png")';
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+
+  if (frame7) frame7.style.display = 'block';
+  lastActiveFrame = 'frame7';
+
+  if (chatTitle) chatTitle.textContent = cardToTitle[activeChatType] || "Chatbot";
+  updateChatScale();
+  startIdleTimer();
+
+  // ensure at least one thread exists
+  getActiveThread(activeChatType);
+
+  renderChatHistory(activeChatType);
+  renderThreadsList();
+  updateThreadHeader();
+  focusChatInput();
+}
+
+function focusChatInput() {
+  if (!chatInput) return;
+  setTimeout(() => chatInput.focus({ preventScroll: true }), 50);
+}
+
+// +New create new thread
+if (newChatBtn) {
+  newChatBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startIdleTimer();
+    createNewThread(activeChatType, true);
+  }, { passive: false });
+
+  newChatBtn.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startIdleTimer();
+    createNewThread(activeChatType, true);
+  }, { passive: false });
+}
+
+// chat back
+bindTap(chatBackBtn, () => {
+  startIdleTimer();
+  stopVoiceIfAny();
+  goToFrame6();
+});
+
+// =========================================================
+// ✅ CHAT RENDER + SEND
+// =========================================================
 function renderChatHistory(type) {
   if (!chatHistory) return;
   chatHistory.innerHTML = '';
 
-  const db = getActiveChatDB();
-  const list = db[type] || [];
+  const thread = getActiveThread(type);
+  const list = thread.messages || [];
 
   list.forEach(m => addBubbleToDOM(m.role, m.text, m.attachments, false));
   scrollChatToBottom(true);
@@ -1244,9 +1321,9 @@ function addBubbleToDOM(role, text, attachments = null, autoScroll = true) {
 }
 
 function pushMessage(type, role, text, attachments = null) {
-  const db = getActiveChatDB();
-  if (!db[type]) db[type] = [];
-  db[type].push({ role, text, attachments });
+  const thread = getActiveThread(type);
+  thread.messages ||= [];
+  thread.messages.push({ role, text, attachments });
 
   addBubbleToDOM(role, text, attachments, true);
   scheduleSaveAll();
@@ -1264,8 +1341,8 @@ if (chatInput) {
 }
 
 function buildHistoryForServer(type, maxTurns = 14) {
-  const db = getActiveChatDB();
-  const list = db[type] || [];
+  const thread = getActiveThread(type);
+  const list = thread.messages || [];
   const msgs = [];
 
   for (const m of list) {
@@ -1281,7 +1358,6 @@ function buildHistoryForServer(type, maxTurns = 14) {
   return msgs.slice(-maxTurns);
 }
 
-// ✅ CALL SERVER — endpoint /api/chat
 async function callServerAI(type, userText) {
   const history = buildHistoryForServer(type);
 
@@ -1300,9 +1376,9 @@ async function callServerAI(type, userText) {
         profile: currentProfile ? {
           id: currentProfile.id,
           name: currentProfile.name,
+          ageNumber: currentProfile.ageNumber,
           ageKey: currentProfile.ageKey,
-          ageText: currentProfile.ageText,
-          ageNumber: currentProfile.ageNumber
+          ageText: currentProfile.ageText
         } : null
       })
     });
@@ -1340,8 +1416,8 @@ async function handleSend(text, attachments = null) {
   // thinking bubble
   pushMessage(activeChatType, 'bot', '…');
 
-  const db = getActiveChatDB();
-  const list = db[activeChatType];
+  const thread = getActiveThread(activeChatType);
+  const list = thread.messages || [];
   const thinkingIndex = list.length - 1;
 
   try {
@@ -1350,6 +1426,7 @@ async function handleSend(text, attachments = null) {
 
     const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
     if (lastBubble) lastBubble.textContent = reply;
+
     scrollChatToBottom(true);
     scheduleSaveAll();
   } catch (err) {
@@ -1359,6 +1436,7 @@ async function handleSend(text, attachments = null) {
     list[thinkingIndex].text = failText;
     const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
     if (lastBubble) lastBubble.textContent = failText;
+
     scrollChatToBottom(true);
     scheduleSaveAll();
   }
@@ -1370,7 +1448,7 @@ if (chatInput) {
   });
 }
 
-if (chatAdd) chatAdd.addEventListener('click', () => {
+bindTap(chatAdd, () => {
   startIdleTimer();
   if (!filePicker) return;
   filePicker.value = '';
@@ -1384,20 +1462,59 @@ if (filePicker) filePicker.addEventListener('change', () => {
   handleSend('', files);
 });
 
-if (chatBackBtn) {
-  chatBackBtn.addEventListener('click', () => {
-    startIdleTimer();
-    stopVoiceIfAny();
-    goToFrame6();
-  });
-  chatBackBtn.addEventListener('touchend', () => {
-    startIdleTimer();
-    stopVoiceIfAny();
-    goToFrame6();
-  }, { passive: true });
+// =========================================================
+// ✅ Mic language menu (EN/TH)
+// =========================================================
+function setMicLangUI() {
+  if (!micLangBtn) return;
+  micLangBtn.textContent = (micLang === "th-TH") ? "TH" : "EN";
+}
+setMicLangUI();
+
+function closeMicMenu() {
+  if (!micLangMenu) return;
+  micLangMenu.classList.remove("show");
 }
 
+if (micLangBtn && micLangMenu) {
+  micLangBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    micLangMenu.classList.toggle("show");
+  });
+
+  micLangBtn.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    micLangMenu.classList.toggle("show");
+  }, { passive: false });
+
+  micLangMenu.querySelectorAll(".mic-lang-item").forEach(item => {
+    item.addEventListener("click", (e) => {
+      e.preventDefault();
+      const lang = item.getAttribute("data-lang");
+      if (lang === "th-TH" || lang === "en-US") micLang = lang;
+      setMicLangUI();
+      closeMicMenu();
+      scheduleSaveAll();
+    });
+    item.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      const lang = item.getAttribute("data-lang");
+      if (lang === "th-TH" || lang === "en-US") micLang = lang;
+      setMicLangUI();
+      closeMicMenu();
+      scheduleSaveAll();
+    }, { passive: false });
+  });
+
+  document.addEventListener("click", () => closeMicMenu());
+  document.addEventListener("touchstart", () => closeMicMenu(), { passive: true });
+}
+
+// =========================================================
 // ✅ Voice input
+// =========================================================
 let recognition = null;
 let isListening = false;
 let voiceDraft = '';
@@ -1504,7 +1621,12 @@ function onSendOrYesClick() {
   handleSend(chatInput?.value || '', null);
 }
 
-if (chatMic) chatMic.addEventListener('click', onMicOrNoClick);
-if (chatSend) chatSend.addEventListener('click', onSendOrYesClick);
+bindTap(chatMic, onMicOrNoClick);
+bindTap(chatSend, onSendOrYesClick);
 
 updateTapHint();
+
+// =========================================================
+// ✅ Initial screen
+// =========================================================
+goToFrame1();
