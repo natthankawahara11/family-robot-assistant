@@ -2,11 +2,11 @@
 const SERVER_BASE = window.location.origin;
 
 // =========================================================
-// ✅ LOCAL STORAGE (persist profiles + chats + settings)
+// ✅ LOCAL STORAGE
 // =========================================================
 const LS_PROFILES_KEY = "fra_profiles_v1";
-const LS_CHATS_KEY = "fra_chats_v1";        // chat by profileId
-const LS_STATE_KEY = "fra_state_v1";        // currentProfileId, micLang
+const LS_CHATS_KEY = "fra_chats_v2_threads"; // ✅ NEW schema
+const LS_STATE_KEY = "fra_state_v2";         // currentProfileId, micLang, selectedThreadByType
 
 function safeJSONParse(s, fallback) {
   try { return JSON.parse(s); } catch (_) { return fallback; }
@@ -27,7 +27,8 @@ function scheduleSaveAll() {
     lsSet(LS_CHATS_KEY, chatDBByProfile);
     lsSet(LS_STATE_KEY, {
       currentProfileId: currentProfile?.id || null,
-      micLang
+      micLang,
+      selectedThreadByType: selectedThreadByType || {}
     });
   }, 150);
 }
@@ -143,7 +144,7 @@ function shouldLockHorizontal(lock, x, y, threshold = 10) {
 }
 
 // =========================================================
-// ✅ APP
+// ✅ ELEMENTS
 // =========================================================
 const frameVideo = document.getElementById('frameVideo');
 
@@ -178,7 +179,11 @@ const profileOptions = document.querySelectorAll('.frame-avatar .profile-option'
 
 const frame4Back = document.getElementById('frame4Back');
 const frame4Next = document.getElementById('frame4Next');
-const ageCards = document.querySelectorAll('.age-card');
+
+// ✅ NEW age slider elements
+const ageRange = document.getElementById('ageRange');
+const ageNumberBig = document.getElementById('ageNumberBig');
+const ageBandLabel = document.getElementById('ageBandLabel');
 
 const profilesList = document.getElementById('profilesList');
 
@@ -203,7 +208,6 @@ const chatBackBtn = document.getElementById('chatBackBtn');
 const chatAdd = document.getElementById('chatAdd');
 const chatMic = document.getElementById('chatMic');
 const chatSend = document.getElementById('chatSend');
-const chatAddImg = document.getElementById('chatAddImg');
 const chatMicImg = document.getElementById('chatMicImg');
 const chatSendImg = document.getElementById('chatSendImg');
 
@@ -213,11 +217,20 @@ const voiceWave = document.getElementById('voiceWave');
 
 const filePicker = document.getElementById('filePicker');
 
+// ✅ Threads UI
+const newChatBtn = document.getElementById('newChatBtn');
+const chatsToggleBtn = document.getElementById('chatsToggleBtn');
+const threadsPanel = document.getElementById('threadsPanel');
+const threadsList = document.getElementById('threadsList');
+const threadsCloseBtn = document.getElementById('threadsCloseBtn');
+
 // ✅ Mic language UI
+const micLangWrap = document.getElementById('micLangWrap');
 const micLangBtn = document.getElementById('micLangBtn');
+const micLangMenu = document.getElementById('micLangMenu');
 
 // =========================================================
-// ✅ STATE + RESTORE FROM localStorage
+// ✅ STATE
 // =========================================================
 const totalSlides = 3;
 let currentIndex = 0;
@@ -232,30 +245,85 @@ let homeLock = directionLockState();
 
 // profiles/chat state
 let profiles = lsGet(LS_PROFILES_KEY, []);
-let chatDBByProfile = lsGet(LS_CHATS_KEY, {}); // { [profileId]: { healthcare:[], ... } }
-const savedState = lsGet(LS_STATE_KEY, { currentProfileId: null, micLang: "en-US" });
+let chatDBByProfile = lsGet(LS_CHATS_KEY, {}); // NEW schema described below
+const savedState = lsGet(LS_STATE_KEY, { currentProfileId: null, micLang: "en-US", selectedThreadByType: {} });
 
 let deleteModeId = null;
 let currentProfile = null;
 
-// mic language: "en-US" or "th-TH"
+// mic language
 let micLang = (savedState?.micLang === "th-TH") ? "th-TH" : "en-US";
 
-function setMicLangUI() {
-  if (!micLangBtn) return;
-  micLangBtn.textContent = (micLang === "th-TH") ? "TH" : "EN";
-}
-setMicLangUI();
+// per bot type, which thread id is selected
+let selectedThreadByType = savedState?.selectedThreadByType || {};
 
-if (micLangBtn) {
-  micLangBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    micLang = (micLang === "th-TH") ? "en-US" : "th-TH";
-    setMicLangUI();
-    scheduleSaveAll();
-  }, { passive: false });
+// =========================================================
+// ✅ AGE helpers (0–140 -> Age band)
+/// store in profile: ageNumber (0..140), ageKey (Age1..Age5), ageText
+// =========================================================
+function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+function ageToBand(ageNum) {
+  const a = clamp(Number(ageNum || 0), 0, 140);
+  if (a <= 8) return { ageKey: "Age1", ageText: "Early Kids Ages 5–8" };
+  if (a <= 12) return { ageKey: "Age2", ageText: "Kids Ages 9–12" };
+  if (a <= 17) return { ageKey: "Age3", ageText: "Teens Ages 13–17" };
+  if (a <= 59) return { ageKey: "Age4", ageText: "Adults Ages 18–59" };
+  return { ageKey: "Age5", ageText: "Older Adults Ages 60+" };
 }
+
+function syncAgeUI(ageNum) {
+  const a = clamp(Number(ageNum || 0), 0, 140);
+  if (ageRange) ageRange.value = String(a);
+  if (ageNumberBig) ageNumberBig.textContent = String(a);
+  const band = ageToBand(a);
+  if (ageBandLabel) ageBandLabel.textContent = band.ageText;
+}
+
+// =========================================================
+// ✅ migrate old profile ageKey/ageText -> ageNumber default
+// =========================================================
+function inferAgeNumberFromOldProfile(p) {
+  // if already have ageNumber keep it
+  if (typeof p?.ageNumber === "number") return clamp(p.ageNumber, 0, 140);
+
+  const k = p?.ageKey;
+  if (k === "Age1") return 7;
+  if (k === "Age2") return 10;
+  if (k === "Age3") return 15;
+  if (k === "Age4") return 30;
+  if (k === "Age5") return 65;
+
+  // fallback parse number from ageText
+  const t = String(p?.ageText || "");
+  const m = t.match(/(\d+)/);
+  if (m) return clamp(parseInt(m[1], 10), 0, 140);
+  return 18;
+}
+
+function migrateProfilesIfNeeded() {
+  if (!Array.isArray(profiles)) profiles = [];
+  let changed = false;
+  profiles = profiles.map(p => {
+    if (!p || typeof p !== "object") return p;
+    if (typeof p.ageNumber !== "number") {
+      const ageNumber = inferAgeNumberFromOldProfile(p);
+      const band = ageToBand(ageNumber);
+      changed = true;
+      return { ...p, ageNumber, ageKey: band.ageKey, ageText: band.ageText };
+    }
+    // keep ageKey/ageText in sync
+    const band = ageToBand(p.ageNumber);
+    if (p.ageKey !== band.ageKey || p.ageText !== band.ageText) {
+      changed = true;
+      return { ...p, ageKey: band.ageKey, ageText: band.ageText };
+    }
+    return p;
+  });
+
+  if (changed) scheduleSaveAll();
+}
+migrateProfilesIfNeeded();
 
 // restore currentProfile by id
 if (profiles.length > 0) {
@@ -263,30 +331,136 @@ if (profiles.length > 0) {
   currentProfile = profiles.find(p => p?.id === id) || profiles[0];
 }
 
-// Ensure chat buckets exist
+// =========================================================
+// ✅ THREADS data schema
+// chatDBByProfile[profileId][type] = { threads: [{id,title,createdAt,messages:[] }], activeThreadId }
+// messages: { role:'user'|'bot', text, attachments }
+// =========================================================
+const CHAT_TYPES = ["healthcare","sports","education","community"];
+
 function ensureChatBucket(profileId) {
   if (!profileId) return null;
   if (!chatDBByProfile[profileId]) {
-    chatDBByProfile[profileId] = { healthcare: [], sports: [], education: [], community: [] };
-  } else {
-    chatDBByProfile[profileId].healthcare ||= [];
-    chatDBByProfile[profileId].sports ||= [];
-    chatDBByProfile[profileId].education ||= [];
-    chatDBByProfile[profileId].community ||= [];
+    chatDBByProfile[profileId] = {};
+  }
+
+  for (const t of CHAT_TYPES) {
+    const slot = chatDBByProfile[profileId][t];
+    // migrate from old v1 arrays
+    if (Array.isArray(slot)) {
+      chatDBByProfile[profileId][t] = {
+        threads: [{
+          id: "t_" + Date.now() + "_" + Math.random().toString(16).slice(2),
+          title: "Chat 1",
+          createdAt: Date.now(),
+          messages: slot
+        }],
+        activeThreadId: null
+      };
+    } else if (!slot || typeof slot !== "object") {
+      chatDBByProfile[profileId][t] = { threads: [], activeThreadId: null };
+    } else {
+      slot.threads ||= [];
+      slot.activeThreadId ||= null;
+    }
+
+    // ensure at least one thread
+    if (chatDBByProfile[profileId][t].threads.length === 0) {
+      const tid = createThread(profileId, t, { autoSelect: false });
+      chatDBByProfile[profileId][t].activeThreadId = tid;
+    }
+
+    // restore active thread from savedState map (per type)
+    const desired = selectedThreadByType?.[t];
+    if (desired) {
+      const ok = chatDBByProfile[profileId][t].threads.some(th => th.id === desired);
+      if (ok) chatDBByProfile[profileId][t].activeThreadId = desired;
+    }
+
+    // if still null, pick first
+    if (!chatDBByProfile[profileId][t].activeThreadId) {
+      chatDBByProfile[profileId][t].activeThreadId = chatDBByProfile[profileId][t].threads[0]?.id || null;
+    }
   }
   return chatDBByProfile[profileId];
 }
+
 if (currentProfile?.id) ensureChatBucket(currentProfile.id);
 
-// age labels
-const ageMap = {
-  Age1: 'Early Kids Ages 5–8',
-  Age2: 'Kids Ages 9–12',
-  Age3: 'Teens Ages 13–17',
-  Age4: 'Adults Ages 18–59',
-  Age5: 'Older Adults Ages 60+'
-};
+function getBucket(type) {
+  const pid = currentProfile?.id;
+  if (!pid) return null;
+  ensureChatBucket(pid);
+  return chatDBByProfile[pid][type];
+}
 
+function getActiveThread(type) {
+  const b = getBucket(type);
+  if (!b) return null;
+  const tid = b.activeThreadId;
+  return b.threads.find(x => x.id === tid) || b.threads[0] || null;
+}
+
+function setActiveThread(type, threadId) {
+  const b = getBucket(type);
+  if (!b) return;
+  const ok = b.threads.some(x => x.id === threadId);
+  if (!ok) return;
+
+  b.activeThreadId = threadId;
+  selectedThreadByType[type] = threadId;
+  scheduleSaveAll();
+}
+
+function createThread(profileId, type, { autoSelect = true } = {}) {
+  ensureChatBucket(profileId);
+  const b = chatDBByProfile[profileId][type];
+  const id = "t_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+  const num = (b.threads.length + 1);
+  b.threads.unshift({
+    id,
+    title: `Chat ${num}`,
+    createdAt: Date.now(),
+    messages: []
+  });
+
+  if (autoSelect) {
+    b.activeThreadId = id;
+    selectedThreadByType[type] = id;
+  }
+  return id;
+}
+
+function deleteThread(type, threadId) {
+  const pid = currentProfile?.id;
+  if (!pid) return;
+  const b = getBucket(type);
+  if (!b) return;
+
+  // keep at least 1 thread
+  if (b.threads.length <= 1) {
+    // just clear messages
+    const th = b.threads[0];
+    if (th) th.messages = [];
+    b.activeThreadId = th?.id || null;
+    selectedThreadByType[type] = b.activeThreadId;
+    scheduleSaveAll();
+    return;
+  }
+
+  b.threads = b.threads.filter(x => x.id !== threadId);
+
+  // if deleted active, select first
+  if (b.activeThreadId === threadId) {
+    b.activeThreadId = b.threads[0]?.id || null;
+    selectedThreadByType[type] = b.activeThreadId;
+  }
+  scheduleSaveAll();
+}
+
+// =========================================================
+// ✅ Tabs config
+// =========================================================
 const tabConfig = {
   home: { left: 174, width: 76 },
   healthcare: { left: 259, width: 115 },
@@ -294,7 +468,6 @@ const tabConfig = {
   education: { left: 516, width: 107 },
   community: { left: 623, width: 122 }
 };
-
 let currentTabName = 'home';
 
 const HOME_CARD_WIDTH = 340;
@@ -318,6 +491,25 @@ let idleTimer = null;
 let isVideoVisible = false;
 let lastActiveFrame = null;
 
+// =========================================================
+// ✅ UI helpers
+// =========================================================
+function setMicLangUI() {
+  if (!micLangBtn) return;
+  micLangBtn.textContent = (micLang === "th-TH") ? "TH" : "EN";
+}
+setMicLangUI();
+
+function hideMicMenu() {
+  if (micLangMenu) micLangMenu.classList.remove("show");
+}
+function showMicMenu() {
+  if (micLangMenu) micLangMenu.classList.add("show");
+}
+
+// =========================================================
+// ✅ FRAME NAV
+// =========================================================
 function hideAllFrames() {
   [frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7].forEach(f => {
     if (f) f.style.display = 'none';
@@ -375,6 +567,9 @@ function goToFrame4Age() {
   if (frame4) frame4.style.display = 'block';
   document.body.style.backgroundImage = 'url("Pic15.png")';
   lastActiveFrame = 'frame4';
+
+  // default slider value
+  syncAgeUI(18);
 }
 
 function goToFrame5Accounts() {
@@ -429,7 +624,9 @@ if (frame6ProfileImg) {
   frame6ProfileImg.addEventListener('click', goFrame6ProfileToFrame5, { capture: true });
 }
 
-// ---------- Frame7 (Chatbot) ----------
+// =========================================================
+// ✅ Frame7 (Chatbot)
+// =========================================================
 const cardToTitle = {
   healthcare: "HealthCare Chatbot",
   sports: "Sports&Fitness Chatbot",
@@ -466,6 +663,15 @@ function goToFrame7(chatType) {
   if (chatTitle) chatTitle.textContent = cardToTitle[activeChatType] || "Chatbot";
   updateChatScale();
   startIdleTimer();
+
+  // ensure bucket & active thread
+  if (currentProfile?.id) ensureChatBucket(currentProfile.id);
+  if (!getActiveThread(activeChatType)) {
+    const pid = currentProfile?.id;
+    if (pid) createThread(pid, activeChatType, { autoSelect: true });
+  }
+
+  renderThreadsList();
   renderChatHistory(activeChatType);
   focusChatInput();
 }
@@ -475,19 +681,19 @@ function focusChatInput() {
   setTimeout(() => chatInput.focus({ preventScroll: true }), 50);
 }
 
-// -------- VIDEO OVERLAY FUNCTIONS --------
+// =========================================================
+// ✅ VIDEO OVERLAY
+// =========================================================
 function showVideoOverlay() {
   if (!frameVideo) return;
   frameVideo.style.display = 'flex';
   isVideoVisible = true;
 }
-
 function hideVideoOverlay() {
   if (!frameVideo) return;
   frameVideo.style.display = 'none';
   isVideoVisible = false;
 }
-
 function startIdleTimer() {
   if (startupMode) return;
   clearTimeout(idleTimer);
@@ -516,7 +722,8 @@ function handleUserInteraction(e) {
   if (e && e.target) {
     const block = e.target.closest(
       '.frame6-profile, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
-      '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang'
+      '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, .frame2-btn-left, .frame2-btn-right,' +
+      '.frame2-close, .mic-lang, .mini-btn, .chat-threads-panel, .thread-item'
     );
     if (block) return;
   }
@@ -560,7 +767,9 @@ function handleUserInteraction(e) {
   }, 30);
 })();
 
-// ---------- Slider + Frame 2 ----------
+// =========================================================
+// ✅ Slider + Frame 2
+// =========================================================
 function updateDots() {
   const dots = [dot1, dot2, dot3].filter(Boolean);
   dots.forEach(dot => {
@@ -613,7 +822,7 @@ function goLeftAction() {
 if (btnRight) btnRight.addEventListener('click', goNext);
 if (btnLeft) btnLeft.addEventListener('click', goLeftAction);
 
-// ✅ FIXED: direction lock for slider (vertical pass-through)
+// ✅ direction lock for slider
 if (slider) {
   slider.addEventListener('touchstart', (e) => {
     if (sliderWidth === 0) updateSliderSize();
@@ -635,10 +844,9 @@ if (slider) {
     const y = e.touches[0].clientY;
 
     const isH = shouldLockHorizontal(sliderLock, x, y);
-    if (isH === null) return; // ยังไม่ชัด
-    if (!isH) return;         // แนวตั้ง -> ปล่อย scroll ผ่าน
+    if (isH === null) return;
+    if (!isH) return;
 
-    // แนวนอนจริง -> กัน Safari scroll เพื่อให้ลากลื่น
     e.preventDefault();
 
     const deltaX = x - startX;
@@ -657,7 +865,6 @@ if (slider) {
     isDragging = false;
     slider.style.transition = 'transform 0.25s ease';
 
-    // ถ้าไม่ได้ intent แนวนอน คืนตำแหน่งเดิม
     if (!sliderLock.locked || !sliderLock.isHorizontal) {
       setIndex(currentIndex, true);
       startIdleTimer();
@@ -685,7 +892,9 @@ window.addEventListener('resize', () => {
   }
 });
 
-// ---------- Frame 3 / Avatar / Age ----------
+// =========================================================
+// ✅ Frame 3 / Avatar
+// =========================================================
 if (frame3Back) frame3Back.addEventListener('click', () => {
   goToFrame2();
   setIndex(totalSlides - 1, false);
@@ -717,37 +926,51 @@ if (nicknameInput) {
   });
 }
 
-if (frame4Back) frame4Back.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
-if (frame4Next) frame4Next.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
+// =========================================================
+// ✅ Frame 4 Age slider logic
+// =========================================================
+if (ageRange) {
+  ageRange.addEventListener("input", () => {
+    syncAgeUI(ageRange.value);
+    startIdleTimer();
+  });
+}
 
-function createProfile(ageKey) {
+if (frame4Back) frame4Back.addEventListener('click', () => { goToFrame3Keep(); startIdleTimer(); });
+
+if (frame4Next) frame4Next.addEventListener('click', () => {
+  // create profile using slider age
+  createProfileFromAgeSlider();
+  startIdleTimer();
+});
+
+function createProfileFromAgeSlider() {
   const name = (nicknameInput?.value || '').trim() || 'Guest';
   const avatarSrc = avatarImage?.src || 'Pic13.png';
-  const ageText = ageMap[ageKey] || '';
+  const ageNumber = clamp(Number(ageRange?.value || 18), 0, 140);
+  const band = ageToBand(ageNumber);
 
   const profile = {
     id: Date.now().toString() + Math.random().toString(16).slice(2),
-    name, avatarSrc, ageKey, ageText
+    name,
+    avatarSrc,
+    ageNumber,
+    ageKey: band.ageKey,
+    ageText: band.ageText
   };
 
   profiles.push(profile);
 
-  // create bucket + persist
   ensureChatBucket(profile.id);
   currentProfile = profile;
-  scheduleSaveAll();
 
+  scheduleSaveAll();
   goToFrame5Accounts();
-  startIdleTimer();
 }
 
-ageCards.forEach(card => {
-  card.addEventListener('click', () => {
-    const ageKey = card.getAttribute('data-age');
-    createProfile(ageKey);
-  });
-});
-
+// =========================================================
+// ✅ Profiles screen
+// =========================================================
 function renderProfiles() {
   if (!profilesList) return;
   profilesList.innerHTML = '';
@@ -777,10 +1000,8 @@ function renderProfiles() {
       profiles = profiles.filter(p => p.id !== id);
       deleteModeId = null;
 
-      // remove chats of that profile
       if (chatDBByProfile[id]) delete chatDBByProfile[id];
 
-      // pick new currentProfile if needed
       if (currentProfile?.id === id) currentProfile = profiles[0] || null;
 
       scheduleSaveAll();
@@ -860,7 +1081,9 @@ function toggleDeleteMode(id) {
   });
 }
 
-// ---------- Tabs logic ----------
+// =========================================================
+// ✅ Tabs logic
+// =========================================================
 function setActiveTab(name) {
   const cfg = tabConfig[name];
   if (!cfg || !tabHighlight) return;
@@ -890,7 +1113,9 @@ if (tabSports) tabSports.addEventListener('click', () => { setActiveTab('sports'
 if (tabEducation) tabEducation.addEventListener('click', () => { setActiveTab('education'); startIdleTimer(); });
 if (tabCommunity) tabCommunity.addEventListener('click', () => { setActiveTab('community'); startIdleTimer(); });
 
-// ---------- Home cards slide logic ----------
+// =========================================================
+// ✅ Home cards slide logic
+// =========================================================
 function getTranslateX(el) {
   const t = window.getComputedStyle(el).transform;
   if (!t || t === 'none') return 0;
@@ -925,7 +1150,6 @@ function setHomeIndex(idx, withTransition = true) {
   homeCardsTrack.style.transform = `translateX(${tx}px)`;
 }
 
-// ✅ FIXED: direction lock for home cards (vertical pass-through)
 if (homeCardsWrapper && homeCardsTrack) {
   homeCardsWrapper.addEventListener('touchstart', (e) => {
     homeDragging = true;
@@ -955,9 +1179,9 @@ if (homeCardsWrapper && homeCardsTrack) {
 
     const isH = shouldLockHorizontal(homeLock, x, y);
     if (isH === null) return;
-    if (!isH) return; // แนวตั้ง -> ปล่อยให้ scroll ได้
+    if (!isH) return;
 
-    e.preventDefault(); // แนวนอน -> ลากลื่น
+    e.preventDefault();
 
     const deltaX = (x - homeStartX) * 1.2;
     let nextTranslate = homeStartTranslate + deltaX;
@@ -978,7 +1202,6 @@ if (homeCardsWrapper && homeCardsTrack) {
     if (!homeDragging) return;
     homeDragging = false;
 
-    // ถ้าไม่ได้ intent แนวนอน ไม่ต้องเด้ง/โยน
     if (!homeLock.locked || !homeLock.isHorizontal) {
       startIdleTimer();
       return;
@@ -1001,7 +1224,7 @@ if (homeCardsWrapper && homeCardsTrack) {
   homeCardsWrapper.addEventListener('touchcancel', endHomeDrag, { passive: true });
 }
 
-// ✅ Card click -> go to Frame7 (only Card1-4)
+// Card click -> Frame7
 document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
   card.addEventListener('click', (e) => {
     if (e.target.closest('.frame6-card-menu')) return;
@@ -1011,20 +1234,14 @@ document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
 });
 
 // =========================================================
-// ✅ CHATBOT SYSTEM (4 types) — PER PROFILE + PERSIST
+// ✅ CHAT rendering (per thread)
 // =========================================================
-function getActiveChatDB() {
-  const pid = currentProfile?.id;
-  if (!pid) return { healthcare: [], sports: [], education: [], community: [] };
-  return ensureChatBucket(pid);
-}
-
 function renderChatHistory(type) {
   if (!chatHistory) return;
   chatHistory.innerHTML = '';
 
-  const db = getActiveChatDB();
-  const list = db[type] || [];
+  const thread = getActiveThread(type);
+  const list = thread?.messages || [];
 
   list.forEach(m => addBubbleToDOM(m.role, m.text, m.attachments, false));
   scrollChatToBottom(true);
@@ -1032,14 +1249,8 @@ function renderChatHistory(type) {
 
 function scrollChatToBottom(force = false) {
   if (!chatHistory) return;
-  // force: schedule in next frame to make iOS render height correctly
-  if (force) {
-    requestAnimationFrame(() => {
-      chatHistory.scrollTop = chatHistory.scrollHeight;
-    });
-  } else {
-    chatHistory.scrollTop = chatHistory.scrollHeight;
-  }
+  if (force) requestAnimationFrame(() => { chatHistory.scrollTop = chatHistory.scrollHeight; });
+  else chatHistory.scrollTop = chatHistory.scrollHeight;
 }
 
 function addBubbleToDOM(role, text, attachments = null, autoScroll = true) {
@@ -1064,12 +1275,19 @@ function addBubbleToDOM(role, text, attachments = null, autoScroll = true) {
 }
 
 function pushMessage(type, role, text, attachments = null) {
-  const db = getActiveChatDB();
-  if (!db[type]) db[type] = [];
-  db[type].push({ role, text, attachments });
+  const thread = getActiveThread(type);
+  if (!thread) return;
+  thread.messages.push({ role, text, attachments });
+
+  // auto title: use first user message as title (short)
+  if (thread.title && thread.title.startsWith("Chat ") && role === "user") {
+    const s = String(text || "").trim();
+    if (s) thread.title = s.slice(0, 28);
+  }
 
   addBubbleToDOM(role, text, attachments, true);
   scheduleSaveAll();
+  renderThreadsList(); // update titles
 }
 
 function updateTapHint() {
@@ -1083,16 +1301,119 @@ if (chatInput) {
   chatInput.addEventListener('focus', () => { updateTapHint(); startIdleTimer(); });
 }
 
+// =========================================================
+// ✅ Threads UI
+// =========================================================
+function renderThreadsList() {
+  if (!threadsList) return;
+
+  const b = getBucket(activeChatType);
+  if (!b) return;
+
+  const activeId = b.activeThreadId;
+  threadsList.innerHTML = '';
+
+  b.threads.forEach(th => {
+    const item = document.createElement('div');
+    item.className = 'thread-item' + (th.id === activeId ? ' active' : '');
+
+    const title = document.createElement('div');
+    title.className = 'thread-title';
+    title.textContent = th.title || "Chat";
+
+    const del = document.createElement('button');
+    del.className = 'thread-del';
+    del.type = 'button';
+    del.textContent = '🗑';
+
+    del.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      deleteThread(activeChatType, th.id);
+      renderThreadsList();
+      renderChatHistory(activeChatType);
+    });
+
+    item.appendChild(title);
+    item.appendChild(del);
+
+    item.addEventListener('click', () => {
+      setActiveThread(activeChatType, th.id);
+      renderThreadsList();
+      renderChatHistory(activeChatType);
+      hideThreadsPanel();
+      focusChatInput();
+    });
+
+    threadsList.appendChild(item);
+  });
+}
+
+function showThreadsPanel() {
+  if (!threadsPanel) return;
+  threadsPanel.classList.add("show");
+}
+function hideThreadsPanel() {
+  if (!threadsPanel) return;
+  threadsPanel.classList.remove("show");
+}
+
+if (chatsToggleBtn) {
+  chatsToggleBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startIdleTimer();
+    if (threadsPanel?.classList.contains("show")) hideThreadsPanel();
+    else {
+      renderThreadsList();
+      showThreadsPanel();
+    }
+  });
+}
+
+if (threadsCloseBtn) {
+  threadsCloseBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    hideThreadsPanel();
+  });
+}
+
+if (newChatBtn) {
+  newChatBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startIdleTimer();
+
+    const pid = currentProfile?.id;
+    if (!pid) return;
+    const tid = createThread(pid, activeChatType, { autoSelect: true });
+    setActiveThread(activeChatType, tid);
+
+    renderThreadsList();
+    renderChatHistory(activeChatType);
+    focusChatInput();
+  });
+}
+
+// close panels if click outside
+document.addEventListener("click", () => {
+  hideThreadsPanel();
+  hideMicMenu();
+});
+
+// =========================================================
+// ✅ History to server (use active thread only)
+// =========================================================
 function buildHistoryForServer(type, maxTurns = 14) {
-  const db = getActiveChatDB();
-  const list = db[type] || [];
+  const thread = getActiveThread(type);
+  const list = thread?.messages || [];
   const msgs = [];
 
   for (const m of list) {
     const txt = String(m.text || '').trim();
     if (!txt) continue;
 
-    // ✅ ไม่ส่ง thinking bubble / error fallback ไป server
     if (txt === '…') continue;
     if (txt.startsWith('⚠️ Server/AI error:')) continue;
 
@@ -1122,7 +1443,8 @@ async function callServerAI(type, userText) {
           id: currentProfile.id,
           name: currentProfile.name,
           ageKey: currentProfile.ageKey,
-          ageText: currentProfile.ageText
+          ageText: currentProfile.ageText,
+          ageNumber: currentProfile.ageNumber
         } : null
       })
     });
@@ -1160,13 +1482,12 @@ async function handleSend(text, attachments = null) {
   // thinking bubble
   pushMessage(activeChatType, 'bot', '…');
 
-  const db = getActiveChatDB();
-  const list = db[activeChatType];
-  const thinkingIndex = list.length - 1;
+  const thread = getActiveThread(activeChatType);
+  const thinkingIndex = (thread?.messages?.length || 1) - 1;
 
   try {
     const reply = await callServerAI(activeChatType, userPayload);
-    list[thinkingIndex].text = reply;
+    thread.messages[thinkingIndex].text = reply;
 
     const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
     if (lastBubble) lastBubble.textContent = reply;
@@ -1176,13 +1497,18 @@ async function handleSend(text, attachments = null) {
     const reply = await mockAI(activeChatType, msg);
     const failText = `⚠️ Server/AI error: ${err?.message || ''}\n\n(Fallback) ${reply}`;
 
-    list[thinkingIndex].text = failText;
+    thread.messages[thinkingIndex].text = failText;
     const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
     if (lastBubble) lastBubble.textContent = failText;
     scrollChatToBottom(true);
     scheduleSaveAll();
   }
 }
+
+if (chatSend) chatSend.addEventListener('click', () => {
+  startIdleTimer();
+  handleSend(chatInput?.value || '', null);
+});
 
 if (chatInput) {
   chatInput.addEventListener('keydown', (e) => {
@@ -1207,10 +1533,50 @@ if (filePicker) filePicker.addEventListener('change', () => {
 if (chatBackBtn) chatBackBtn.addEventListener('click', () => {
   startIdleTimer();
   stopVoiceIfAny();
+  hideThreadsPanel();
+  hideMicMenu();
   goToFrame6();
 });
 
+// =========================================================
+// ✅ Mic language menu
+// =========================================================
+if (micLangBtn) {
+  micLangBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startIdleTimer();
+    if (micLangMenu?.classList.contains("show")) hideMicMenu();
+    else showMicMenu();
+  });
+}
+
+if (micLangMenu) {
+  micLangMenu.addEventListener("click", (e) => {
+    const item = e.target.closest(".mic-lang-item");
+    if (!item) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const lang = item.getAttribute("data-lang");
+    if (lang !== "en-US" && lang !== "th-TH") return;
+
+    micLang = lang;
+    setMicLangUI();
+    scheduleSaveAll();
+    hideMicMenu();
+
+    // if currently listening -> restart with new language
+    if (isListening) {
+      stopVoiceIfAny();
+      startListening();
+    }
+  });
+}
+
+// =========================================================
 // ✅ Voice input
+// =========================================================
 let recognition = null;
 let isListening = false;
 let voiceDraft = '';
@@ -1239,7 +1605,6 @@ function enterVoiceConfirmMode() {
   if (chatSendImg) chatSendImg.src = 'ChatBot_Yes.png';
   if (voiceCenter) voiceCenter.style.display = 'flex';
 }
-
 function exitVoiceConfirmMode() {
   if (chatMicImg) chatMicImg.src = 'ChatBot_Mic.png';
   if (chatSendImg) chatSendImg.src = 'ChatBot_Send.png';
@@ -1265,8 +1630,7 @@ function startListening() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SR();
 
-  // ✅ language from UI
-  recognition.lang = micLang; // "en-US" or "th-TH"
+  recognition.lang = micLang; // ✅ EN/TH
   recognition.interimResults = true;
   recognition.continuous = true;
 
@@ -1318,7 +1682,6 @@ function onSendOrYesClick() {
   handleSend(chatInput?.value || '', null);
 }
 
-// ✅ FIXED: อย่า add click ซ้ำหลายตัว (เดิม chatSend เคยผูก 2 อัน)
 if (chatMic) chatMic.addEventListener('click', onMicOrNoClick);
 if (chatSend) chatSend.addEventListener('click', onSendOrYesClick);
 
@@ -1327,8 +1690,20 @@ updateTapHint();
 // =========================================================
 // ✅ Initial screen
 // =========================================================
-// ถ้ามี profiles ใน localStorage แล้ว: ไม่ force jump (ยังมี intro video ตามเดิม)
-// แต่ ensure ระบบเลือกโปรไฟล์พร้อมใช้งาน
 if (profiles.length > 0) {
-  // nothing else here on purpose
+  // keep intro flow
+}
+
+// =========================================================
+// ✅ Block overlay clicks on mic menu / threads panel
+// =========================================================
+if (threadsPanel) {
+  threadsPanel.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+}
+if (micLangWrap) {
+  micLangWrap.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
 }
