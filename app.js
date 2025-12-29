@@ -96,28 +96,12 @@ function domImgUrls() {
 }
 
 async function preloadAssets() {
-  const criticalImgs = uniq([
-    "Pic4.png","Pic3.png","Pic1.png","Pic2.png",
-    "Pic5.png","Pic12.png","Pic15.png","Pic17.png","Pic18.png",
-    "Pic6.png","Pic7.png","Pic9.png",
-    "Pic13.png",
-    "Profile1.png",
-    "ChatBot_GoBack.png","ChatBot_Add.png","ChatBot_Mic.png","ChatBot_Send.png",
-    "Pic16.png",
-  ]);
+  const imgs = uniq([...cssBgUrls(), ...domImgUrls()]);
+  const vids = ["Face.mp4"]; // ของคุณตอนนี้ใช้ webm อยู่ (เดี๋ยวเรื่อง iPhone mp4 เราแก้แยกได้)
 
-  const allImgs = uniq([...cssBgUrls(), ...domImgUrls()]);
-  const restImgs = allImgs.filter(u => !criticalImgs.includes(u));
-
-  // ✅ iOS ใช้ mp4, non-iOS ใช้ webm
-  const vids = isIOS() ? ["Face.mp4"] : ["Face.webm"];
-
-  // ✅ เพิ่ม “fonts” เป็น task ด้วย เพื่อไม่ให้ 100% ค้างรอ fonts
   const tasks = [
-    ...criticalImgs.map(u => ({ type: "img", url: u })),
-    ...restImgs.map(u => ({ type: "img", url: u })),
+    ...imgs.map(u => ({ type: "img", url: u })),
     ...vids.map(u => ({ type: "vid", url: u })),
-    { type: "fonts", url: "fonts" }, // ✅ เพิ่ม
   ];
 
   let done = 0;
@@ -132,39 +116,41 @@ async function preloadAssets() {
 
   updateUI("Starting…");
 
-  const CONCURRENCY = isIOS() ? 2 : 6;
-  let i = 0;
+  // ✅ เริ่มโหลด fonts “พร้อมกัน” แต่ไม่ให้มันบล็อก loader
+  const fontsPromise = (document.fonts && document.fonts.ready)
+    ? document.fonts.ready.catch(() => null)
+    : Promise.resolve(null);
 
-  async function worker() {
-    while (i < tasks.length) {
-      const t = tasks[i++];
-
-      try {
-        if (t.type === "img") await preloadImage(t.url);
-        else if (t.type === "vid") await preloadVideo(t.url);
-        else if (t.type === "fonts") {
-          updateUI("Loading fonts…");
-          if (document.fonts && document.fonts.ready) await document.fonts.ready;
-        }
-      } catch (_) {}
-
-      done++;
-      updateUI(`Loading: ${t.url}`);
-    }
+  // ✅ โหลด assets ทั้งหมดเหมือนเดิม
+  for (const t of tasks) {
+    try {
+      if (t.type === "img") await preloadImage(t.url);
+      else await preloadVideo(t.url);
+    } catch (_) {}
+    done++;
+    updateUI(`Loading: ${t.url}`);
   }
 
-  const workers = Array.from({ length: CONCURRENCY }, () => worker());
-  await Promise.all(workers);
-
+  // ✅ ตรงนี้สำคัญ:
+  // - ไม่ await fontsPromise แบบเดิม
+  // - แต่ “รอแบบมีเพดาน” นิดเดียว (optional) เพื่อให้ไม่กระตุกมาก
   updateUI("Finalizing…");
+  await Promise.race([
+    fontsPromise,                 // ถ้า fonts มาไว ก็ได้เลย
+    new Promise(r => setTimeout(r, 600)) // ถ้ายังไม่มาใน 600ms ก็ไปต่อ
+  ]);
 
+  // ✅ ซ่อน loader ทันที
   if (bootLoader) {
     bootLoader.classList.add('hidden');
     bootLoader.style.pointerEvents = 'none';
   }
 
+  // ✅ fonts ยังโหลดต่อเบื้องหลัง (ถ้ายังไม่เสร็จ)
+  // จะช่วยให้ UI ไม่ค้างหน้าโหลด
   bootReady = true;
 }
+
 
 preloadAssets();
 
@@ -1811,4 +1797,5 @@ updateTapHint();
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
 
