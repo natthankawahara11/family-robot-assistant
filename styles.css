@@ -2,6 +2,11 @@
    GLOBAL FIX FOR iPhone Safari
    ========================= */
 
+:root{
+  --purple: rgba(99,26,173,0.92);
+  --purple-soft: rgba(99,26,173,0.28);
+}
+
 *{
   box-sizing:border-box;
   margin:0;
@@ -122,6 +127,66 @@ body{
 }
 @keyframes spin{ to{ transform:rotate(360deg); } }
 
+/* ✅ MODAL (Delete confirm) */
+.modal{
+  position:fixed;
+  inset:0;
+  width:100vw;
+  height:100vh;
+  z-index:120000;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,0.35);
+  backdrop-filter:blur(4px);
+  pointer-events:auto;
+}
+.modal.show{ display:flex; }
+
+.modal-card{
+  width:min(420px, 90vw);
+  border-radius:22px;
+  background:rgba(255,255,255,0.92);
+  border:1px solid rgba(255,255,255,0.8);
+  box-shadow:0 14px 34px rgba(0,0,0,0.22);
+  padding:18px;
+}
+.modal-title{
+  font-weight:900;
+  font-size:18px;
+  color:rgba(0,0,0,0.75);
+}
+.modal-sub{
+  margin-top:6px;
+  font-weight:700;
+  font-size:13px;
+  color:rgba(0,0,0,0.55);
+}
+.modal-actions{
+  margin-top:14px;
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+}
+.modal-btn{
+  height:36px;
+  padding:0 14px;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.12);
+  font-weight:900;
+  font-size:13px;
+  touch-action: manipulation;
+}
+.modal-btn.ghost{
+  background:rgba(255,255,255,0.85);
+  color:rgba(0,0,0,0.65);
+}
+.modal-btn.danger{
+  background:rgba(99,26,173,0.92);
+  border-color:rgba(99,26,173,0.3);
+  color:#fff;
+}
+
 /* ✅ VIDEO */
 .frame-video{
   position:fixed;
@@ -225,7 +290,6 @@ body{
   border-radius:16px;
   overflow:hidden;
 }
-
 #slider{ touch-action: pan-y; }
 
 .slider{
@@ -415,22 +479,22 @@ body{
 .frame4-btn-right{ left:77.5%; }
 .frame4-btn-left img, .frame4-btn-right img{ width:100%; height:100%; object-fit:contain; }
 
-/* ✅ iPhone-style wheel panel: smaller + tighter */
+/* ✅ Frame4 panel smaller + text & wheel tighter */
 .age-wheel-panel{
   position:absolute;
   left:50%;
   top:52%;
   transform:translate(-50%, -50%);
-  width:min(560px, 88vw);
-  height:270px;
-  border-radius:20px;
+  width:min(520px, 86vw);
+  height:235px;
+  border-radius:18px;
   background:rgba(255,255,255,0.65);
   border:1px solid rgba(255,255,255,0.7);
   box-shadow:0 10px 22px rgba(0,0,0,0.12);
 
   display:flex;
-  gap:8px;
-  padding:12px;
+  gap:6px;           /* ✅ closer */
+  padding:10px;      /* ✅ smaller */
   align-items:center;
 }
 
@@ -439,19 +503,19 @@ body{
   display:flex;
   flex-direction:column;
   justify-content:center;
-  gap:4px;
-  padding-left:4px;
+  gap:2px;           /* ✅ closer */
+  padding-left:2px;
 }
 
 .age-big{
-  font-size:52px;
+  font-size:46px;
   font-weight:900;
-  color:rgba(99,26,173,0.92);
+  color:var(--purple);
   line-height:1;
 }
 
 .age-small{
-  font-size:13px;
+  font-size:12px;
   font-weight:900;
   color:rgba(0,0,0,0.55);
 }
@@ -460,21 +524,22 @@ body{
   font-size:11px;
   font-weight:900;
   color:rgba(0,0,0,0.38);
-  margin-top:4px;
+  margin-top:2px;
 }
 
 .age-wheel-right{
-  width:150px;
-  height:240px;
+  width:142px;
+  height:215px;
   position:relative;
   display:flex;
   align-items:center;
   justify-content:center;
 }
 
+/* ✅ item height == highlight height */
 .age-wheel{
-  width:150px;
-  height:240px;
+  width:142px;
+  height:215px;
   border-radius:16px;
   background:rgba(255,255,255,0.55);
   border:1px solid rgba(0,0,0,0.08);
@@ -483,46 +548,49 @@ body{
   scroll-snap-type:y mandatory;
   overscroll-behavior:contain;
   touch-action: pan-y;
-  padding:76px 0;
+
+  padding:70px 0; /* ✅ tuned to center highlight */
 }
 
 .age-item{
-  height:42px;
+  height:38px; /* ✅ match highlight */
   display:flex;
   align-items:center;
   justify-content:center;
   font-weight:900;
-  font-size:18px;
+  font-size:17px;
+  line-height:38px; /* ✅ perfect vertical center */
   color:rgba(0,0,0,0.35);
   scroll-snap-align:center;
 }
 
 .age-item.active{
-  color:rgba(99,26,173,0.92);
-  font-size:22px;
+  color:var(--purple); /* ✅ same purple */
+  font-size:20px;
 }
 
 .age-wheel-highlight{
   position:absolute;
   left:10px;
   right:10px;
-  height:42px;
+  height:38px;         /* ✅ match item */
   border-radius:12px;
-  border:2px solid rgba(99,26,173,0.28);
+  border:2px solid var(--purple-soft); /* ✅ same purple */
   box-shadow:0 8px 18px rgba(99,26,173,0.10);
   pointer-events:none;
   top:50%;
   transform:translateY(-50%);
 }
 
+/* smaller phone */
 @media (max-width: 430px){
   .age-title{ font-size:15px; width:92%; top:10.5%; }
-  .age-wheel-panel{ width:92vw; height:260px; gap:6px; padding:10px; }
-  .age-big{ font-size:48px; }
-  .age-wheel-right{ width:138px; }
-  .age-wheel{ width:138px; height:232px; padding:72px 0; }
-  .age-item{ height:40px; }
-  .age-wheel-highlight{ height:40px; }
+  .age-wheel-panel{ width:92vw; height:230px; gap:6px; padding:10px; }
+  .age-big{ font-size:44px; }
+  .age-wheel-right{ width:136px; }
+  .age-wheel{ width:136px; height:210px; padding:68px 0; }
+  .age-item{ height:38px; line-height:38px; }
+  .age-wheel-highlight{ height:38px; }
 }
 
 /* FRAME 5 */
@@ -609,18 +677,21 @@ body{
   word-break:break-word;
 }
 
+/* ✅ long-press overlay (Pic6) */
 .profile-delete-overlay{
   position:absolute;
-  top:50%;
-  left:50%;
-  width:100%;
-  height:100%;
-  transform:translate(-50%, -50%);
+  inset:-10px;
   display:none;
   border-radius:999px;
   overflow:hidden;
+  pointer-events:none; /* ✅ do NOT auto-delete by tap */
 }
-.profile-delete-overlay img{ width:100%; height:100%; object-fit:contain; }
+.profile-delete-overlay img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  opacity:0.95;
+}
 .profile-card.show-delete .profile-delete-overlay{ display:block; }
 
 .profile-card.add-card .profile-card-avatar{
@@ -805,7 +876,6 @@ body{
 }
 .chat-back img{ width:100%; height:100%; object-fit:contain; display:block; }
 
-/* ✅ right header (751–912 zone) */
 .history-label{
   position:absolute;
   left:751px;
@@ -951,12 +1021,14 @@ body{
 .voice-time{ font-size:12px; line-height:12px; }
 .voice-wave{ font-size:12px; line-height:14px; letter-spacing:1px; }
 
-/* ✅ Threads controls */
+/* ✅ Threads controls: align to the SAME box as History panel (751..912) */
 .chat-threads-controls{
   position:absolute;
-  right:6px;
+  left:751px;
   top:72px;
+  width:155px;            /* same width as panel */
   display:flex;
+  justify-content:flex-end; /* push button to right edge */
   z-index:40;
   pointer-events:auto;
 }
