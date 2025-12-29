@@ -6,7 +6,6 @@ const client = new OpenAI({
 });
 
 function getAgeBand(profile) {
-  // ✅ prefer ageNumber
   const ageNumber = Number(profile?.ageNumber);
   if (Number.isFinite(ageNumber)) {
     const a = Math.max(0, Math.min(140, ageNumber));
@@ -25,7 +24,6 @@ function getAgeBand(profile) {
     return          { id: "VeryElderly", label: "Very Elderly Age: 75+" };
   }
 
-  // fallback
   const key = profile?.ageKey || "unknown";
   const text = profile?.ageText || "Unknown age group";
   return { id: key, label: text };
