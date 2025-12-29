@@ -32,7 +32,7 @@ function scheduleSaveAll() {
 }
 
 // =========================================================
-// ✅ PRELOAD SYSTEM (iPhone-safe staged preload)
+// ✅ PRELOAD SYSTEM (real preload)
 // =========================================================
 const bootLoader = document.getElementById('bootLoader');
 const bootBarFill = document.getElementById('bootBarFill');
@@ -43,23 +43,14 @@ let bootReady = false;
 
 function uniq(arr) { return Array.from(new Set(arr.filter(Boolean))); }
 
-function isIOS() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-}
-
 function preloadImage(url) {
   return new Promise((resolve) => {
     const img = new Image();
     img.decoding = "async";
-
     img.onload = async () => {
-      if (!isIOS()) {
-        try { if (img.decode) await img.decode(); } catch (_) {}
-      }
+      try { if (img.decode) await img.decode(); } catch (_) {}
       resolve({ url, ok: true });
     };
-
     img.onerror = () => resolve({ url, ok: false });
     img.src = url;
   });
@@ -97,7 +88,7 @@ function domImgUrls() {
 
 async function preloadAssets() {
   const imgs = uniq([...cssBgUrls(), ...domImgUrls()]);
-  const vids = ["Face.webm"]; // ของคุณตอนนี้ใช้ webm อยู่ (เดี๋ยวเรื่อง iPhone mp4 เราแก้แยกได้)
+  const vids = ["Face.webm"];
 
   const tasks = [
     ...imgs.map(u => ({ type: "img", url: u })),
@@ -116,12 +107,6 @@ async function preloadAssets() {
 
   updateUI("Starting…");
 
-  // ✅ เริ่มโหลด fonts “พร้อมกัน” แต่ไม่ให้มันบล็อก loader
-  const fontsPromise = (document.fonts && document.fonts.ready)
-    ? document.fonts.ready.catch(() => null)
-    : Promise.resolve(null);
-
-  // ✅ โหลด assets ทั้งหมดเหมือนเดิม
   for (const t of tasks) {
     try {
       if (t.type === "img") await preloadImage(t.url);
@@ -131,26 +116,23 @@ async function preloadAssets() {
     updateUI(`Loading: ${t.url}`);
   }
 
-  // ✅ ตรงนี้สำคัญ:
-  // - ไม่ await fontsPromise แบบเดิม
-  // - แต่ “รอแบบมีเพดาน” นิดเดียว (optional) เพื่อให้ไม่กระตุกมาก
-  updateUI("Finalizing…");
-  await Promise.race([
-    fontsPromise,                 // ถ้า fonts มาไว ก็ได้เลย
-    new Promise(r => setTimeout(r, 600)) // ถ้ายังไม่มาใน 600ms ก็ไปต่อ
-  ]);
+  // ✅ optional fonts (kept as-is from your file)
+  try {
+    if (document.fonts && document.fonts.ready) {
+      updateUI("Loading fonts…");
+      await document.fonts.ready;
+    }
+  } catch (_) {}
 
-  // ✅ ซ่อน loader ทันที
+  updateUI("Finalizing…");
+
   if (bootLoader) {
     bootLoader.classList.add('hidden');
     bootLoader.style.pointerEvents = 'none';
   }
 
-  // ✅ fonts ยังโหลดต่อเบื้องหลัง (ถ้ายังไม่เสร็จ)
-  // จะช่วยให้ UI ไม่ค้างหน้าโหลด
   bootReady = true;
 }
-
 
 preloadAssets();
 
@@ -236,6 +218,7 @@ const chatBackBtn = document.getElementById('chatBackBtn');
 const chatAdd = document.getElementById('chatAdd');
 const chatMic = document.getElementById('chatMic');
 const chatSend = document.getElementById('chatSend');
+const chatAddImg = document.getElementById('chatAddImg');
 const chatMicImg = document.getElementById('chatMicImg');
 const chatSendImg = document.getElementById('chatSendImg');
 
@@ -245,14 +228,17 @@ const voiceWave = document.getElementById('voiceWave');
 
 const filePicker = document.getElementById('filePicker');
 
+// mic language menu
 const micLangWrap = document.getElementById('micLangWrap');
 const micLangBtn = document.getElementById('micLangBtn');
 const micLangMenu = document.getElementById('micLangMenu');
 
+// Threads UI
 const newChatBtn = document.getElementById('newChatBtn');
 const threadsList = document.getElementById('threadsList');
 const threadHeader = document.getElementById('threadHeader');
 
+// Delete modal
 const deleteModal = document.getElementById('deleteModal');
 const deleteCancelBtn = document.getElementById('deleteCancelBtn');
 const deleteYesBtn = document.getElementById('deleteYesBtn');
@@ -274,7 +260,7 @@ let profiles = lsGet(LS_PROFILES_KEY, []);
 let chatDBByProfile = lsGet(LS_CHATS_KEY, {});
 const savedState = lsGet(LS_STATE_KEY, { currentProfileId: null, micLang: "en-US" });
 
-let deleteModeId = null;
+let deleteModeId = null;          // overlay active profile id
 let currentProfile = null;
 
 let micLang = (savedState?.micLang === "th-TH") ? "th-TH" : "en-US";
@@ -370,8 +356,6 @@ function setActiveThread(type, threadId) {
   updateThreadHeader();
 }
 
-let activeChatType = "healthcare";
-
 function updateThreadHeader() {
   if (!threadHeader) return;
   const t = getActiveThread(activeChatType);
@@ -407,7 +391,7 @@ function renderThreadsList() {
 if (currentProfile?.id) ensureChatBucket(currentProfile.id);
 
 // =========================================================
-// ✅ AGE BAND
+// ✅ AGE BAND (NEW)
 // =========================================================
 function ageBandFromNumber(n) {
   const a = Math.max(0, Math.min(140, Math.round(Number(n) || 0)));
@@ -542,10 +526,11 @@ function goToFrame6() {
 
   if (currentProfile && frame6ProfileImg) frame6ProfileImg.src = currentProfile.avatarSrc;
 
+  // ✅ default: Home แบบเดิม
   setActiveTab('home');
   setHomeIndex(0, false);
-  lastActiveFrame = 'frame6';
 
+  lastActiveFrame = 'frame6';
   scheduleSaveAll();
 }
 
@@ -644,7 +629,7 @@ function handleUserInteraction(e) {
 })();
 
 // =========================================================
-// ✅ TAP BINDER
+// ✅ TAP BINDER (strong on iPhone)
 // =========================================================
 function bindTap(el, fn) {
   if (!el) return;
@@ -683,9 +668,8 @@ function setIndex(idx, withTransition = true) {
   updateDots();
 }
 
-// ✅ Frame1 -> Frame2 ONLY
 function showFrame2FromWelcome() {
-  goToFrame2();
+  goToFrame2(); // ✅ Frame1 -> Frame2 only
   startIdleTimer();
 }
 
@@ -824,7 +808,7 @@ bindTap(frame4Back, () => { goToFrame3Keep(); startIdleTimer(); });
 bindTap(frame4Next, () => { createProfileFromAgeNumber(); startIdleTimer(); });
 
 // =========================================================
-// ✅ AGE WHEEL SYSTEM
+// ✅ AGE WHEEL SYSTEM (fix alignment)
 // =========================================================
 let ageWheelReady = false;
 let ageNumber = 18;
@@ -874,6 +858,7 @@ function scrollAgeWheelTo(n) {
   const a = Math.max(0, Math.min(140, Math.round(Number(n) || 0)));
   const itemH = getWheelItemHeight();
 
+  // ✅ snap using exact item height (no magic padding mismatch)
   ageWheel.scrollTo({ top: a * itemH, behavior: "smooth" });
 
   setTimeout(() => {
@@ -938,7 +923,7 @@ function createProfileFromAgeNumber() {
 }
 
 // =========================================================
-// ✅ FRAME 5 (Profiles) - delete flow
+// ✅ FRAME 5 (Profiles) - FIX tap + long press delete flow
 // =========================================================
 let suppressProfileClickUntil = 0;
 let pendingDeleteProfileId = null;
@@ -981,6 +966,7 @@ if (deleteYesBtn) bindTap(deleteYesBtn, () => {
 });
 
 if (deleteModal) {
+  // tap outside card => cancel
   deleteModal.addEventListener("click", (e) => {
     if (e.target === deleteModal) hideDeleteModal();
   });
@@ -1006,9 +992,10 @@ function renderProfiles() {
     img.alt = profile.name;
     avatarWrap.appendChild(img);
 
+    // ✅ overlay image = Pic6
     const overlay = document.createElement('div');
     overlay.className = 'profile-delete-overlay';
-    overlay.innerHTML = '<img src="Pic16.png" alt="Delete mode">';
+    overlay.innerHTML = '<img src="Pic6.png" alt="Delete mode">';
     avatarWrap.appendChild(overlay);
 
     const nameEl = document.createElement('div');
@@ -1020,7 +1007,7 @@ function renderProfiles() {
 
     attachLongPressDeleteToggle(card, profile.id);
 
-    const onPickOrAskDelete = (e) => {
+    const onPickOrAskDelete = () => {
       if (isProfileClickSuppressed()) return;
 
       if (deleteModeId === profile.id) {
@@ -1038,7 +1025,7 @@ function renderProfiles() {
     card.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      onPickOrAskDelete(e);
+      onPickOrAskDelete();
     });
 
     card.addEventListener('touchstart', (e) => {
@@ -1048,8 +1035,7 @@ function renderProfiles() {
     card.addEventListener('touchend', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (isProfileClickSuppressed()) return;
-      onPickOrAskDelete(e);
+      onPickOrAskDelete();
     }, { passive: false });
 
     profilesList.appendChild(card);
@@ -1072,6 +1058,7 @@ function renderProfiles() {
 
   profilesList.appendChild(addCard);
 
+  // refresh overlay state
   const cards = profilesList.querySelectorAll('.profile-card');
   cards.forEach(c => {
     const id = c.dataset.id;
@@ -1085,28 +1072,24 @@ function attachLongPressDeleteToggle(card, id) {
   let timer = null;
   let fired = false;
 
-  const THRESHOLD_MS = 520;
-
   const start = () => {
     fired = false;
     clearTimeout(timer);
-
     timer = setTimeout(() => {
       fired = true;
+      suppressProfileClicks(500);
 
       if (deleteModeId === id) deleteModeId = null;
       else deleteModeId = id;
 
-      suppressProfileClicks(650);
       renderProfiles();
-    }, THRESHOLD_MS);
+    }, 550);
   };
 
   const cancel = () => {
     clearTimeout(timer);
     timer = null;
-
-    if (fired) suppressProfileClicks(450);
+    if (fired) suppressProfileClicks(350);
   };
 
   card.addEventListener('touchstart', start, { passive: true });
@@ -1118,8 +1101,16 @@ function attachLongPressDeleteToggle(card, id) {
 }
 
 // =========================================================
-// ✅ FRAME 6 Tabs
+// ✅ FRAME 6 Tabs (UPDATED: Home=normal, other tabs jump to their card but still swipeable)
 // =========================================================
+function cardIndexFromTab(name) {
+  if (name === "healthcare") return 0; // Card1
+  if (name === "sports") return 1;     // Card2
+  if (name === "education") return 2;  // Card3
+  if (name === "community") return 3;  // Card4
+  return 0;
+}
+
 function setActiveTab(name) {
   const cfg = tabConfig[name];
   if (!cfg || !tabHighlight) return;
@@ -1128,19 +1119,31 @@ function setActiveTab(name) {
   tabHighlight.style.left = cfg.left + 'px';
   tabHighlight.style.width = cfg.width + 'px';
 
+  // reset colors
   if (tabHome) tabHome.style.color = 'rgba(0,0,0,0.9)';
   if (tabHealthcare) tabHealthcare.style.color = 'rgba(0,0,0,0.9)';
   if (tabSports) tabSports.style.color = 'rgba(0,0,0,0.9)';
   if (tabEducation) tabEducation.style.color = 'rgba(0,0,0,0.9)';
   if (tabCommunity) tabCommunity.style.color = 'rgba(0,0,0,0.9)';
 
+  // active tab color
   if (name === 'home' && tabHome) tabHome.style.color = 'rgba(255,255,255,0.9)';
   if (name === 'healthcare' && tabHealthcare) tabHealthcare.style.color = 'rgba(255,255,255,0.9)';
   if (name === 'sports' && tabSports) tabSports.style.color = 'rgba(255,255,255,0.9)';
   if (name === 'education' && tabEducation) tabEducation.style.color = 'rgba(255,255,255,0.9)';
   if (name === 'community' && tabCommunity) tabCommunity.style.color = 'rgba(255,255,255,0.9)';
 
-  if (homeCardsWrapper) homeCardsWrapper.style.display = (name === 'home') ? 'block' : 'none';
+  // ✅ IMPORTANT: cards must stay visible for ALL tabs (not only Home)
+  if (homeCardsWrapper) homeCardsWrapper.style.display = 'block';
+
+  // ✅ Home stays "normal" (start at first card; swipe freely)
+  if (name === "home") {
+    return;
+  }
+
+  // ✅ other tabs: jump to their card (but user can still swipe to others)
+  const idx = cardIndexFromTab(name);
+  setHomeIndex(idx, true);
 }
 
 bindTap(tabHome, () => { setActiveTab('home'); startIdleTimer(); });
@@ -1254,62 +1257,13 @@ if (homeCardsWrapper && homeCardsTrack) {
   homeCardsWrapper.addEventListener('touchcancel', endHomeDrag, { passive: true });
 }
 
-/* =========================================================
-   ✅ FIX Frame6: “tap-only” open card (ไม่ยิงตอน touchstart)
-   - ถ้าลากเกิน threshold -> ถือว่า swipe, ไม่เปิด
-   - ไม่ block event เพื่อให้ wrapper รับ swipe ได้
-   ========================================================= */
-function bindCardTapOnly(cardEl, onTap) {
-  if (!cardEl) return;
-
-  const TH = 12; // px threshold
-  let sx = 0, sy = 0;
-  let moved = false;
-
-  cardEl.addEventListener("touchstart", (e) => {
-    const t = e.touches[0];
-    sx = t.clientX;
-    sy = t.clientY;
-    moved = false;
-  }, { passive: true });
-
-  cardEl.addEventListener("touchmove", (e) => {
-    const t = e.touches[0];
-    const dx = t.clientX - sx;
-    const dy = t.clientY - sy;
-    if (Math.abs(dx) > TH || Math.abs(dy) > TH) moved = true;
-  }, { passive: true });
-
-  cardEl.addEventListener("touchend", (e) => {
-    if (moved) return; // ✅ swipe -> ไม่เปิด
-    const isMenu = e.target?.closest?.(".frame6-card-menu");
-    if (isMenu) return;
-    onTap(e);
-  }, { passive: true });
-
-  // desktop click
-  cardEl.addEventListener("click", (e) => {
-    e.preventDefault();
-    const isMenu = e.target?.closest?.(".frame6-card-menu");
-    if (isMenu) return;
-    onTap(e);
+document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
+  bindTap(card, (e) => {
+    if (e?.target?.closest?.('.frame6-card-menu')) return;
+    const type = card.getAttribute('data-card');
+    goToFrame7(type);
   });
-}
-
-function attachFrame6CardHandlers() {
-  document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
-    // ✅ กัน bind ซ้ำ
-    if (card.dataset.bound === "1") return;
-    card.dataset.bound = "1";
-
-    bindCardTapOnly(card, () => {
-      const type = card.getAttribute('data-card');
-      goToFrame7(type);
-    });
-  });
-}
-// เรียกหนึ่งครั้งตอนโหลด
-attachFrame6CardHandlers();
+});
 
 // =========================================================
 // ✅ FRAME 7 Chatbot
@@ -1320,6 +1274,8 @@ const cardToTitle = {
   education: "Education Chatbot",
   community: "Community Chatbot",
 };
+
+let activeChatType = "healthcare";
 
 function updateChatScale() {
   if (!chatStage) return;
@@ -1460,7 +1416,7 @@ function buildHistoryForServer(type, maxTurns = 14) {
     if (!txt) continue;
 
     if (txt === '…') continue;
-    if (txt.startsWith('⚠️')) continue; // ✅ ไม่เอาข้อความ error ไปป้อนซ้ำ
+    if (txt.startsWith('⚠️ Server/AI error:')) continue;
 
     if (m.role === 'user') msgs.push({ role: 'user', content: txt });
     if (m.role === 'bot') msgs.push({ role: 'assistant', content: txt });
@@ -1501,73 +1457,15 @@ async function callServerAI(type, userText) {
   }
 }
 
-// ✅ fallback responds by age (front-end only)
-function frontAgeStyle(profile) {
-  const key = profile?.ageKey || "unknown";
-  const styles = {
-    Baby: { short: true },
-    Child: { short: true },
-    YoungChild: { short: true },
-    PreTeen: { short: false },
-    Teen: { short: false },
-    YoungAdult: { short: false },
-    Adult: { short: false },
-    MidAdult: { short: false },
-    OlderAdult: { short: false },
-    Senior: { short: false },
-    Elderly: { short: false },
-    VeryElderly: { short: false },
-    unknown: { short: false },
-  };
-  return styles[key] || styles.unknown;
-}
-
 async function mockAI(type, userText) {
   const t = (userText || '').toLowerCase();
   await new Promise(r => setTimeout(r, 200));
 
-  const style = frontAgeStyle(currentProfile);
-  const name = currentProfile?.name || "there";
-  const S = (kidText, normalText) => style.short ? kidText : normalText;
-
-  if (type === 'community') {
-    return S(
-      `Hi ${name} 😊 Tell me one thing that happened today.`,
-      `I’m here with you, ${name} 😊 What’s on your mind right now?`
-    );
-  }
-
-  if (type === 'healthcare') {
-    if (t.includes('pain') || t.includes('hurt') || t.includes('เจ็บ') || t.includes('ปวด')) {
-      return S(
-        `I’m sorry 😟 Tell an adult. Rest and drink water.`,
-        `Rest, hydrate, and monitor symptoms. If pain is severe or unusual, seek medical care.`
-      );
-    }
-    return S(
-      `Tell me: where does it hurt?`,
-      `HealthCare mode ✅ Tell me your symptoms, how long it’s been, and how severe it is (1–10).`
-    );
-  }
-
-  if (type === 'sports') {
-    return S(
-      `What sport do you like?`,
-      `Sports&Fitness ✅ Tell me your goal, experience, and any injuries.`
-    );
-  }
-
-  if (type === 'education') {
-    return S(
-      `What subject? Math or English?`,
-      `Education ✅ Tell me the subject and what part you don’t understand. I’ll explain step-by-step.`
-    );
-  }
-
-  return S(
-    `Hi ${name}! What do you need help with?`,
-    `Hi ${name}! How can I help?`
-  );
+  if (type === 'community') return "I’m here with you 😊 Tell me what’s on your mind.";
+  if (type === 'healthcare') return t.includes('pain') ? "Rest, hydrate, monitor symptoms, and seek care if severe." : "HealthCare mode ✅ Tell me your symptoms.";
+  if (type === 'sports') return "Sports&Fitness ✅ Tell me your goal and experience.";
+  if (type === 'education') return "Education ✅ Tell me the subject and what you don’t understand.";
+  return "Hi! How can I help?";
 }
 
 async function handleSend(text, attachments = null) {
@@ -1595,13 +1493,13 @@ async function handleSend(text, attachments = null) {
 
     scrollChatToBottom(true);
     scheduleSaveAll();
-  } catch (_) {
-    // ✅ ไม่โชว์ “เว็บพัง” ยาวๆ อีกแล้ว — ให้ตอบ fallback แบบเนียนๆ
+  } catch (err) {
     const reply = await mockAI(activeChatType, msg);
-    list[thinkingIndex].text = reply;
+    const failText = `⚠️ Server/AI error: ${err?.message || ''}\n\n(Fallback) ${reply}`;
 
+    list[thinkingIndex].text = failText;
     const lastBubble = chatHistory?.querySelector('.msg-row.bot:last-child .bubble');
-    if (lastBubble) lastBubble.textContent = reply;
+    if (lastBubble) lastBubble.textContent = failText;
 
     scrollChatToBottom(true);
     scheduleSaveAll();
@@ -1728,8 +1626,7 @@ function stopVoiceIfAny() {
 
 function startListening() {
   if (!hasSpeechAPI()) {
-    // ✅ ไม่ใช้ alert แล้ว (ดูเหมือนเว็บ error) -> ส่งเป็นข้อความแทน
-    pushMessage(activeChatType, 'bot', "Mic is not supported on this browser.");
+    alert("Speech Recognition not supported on this browser (iPhone Safari often not supported).");
     return;
   }
 
