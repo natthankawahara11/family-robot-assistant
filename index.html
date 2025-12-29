@@ -108,7 +108,7 @@
     <div class="profile-option profile-10"><img src="Profile10.png" alt="Profile 10" decoding="async"></div>
   </div>
 
-  <!-- FRAME 4: Age select (✅ NEW: vertical slider 0–140) -->
+  <!-- FRAME 4: Age select (✅ NEW: iPhone-like wheel 0–140) -->
   <div class="frame-4" id="frame4">
     <div class="age-title">
       Select your age (0–140). We’ll customize the assistant for you.
@@ -117,19 +117,17 @@
     <div class="frame4-btn-left" id="frame4Back"><img src="Pic6.png" alt="Back to nickname" decoding="async"></div>
     <div class="frame4-btn-right" id="frame4Next"><img src="Pic7.png" alt="Next (age)" decoding="async"></div>
 
-    <!-- ✅ slider panel -->
-    <div class="age-slider-panel" id="ageSliderPanel" aria-label="Age Slider Panel">
-      <div class="age-slider-left">
+    <!-- ✅ NEW: Wheel Panel -->
+    <div class="age-wheel-panel" id="ageWheelPanel" aria-label="Age Wheel Panel">
+      <div class="age-wheel-left">
         <div class="age-big" id="ageNumberBig">18</div>
         <div class="age-small" id="ageBandLabel">Adults Ages 18–59</div>
-        <div class="age-tip">Drag the slider</div>
+        <div class="age-tip">Scroll the wheel</div>
       </div>
 
-      <div class="age-slider-right">
-        <!-- range is horizontal by default; we rotate it in CSS -->
-        <input id="ageRange" class="age-range" type="range" min="0" max="140" step="1" value="18" />
-        <div class="age-range-min">0</div>
-        <div class="age-range-max">140</div>
+      <div class="age-wheel-right">
+        <div class="age-wheel" id="ageWheel" role="listbox" aria-label="Age wheel"></div>
+        <div class="age-wheel-highlight" aria-hidden="true"></div>
       </div>
     </div>
   </div>
