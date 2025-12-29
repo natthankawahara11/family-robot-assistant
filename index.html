@@ -5,6 +5,10 @@
   <title>Chatbot Welcome</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
+  <!-- ✅ speed up fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <link rel="apple-touch-icon" sizes="180x180" href="Profile1.png" />
 
@@ -13,7 +17,6 @@
 </head>
 
 <body>
-
   <!-- ✅ BOOT LOADER -->
   <div class="boot-loader" id="bootLoader">
     <div class="boot-card">
@@ -45,7 +48,7 @@
   <!-- VIDEO OVERLAY -->
   <div class="frame-video" id="frameVideo" style="display:none;">
     <video id="introVideo" autoplay muted loop playsinline preload="auto">
-      <source src="Face.mp4" type="video/mp4">
+      <source src="Face.webm" type="video/webm">
       Your browser does not support the video tag.
     </video>
   </div>
@@ -254,5 +257,3 @@
 
 </body>
 </html>
-
-
