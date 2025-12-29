@@ -108,21 +108,30 @@
     <div class="profile-option profile-10"><img src="Profile10.png" alt="Profile 10" decoding="async"></div>
   </div>
 
-  <!-- FRAME 4: Age select -->
+  <!-- FRAME 4: Age select (✅ NEW: vertical slider 0–140) -->
   <div class="frame-4" id="frame4">
     <div class="age-title">
-      Select your age category, and we’ll customize <br>
-      the features for you.
+      Select your age (0–140). We’ll customize the assistant for you.
     </div>
 
     <div class="frame4-btn-left" id="frame4Back"><img src="Pic6.png" alt="Back to nickname" decoding="async"></div>
     <div class="frame4-btn-right" id="frame4Next"><img src="Pic7.png" alt="Next (age)" decoding="async"></div>
 
-    <div class="age-card age-1" data-age="Age1"><img src="Age1.png" alt="Age 1" decoding="async"></div>
-    <div class="age-card age-2" data-age="Age2"><img src="Age2.png" alt="Age 2" decoding="async"></div>
-    <div class="age-card age-3" data-age="Age3"><img src="Age3.png" alt="Age 3" decoding="async"></div>
-    <div class="age-card age-4" data-age="Age4"><img src="Age4.png" alt="Age 4" decoding="async"></div>
-    <div class="age-card age-5" data-age="Age5"><img src="Age5.png" alt="Age 5" decoding="async"></div>
+    <!-- ✅ slider panel -->
+    <div class="age-slider-panel" id="ageSliderPanel" aria-label="Age Slider Panel">
+      <div class="age-slider-left">
+        <div class="age-big" id="ageNumberBig">18</div>
+        <div class="age-small" id="ageBandLabel">Adults Ages 18–59</div>
+        <div class="age-tip">Drag the slider</div>
+      </div>
+
+      <div class="age-slider-right">
+        <!-- range is horizontal by default; we rotate it in CSS -->
+        <input id="ageRange" class="age-range" type="range" min="0" max="140" step="1" value="18" />
+        <div class="age-range-min">0</div>
+        <div class="age-range-max">140</div>
+      </div>
+    </div>
   </div>
 
   <!-- FRAME 5: Well done + accounts -->
@@ -184,6 +193,21 @@
     <div class="stage" id="chatStage">
       <div class="history-label">History</div>
 
+      <!-- ✅ NEW: Threads UI controls (right side) -->
+      <div class="chat-threads-controls">
+        <button class="mini-btn" id="newChatBtn" type="button">+ New</button>
+        <button class="mini-btn" id="chatsToggleBtn" type="button">Chats ▾</button>
+      </div>
+
+      <!-- ✅ Threads panel -->
+      <div class="chat-threads-panel" id="threadsPanel">
+        <div class="threads-head">
+          <div class="threads-title">Chats</div>
+          <button class="threads-close" id="threadsCloseBtn" type="button">✕</button>
+        </div>
+        <div class="threads-list" id="threadsList"></div>
+      </div>
+
       <div class="chat-back" id="chatBackBtn" title="Go back">
         <img src="ChatBot_GoBack.png" alt="Go Back" decoding="async">
       </div>
@@ -199,6 +223,16 @@
         </div>
 
         <div class="chat-icon" id="chatAdd"><img id="chatAddImg" src="ChatBot_Add.png" alt="Add" decoding="async"></div>
+
+        <!-- ✅ Mic Language Menu -->
+        <div class="mic-lang" id="micLangWrap" title="Mic language">
+          <button class="mic-lang-btn" id="micLangBtn" type="button">EN</button>
+          <div class="mic-lang-menu" id="micLangMenu">
+            <div class="mic-lang-item" data-lang="en-US">EN</div>
+            <div class="mic-lang-item" data-lang="th-TH">TH</div>
+          </div>
+        </div>
+
         <div class="chat-icon" id="chatMic"><img id="chatMicImg" src="ChatBot_Mic.png" alt="Mic" decoding="async"></div>
         <div class="chat-icon" id="chatSend"><img id="chatSendImg" src="ChatBot_Send.png" alt="Send" decoding="async"></div>
 
@@ -216,4 +250,3 @@
 
 </body>
 </html>
-
