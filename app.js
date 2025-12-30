@@ -443,6 +443,7 @@ const HOME_CARD_GAP = 17;
 const HOME_STEP = HOME_CARD_WIDTH + HOME_CARD_GAP;
 
 let homeIndex = 0;
+let lastHomeIndex = 0; // ✅ จำ index ล่าสุดของ Home (6 cards)
 let homeStartX = 0;
 let homeStartTranslate = 0;
 let homeDragging = false;
@@ -451,6 +452,15 @@ let homeMaxTranslate = 0;
 let homeLastX = 0;
 let homeLastTime = 0;
 let homeVelocity = 0;
+
+// ✅ mapping: 1 การ์ด/แท็บ (ไม่รวม Home)
+function singleCardTypeForTab(tabName) {
+  if (tabName === "healthcare") return "healthcare"; // Card1
+  if (tabName === "sports") return "sports";         // Card2
+  if (tabName === "education") return "education";   // Card3
+  if (tabName === "community") return "community";   // Card4
+  return null;
+}
 
 // ---- VIDEO / IDLE STATE ----
 let startupMode = true;
@@ -542,9 +552,10 @@ function goToFrame6() {
   if (currentProfile && frame6ProfileImg) frame6ProfileImg.src = currentProfile.avatarSrc;
 
   setActiveTab('home');
-  setHomeIndex(0, false);
-  lastActiveFrame = 'frame6';
+  // ✅ ให้กลับไป Home แบบเดิม และจำ index ล่าสุด
+  setHomeIndex(lastHomeIndex || 0, false);
 
+  lastActiveFrame = 'frame6';
   scheduleSaveAll();
 }
 
@@ -1117,11 +1128,40 @@ function attachLongPressDeleteToggle(card, id) {
 }
 
 // =========================================================
-// ✅ FRAME 6 Tabs
+// ✅ FRAME 6 Tabs  (✅ Home=6 cards, other tabs=1 card only)
 // =========================================================
+function applyFrame6TabView(name) {
+  if (!homeCardsWrapper || !homeCardsTrack) return;
+
+  const cards = Array.from(homeCardsTrack.querySelectorAll('.frame6-card[data-card]'));
+  const onlyType = singleCardTypeForTab(name);
+
+  if (name === "home") {
+    // ✅ แสดง 6 cards เหมือนเดิม
+    cards.forEach(c => { c.style.display = ""; });
+    // ✅ กลับไป index ล่าสุดที่ Home เคยอยู่
+    setHomeIndex(lastHomeIndex || 0, false);
+    return;
+  }
+
+  // ✅ แท็บอื่น: แสดงแค่ 1 card ของแท็บนั้น
+  cards.forEach(c => {
+    const t = c.getAttribute("data-card");
+    c.style.display = (t === onlyType) ? "" : "none";
+  });
+
+  // ✅ มีแค่ 1 card -> ให้ track อยู่ตำแหน่งเริ่มต้น
+  homeIndex = 0;
+  homeCardsTrack.style.transition = 'none';
+  homeCardsTrack.style.transform = `translateX(0px)`;
+}
+
 function setActiveTab(name) {
   const cfg = tabConfig[name];
   if (!cfg || !tabHighlight) return;
+
+  // ✅ ถ้าออกจาก Home ให้จำ index ล่าสุดไว้
+  if (currentTabName === "home") lastHomeIndex = homeIndex;
 
   currentTabName = name;
   tabHighlight.style.left = cfg.left + 'px';
@@ -1139,7 +1179,11 @@ function setActiveTab(name) {
   if (name === 'education' && tabEducation) tabEducation.style.color = 'rgba(255,255,255,0.9)';
   if (name === 'community' && tabCommunity) tabCommunity.style.color = 'rgba(255,255,255,0.9)';
 
-  if (homeCardsWrapper) homeCardsWrapper.style.display = (name === 'home') ? 'block' : 'none';
+  // ✅ wrapper ต้องโชว์ทุกแท็บ (เพราะแท็บอื่นก็ต้องมีการ์ด 1 ใบ)
+  if (homeCardsWrapper) homeCardsWrapper.style.display = 'block';
+
+  // ✅ สลับการแสดงการ์ดตามแท็บ
+  applyFrame6TabView(name);
 }
 
 bindTap(tabHome, () => { setActiveTab('home'); startIdleTimer(); });
@@ -1163,6 +1207,12 @@ function getTranslateX(el) {
 
 function calcHomeBounds() {
   if (!homeCardsTrack || !homeCardsWrapper) return { min: 0, max: 0 };
+
+  // ✅ ถ้าไม่ใช่ Home: มี 1 card เท่านั้น -> bounds = 0 เพื่อ “อยู่การ์ดเดียว”
+  if (currentTabName !== "home") {
+    return { min: 0, max: 0 };
+  }
+
   const trackWidth = homeCardsTrack.scrollWidth;
   const wrapperWidth = homeCardsWrapper.offsetWidth;
   const max = 0;
@@ -1172,6 +1222,15 @@ function calcHomeBounds() {
 
 function setHomeIndex(idx, withTransition = true) {
   if (!homeCardsTrack) return;
+
+  // ✅ ถ้าไม่ใช่ Home: มี 1 card เท่านั้น
+  if (currentTabName !== "home") {
+    homeIndex = 0;
+    homeCardsTrack.style.transition = withTransition ? 'transform 0.25s ease' : 'none';
+    homeCardsTrack.style.transform = `translateX(0px)`;
+    return;
+  }
+
   homeIndex = idx;
   const bounds = calcHomeBounds();
   const tx = Math.max(bounds.min, Math.min(bounds.max, -HOME_STEP * homeIndex));
@@ -1236,6 +1295,7 @@ if (homeCardsWrapper && homeCardsTrack) {
       return;
     }
 
+    // ✅ ไม่ใช่ Home: bounds เป็น 0 อยู่แล้ว (จะไม่หลุดไป card อื่น)
     let current = getTranslateX(homeCardsTrack);
 
     const projectionMs = 450;
