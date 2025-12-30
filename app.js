@@ -131,23 +131,18 @@ async function preloadAssets() {
     updateUI(`Loading: ${t.url}`);
   }
 
-  // ✅ ตรงนี้สำคัญ:
-  // - ไม่ await fontsPromise แบบเดิม
-  // - แต่ “รอแบบมีเพดาน” นิดเดียว (optional) เพื่อให้ไม่กระตุกมาก
+  // ✅ ไม่รอ fonts นาน
   updateUI("Finalizing…");
   await Promise.race([
-    fontsPromise,                 // ถ้า fonts มาไว ก็ได้เลย
-    new Promise(r => setTimeout(r, 600)) // ถ้ายังไม่มาใน 600ms ก็ไปต่อ
+    fontsPromise,
+    new Promise(r => setTimeout(r, 600))
   ]);
 
-  // ✅ ซ่อน loader ทันที
   if (bootLoader) {
     bootLoader.classList.add('hidden');
     bootLoader.style.pointerEvents = 'none';
   }
 
-  // ✅ fonts ยังโหลดต่อเบื้องหลัง (ถ้ายังไม่เสร็จ)
-  // จะช่วยให้ UI ไม่ค้างหน้าโหลด
   bootReady = true;
 }
 
@@ -437,6 +432,7 @@ const tabConfig = {
 };
 
 let currentTabName = 'home';
+let lastFrame6Tab = 'home'; // ✅ จำว่าเข้า chat มาจากแท็บไหน
 
 const HOME_CARD_WIDTH = 340;
 const HOME_CARD_GAP = 17;
@@ -453,12 +449,21 @@ let homeLastX = 0;
 let homeLastTime = 0;
 let homeVelocity = 0;
 
-// ✅ mapping: 1 การ์ด/แท็บ (ไม่รวม Home)
+// ✅ mapping tab -> chatType
 function singleCardTypeForTab(tabName) {
-  if (tabName === "healthcare") return "healthcare"; // Card1
-  if (tabName === "sports") return "sports";         // Card2
-  if (tabName === "education") return "education";   // Card3
-  if (tabName === "community") return "community";   // Card4
+  if (tabName === "healthcare") return "healthcare";
+  if (tabName === "sports") return "sports";
+  if (tabName === "education") return "education";
+  if (tabName === "community") return "community";
+  return null;
+}
+
+// ✅ mapping tab -> card index (ตาม DOM order: Card1..Card6)
+function cardIndexForTab(tabName) {
+  if (tabName === "healthcare") return 0; // Card1
+  if (tabName === "sports") return 1;     // Card2
+  if (tabName === "education") return 2;  // Card3
+  if (tabName === "community") return 3;  // Card4
   return null;
 }
 
@@ -541,7 +546,8 @@ function goToFrame5Accounts() {
   lastActiveFrame = 'frame5';
 }
 
-function goToFrame6() {
+// ✅ เพิ่ม param เพื่อ “กลับแท็บเดิม” ได้
+function goToFrame6(preferredTab = null) {
   if (!currentProfile && profiles.length > 0) currentProfile = profiles[0];
   if (currentProfile?.id) ensureChatBucket(currentProfile.id);
 
@@ -551,9 +557,11 @@ function goToFrame6() {
 
   if (currentProfile && frame6ProfileImg) frame6ProfileImg.src = currentProfile.avatarSrc;
 
-  setActiveTab('home');
-  // ✅ ให้กลับไป Home แบบเดิม และจำ index ล่าสุด
-  setHomeIndex(lastHomeIndex || 0, false);
+  const tabToUse = preferredTab || 'home';
+  setActiveTab(tabToUse);
+
+  // ✅ ถ้าเป็น Home ให้กลับ index ล่าสุด
+  if (tabToUse === "home") setHomeIndex(lastHomeIndex || 0, false);
 
   lastActiveFrame = 'frame6';
   scheduleSaveAll();
@@ -1041,7 +1049,7 @@ function renderProfiles() {
       currentProfile = profile;
       ensureChatBucket(profile.id);
       scheduleSaveAll();
-      goToFrame6();
+      goToFrame6("home");
       startIdleTimer();
     };
 
@@ -1128,29 +1136,28 @@ function attachLongPressDeleteToggle(card, id) {
 }
 
 // =========================================================
-// ✅ FRAME 6 Tabs  (✅ Home=6 cards, other tabs=1 card only)
+// ✅ FRAME 6 Tabs
+//    ✅ Home = แสดง Card1..Card6
+//    ✅ HealthCare/Sports/Education/Community = แสดง “แค่ Card1..Card4 ตามแท็บ”
+//       (Card5/6 จะไม่โผล่ในแท็บอื่นเด็ดขาด)
 // =========================================================
 function applyFrame6TabView(name) {
   if (!homeCardsWrapper || !homeCardsTrack) return;
 
   const cards = Array.from(homeCardsTrack.querySelectorAll('.frame6-card[data-card]'));
-  const onlyType = singleCardTypeForTab(name);
 
   if (name === "home") {
-    // ✅ แสดง 6 cards เหมือนเดิม
     cards.forEach(c => { c.style.display = ""; });
-    // ✅ กลับไป index ล่าสุดที่ Home เคยอยู่
     setHomeIndex(lastHomeIndex || 0, false);
     return;
   }
 
-  // ✅ แท็บอื่น: แสดงแค่ 1 card ของแท็บนั้น
-  cards.forEach(c => {
-    const t = c.getAttribute("data-card");
-    c.style.display = (t === onlyType) ? "" : "none";
+  const showIdx = cardIndexForTab(name); // 0..3
+  cards.forEach((c, i) => {
+    c.style.display = (i === showIdx) ? "" : "none";
   });
 
-  // ✅ มีแค่ 1 card -> ให้ track อยู่ตำแหน่งเริ่มต้น
+  // ✅ มีแค่ 1 card -> อยู่ตำแหน่งเริ่มต้น
   homeIndex = 0;
   homeCardsTrack.style.transition = 'none';
   homeCardsTrack.style.transform = `translateX(0px)`;
@@ -1179,10 +1186,7 @@ function setActiveTab(name) {
   if (name === 'education' && tabEducation) tabEducation.style.color = 'rgba(255,255,255,0.9)';
   if (name === 'community' && tabCommunity) tabCommunity.style.color = 'rgba(255,255,255,0.9)';
 
-  // ✅ wrapper ต้องโชว์ทุกแท็บ (เพราะแท็บอื่นก็ต้องมีการ์ด 1 ใบ)
   if (homeCardsWrapper) homeCardsWrapper.style.display = 'block';
-
-  // ✅ สลับการแสดงการ์ดตามแท็บ
   applyFrame6TabView(name);
 }
 
@@ -1208,7 +1212,7 @@ function getTranslateX(el) {
 function calcHomeBounds() {
   if (!homeCardsTrack || !homeCardsWrapper) return { min: 0, max: 0 };
 
-  // ✅ ถ้าไม่ใช่ Home: มี 1 card เท่านั้น -> bounds = 0 เพื่อ “อยู่การ์ดเดียว”
+  // ✅ ถ้าไม่ใช่ Home: มี 1 card เท่านั้น
   if (currentTabName !== "home") {
     return { min: 0, max: 0 };
   }
@@ -1223,7 +1227,6 @@ function calcHomeBounds() {
 function setHomeIndex(idx, withTransition = true) {
   if (!homeCardsTrack) return;
 
-  // ✅ ถ้าไม่ใช่ Home: มี 1 card เท่านั้น
   if (currentTabName !== "home") {
     homeIndex = 0;
     homeCardsTrack.style.transition = withTransition ? 'transform 0.25s ease' : 'none';
@@ -1295,7 +1298,6 @@ if (homeCardsWrapper && homeCardsTrack) {
       return;
     }
 
-    // ✅ ไม่ใช่ Home: bounds เป็น 0 อยู่แล้ว (จะไม่หลุดไป card อื่น)
     let current = getTranslateX(homeCardsTrack);
 
     const projectionMs = 450;
@@ -1314,14 +1316,12 @@ if (homeCardsWrapper && homeCardsTrack) {
 }
 
 /* =========================================================
-   ✅ FIX Frame6: “tap-only” open card (ไม่ยิงตอน touchstart)
-   - ถ้าลากเกิน threshold -> ถือว่า swipe, ไม่เปิด
-   - ไม่ block event เพื่อให้ wrapper รับ swipe ได้
+   ✅ FIX Frame6: “tap-only” open card
    ========================================================= */
 function bindCardTapOnly(cardEl, onTap) {
   if (!cardEl) return;
 
-  const TH = 12; // px threshold
+  const TH = 12;
   let sx = 0, sy = 0;
   let moved = false;
 
@@ -1340,13 +1340,12 @@ function bindCardTapOnly(cardEl, onTap) {
   }, { passive: true });
 
   cardEl.addEventListener("touchend", (e) => {
-    if (moved) return; // ✅ swipe -> ไม่เปิด
+    if (moved) return;
     const isMenu = e.target?.closest?.(".frame6-card-menu");
     if (isMenu) return;
     onTap(e);
   }, { passive: true });
 
-  // desktop click
   cardEl.addEventListener("click", (e) => {
     e.preventDefault();
     const isMenu = e.target?.closest?.(".frame6-card-menu");
@@ -1357,17 +1356,24 @@ function bindCardTapOnly(cardEl, onTap) {
 
 function attachFrame6CardHandlers() {
   document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
-    // ✅ กัน bind ซ้ำ
     if (card.dataset.bound === "1") return;
     card.dataset.bound = "1";
 
     bindCardTapOnly(card, () => {
-      const type = card.getAttribute('data-card');
+      // ✅ จำแท็บที่เข้ามา เพื่อ “กดออกแล้วกลับแท็บเดิม”
+      lastFrame6Tab = currentTabName || "home";
+
+      // ✅ ถ้าเข้าจากแท็บย่อย ให้ใช้ type ตามแท็บ (กัน Card5/6 / กัน type เพี้ยน)
+      let type = card.getAttribute('data-card');
+      if (currentTabName !== "home") {
+        const forced = singleCardTypeForTab(currentTabName);
+        if (forced) type = forced;
+      }
+
       goToFrame7(type);
     });
   });
 }
-// เรียกหนึ่งครั้งตอนโหลด
 attachFrame6CardHandlers();
 
 // =========================================================
@@ -1437,10 +1443,11 @@ if (newChatBtn) {
   }, { passive: false });
 }
 
+// ✅ Back: ออกแล้วกลับไป “แท็บเดิมที่กดเข้ามา” (Home/HealthCare/Sports/Education/Community)
 bindTap(chatBackBtn, () => {
   startIdleTimer();
   stopVoiceIfAny();
-  goToFrame6();
+  goToFrame6(lastFrame6Tab || "home");
 });
 
 // =========================================================
@@ -1519,7 +1526,7 @@ function buildHistoryForServer(type, maxTurns = 14) {
     if (!txt) continue;
 
     if (txt === '…') continue;
-    if (txt.startsWith('⚠️')) continue; // ✅ ไม่เอาข้อความ error ไปป้อนซ้ำ
+    if (txt.startsWith('⚠️')) continue;
 
     if (m.role === 'user') msgs.push({ role: 'user', content: txt });
     if (m.role === 'bot') msgs.push({ role: 'assistant', content: txt });
@@ -1655,7 +1662,6 @@ async function handleSend(text, attachments = null) {
     scrollChatToBottom(true);
     scheduleSaveAll();
   } catch (_) {
-    // ✅ ไม่โชว์ “เว็บพัง” ยาวๆ อีกแล้ว — ให้ตอบ fallback แบบเนียนๆ
     const reply = await mockAI(activeChatType, msg);
     list[thinkingIndex].text = reply;
 
@@ -1787,7 +1793,6 @@ function stopVoiceIfAny() {
 
 function startListening() {
   if (!hasSpeechAPI()) {
-    // ✅ ไม่ใช้ alert แล้ว (ดูเหมือนเว็บ error) -> ส่งเป็นข้อความแทน
     pushMessage(activeChatType, 'bot', "Mic is not supported on this browser.");
     return;
   }
