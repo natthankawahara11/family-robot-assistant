@@ -1144,23 +1144,26 @@ function attachLongPressDeleteToggle(card, id) {
 function applyFrame6TabView(name) {
   if (!homeCardsWrapper || !homeCardsTrack) return;
 
-  const cards = Array.from(homeCardsTrack.querySelectorAll('.frame6-card[data-card]'));
+  // ✅ เลือกการ์ดทุกใบ (รวม Card5/6)
+  const cards = Array.from(homeCardsTrack.querySelectorAll('.frame6-card'));
 
   if (name === "home") {
+    // Home = โชว์หมด 6 ใบ
     cards.forEach(c => { c.style.display = ""; });
     setHomeIndex(lastHomeIndex || 0, false);
     return;
   }
 
+  // แท็บย่อย = โชว์แค่ Card1..Card4 ตามแท็บ
   const showIdx = cardIndexForTab(name); // 0..3
   cards.forEach((c, i) => {
     c.style.display = (i === showIdx) ? "" : "none";
   });
 
-  // ✅ มีแค่ 1 card -> อยู่ตำแหน่งเริ่มต้น
+  // ✅ มีแค่ 1 card -> รีเซ็ตตำแหน่ง track
   homeIndex = 0;
-  homeCardsTrack.style.transition = 'none';
-  homeCardsTrack.style.transform = `translateX(0px)`;
+  homeCardsTrack.style.transition = "none";
+  homeCardsTrack.style.transform = "translateX(0px)";
 }
 
 function setActiveTab(name) {
@@ -1861,3 +1864,4 @@ updateTapHint();
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
