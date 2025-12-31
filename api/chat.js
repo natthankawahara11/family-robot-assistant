@@ -238,7 +238,8 @@ module.exports = async function handler(req, res) {
 
     const isQuiz = typeof type === "string" && type.endsWith("_quiz");
 
-    const completion = await client.chat.completions.create({
+    // ✅ Base completion payload
+    const payload = {
       model: "llama-3.1-8b-instant",
       messages: [
         { role: "system", content: system },
@@ -246,7 +247,14 @@ module.exports = async function handler(req, res) {
         { role: "user", content: userMsg },
       ],
       temperature: isQuiz ? 0.35 : 0.7,
-    });
+    };
+
+    // ✅ IMPORTANT: force quiz output to be JSON object
+    if (isQuiz) {
+      payload.response_format = { type: "json_object" };
+    }
+
+    const completion = await client.chat.completions.create(payload);
 
     const reply = completion?.choices?.[0]?.message?.content?.trim() || "…";
     return res.status(200).json({ reply });
