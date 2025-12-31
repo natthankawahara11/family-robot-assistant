@@ -2036,22 +2036,75 @@ function extractJSON(text) {
   return null;
 }
 
-function mockQuiz(topic, count = 5) {
-  const questions = [];
+/* =========================================================
+   ✅ NEW: LOCAL QUIZ GENERATOR (สุ่มจริง ไม่ซ้ำแบบเดิม)
+   ✅ ใช้แทน mockQuiz เดิม เพื่อกัน quiz โล่ง + ไม่ซ้ำ
+   ========================================================= */
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function generateLocalQuiz(topic, count = 5, domain = "general") {
+  const pools = {
+    healthcare: [
+      ["Which is a healthy daily habit?", ["Drink enough water", "Never sleep", "Only eat candy", "Never move"], 0, "Staying hydrated supports your body."],
+      ["What helps prevent getting sick?", ["Wash hands", "Share cups", "Skip hygiene", "Never clean"], 0, "Handwashing reduces germs."],
+      ["If you feel dizzy, what is safest first step?", ["Sit down and rest", "Run fast", "Ignore it", "Hold your breath"], 0, "Rest first; seek help if it continues."],
+      ["Which food group should you eat often?", ["Vegetables", "Only sugar", "Only soda", "Only chips"], 0, "Vegetables provide vitamins and fiber."],
+      ["Before exercising, what should you do?", ["Warm up", "Start max speed", "Skip stretching always", "Train with pain"], 0, "Warm-ups reduce injury risk."],
+    ],
+    sports: [
+      ["What is a good warm-up?", ["Light jogging", "Sleeping", "Heavy max lift", "No movement"], 0, "Warm-ups increase blood flow."],
+      ["To build endurance, you should…", ["Train consistently", "Do one session only", "Never rest", "Only sprint once"], 0, "Consistency matters."],
+      ["What helps prevent injury?", ["Proper form", "Ignoring pain", "Overtraining", "No rest days"], 0, "Form protects joints and muscles."],
+      ["After workout, what helps recovery?", ["Cool down + water", "No sleep", "Only soda", "Skip eating always"], 0, "Recovery supports progress."],
+      ["Best first step for a beginner plan?", ["Start easy and increase", "Go hardest every day", "Never warm up", "Copy pro athletes"], 0, "Progressive overload safely builds fitness."],
+    ],
+    education: [
+      ["Which is a good study method?", ["Practice questions", "Cram once", "Never review", "Only read titles"], 0, "Practice improves recall."],
+      ["What helps you remember better?", ["Spaced repetition", "All-night study", "No breaks ever", "Zero sleep"], 0, "Spacing improves memory."],
+      ["If a topic is hard, you should…", ["Break it into steps", "Give up", "Skip basics", "Guess always"], 0, "Small steps make learning easier."],
+      ["Best way to improve writing?", ["Write and revise", "Never edit", "Avoid feedback", "Only copy"], 0, "Revision improves clarity."],
+      ["What helps math accuracy?", ["Check your work", "Rush always", "Skip steps", "Ignore units"], 0, "Checking catches mistakes."],
+    ],
+    community: [
+      ["A good way to resolve conflict is…", ["Listen calmly", "Shout louder", "Insult people", "Ignore forever"], 0, "Listening reduces tension."],
+      ["Online safety: you should…", ["Keep personal info private", "Share passwords", "Meet strangers alone", "Post your address"], 0, "Privacy keeps you safe."],
+      ["If a friend feels sad, you can…", ["Ask and support", "Laugh at them", "Ignore them", "Spread rumors"], 0, "Support helps mental wellbeing."],
+      ["Teamwork works best when people…", ["Communicate clearly", "Never talk", "Only blame", "Hide problems"], 0, "Communication helps coordination."],
+      ["Being a good community member means…", ["Respect others", "Break rules", "Hurt others", "Make trouble"], 0, "Respect supports peace and cooperation."],
+    ],
+    general: [
+      ["Which is the best choice?", ["Option A", "Option B", "Option C", "Option D"], 0, "This is a safe default fallback."],
+    ]
+  };
+
+  const pool = pools[domain] || pools.general;
+  const out = [];
   for (let i = 0; i < count; i++) {
-    questions.push({
-      question: `(${i+1}) Basics about "${topic}": Which statement is most correct?`,
-      choices: [
-        "Option A (general correct idea)",
-        "Option B (partly true)",
-        "Option C (common mistake)",
-        "Option D (unrelated)"
-      ],
-      answerIndex: 0,
-      explanation: "This is a simple fallback question when AI is unavailable."
+    const base = pick(pool);
+    const originalChoices = base[1].map(x => String(x));
+    const correctText = originalChoices[base[2]];
+    const choices = shuffle(originalChoices);
+    const answerIndex = choices.indexOf(correctText);
+
+    out.push({
+      question: `(${i + 1}) ${topic}: ${base[0]}`,
+      choices,
+      answerIndex,
+      explanation: base[3] || "This is the best general choice."
     });
   }
-  return { questions };
+  return { questions: out };
 }
 
 function renderQuizQuestion() {
@@ -2152,6 +2205,9 @@ async function generateQuizFromAI(payload) {
     const raw = String(data?.reply || "").trim();
     const obj = extractJSON(raw);
     const normalized = normalizeQuizJSON(obj);
+
+    // ✅ HARD SAFETY: ถ้า AI ส่งมาแต่พัง/ไม่ครบ ให้เป็น null เพื่อ fallback
+    if (!normalized || !normalized.questions || !normalized.questions.length) return null;
     return normalized;
   } catch (_) {
     return null;
@@ -2203,8 +2259,10 @@ async function startQuizFlow() {
 
   let data = await generateQuizFromAI(payload);
 
-  // fallback
-  if (!data) data = mockQuiz(topic, payload.numQuestions);
+  // ✅ HARD GUARANTEE fallback: ไม่มีทางโล่ง + สุ่มจริง
+  if (!data) {
+    data = generateLocalQuiz(topic, payload.numQuestions, currentQuizTab);
+  }
 
   quizData = data;
   quizTimerSecPerQ = payload.timed ? payload.secondsPerQuestion : 0;
