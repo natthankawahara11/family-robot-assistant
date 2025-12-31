@@ -88,6 +88,7 @@ function domImgUrls() {
     "Pic16.png",
     "Bluetooth.png",
     "Card1.png","Card2.png","Card3.png","Card4.png","Card5.png","Card6.png",
+    "Card_Quiz1.png","Card_Quiz2.png","Card_Quiz3.png","Card_Quiz4.png",
     "Fix_Menu.png",
     "ChatBot_GoBack.png",
     "ChatBot_Add.png","ChatBot_Mic.png","ChatBot_Send.png",
@@ -97,7 +98,7 @@ function domImgUrls() {
 
 async function preloadAssets() {
   const imgs = uniq([...cssBgUrls(), ...domImgUrls()]);
-  const vids = ["Face.webm"]; // ของคุณตอนนี้ใช้ webm อยู่ (เดี๋ยวเรื่อง iPhone mp4 เราแก้แยกได้)
+  const vids = ["Face.webm"];
 
   const tasks = [
     ...imgs.map(u => ({ type: "img", url: u })),
@@ -116,12 +117,10 @@ async function preloadAssets() {
 
   updateUI("Starting…");
 
-  // ✅ เริ่มโหลด fonts “พร้อมกัน” แต่ไม่ให้มันบล็อก loader
   const fontsPromise = (document.fonts && document.fonts.ready)
     ? document.fonts.ready.catch(() => null)
     : Promise.resolve(null);
 
-  // ✅ โหลด assets ทั้งหมดเหมือนเดิม
   for (const t of tasks) {
     try {
       if (t.type === "img") await preloadImage(t.url);
@@ -131,12 +130,8 @@ async function preloadAssets() {
     updateUI(`Loading: ${t.url}`);
   }
 
-  // ✅ ไม่รอ fonts นาน
   updateUI("Finalizing…");
-  await Promise.race([
-    fontsPromise,
-    new Promise(r => setTimeout(r, 600))
-  ]);
+  await Promise.race([fontsPromise, new Promise(r => setTimeout(r, 600))]);
 
   if (bootLoader) {
     bootLoader.classList.add('hidden');
@@ -145,7 +140,6 @@ async function preloadAssets() {
 
   bootReady = true;
 }
-
 preloadAssets();
 
 // =========================================================
@@ -179,6 +173,41 @@ const frame4 = document.getElementById('frame4');
 const frame5 = document.getElementById('frame5');
 const frame6 = document.getElementById('frame6');
 const frame7 = document.getElementById('frame7');
+
+// ✅ quiz frames
+const frame8 = document.getElementById('frame8');
+const frame9 = document.getElementById('frame9');
+const frame10 = document.getElementById('frame10');
+
+const quizStageSetup = document.getElementById('quizStageSetup');
+const quizStagePlay = document.getElementById('quizStagePlay');
+const quizStageResult = document.getElementById('quizStageResult');
+
+const quizBackBtn1 = document.getElementById('quizBackBtn1');
+const quizBackBtn2 = document.getElementById('quizBackBtn2');
+const quizBackBtn3 = document.getElementById('quizBackBtn3');
+
+const quizSetupTitle = document.getElementById('quizSetupTitle');
+const quizTopicLabel = document.getElementById('quizTopicLabel');
+const quizTopicInput = document.getElementById('quizTopicInput');
+const quizCountSelect = document.getElementById('quizCountSelect');
+const quizGradeSelect = document.getElementById('quizGradeSelect');
+const quizDifficultySelect = document.getElementById('quizDifficultySelect');
+const quizTimerSelect = document.getElementById('quizTimerSelect');
+const quizStartBtn = document.getElementById('quizStartBtn');
+const quizSetupHint = document.getElementById('quizSetupHint');
+
+const quizProgress = document.getElementById('quizProgress');
+const quizTimerPill = document.getElementById('quizTimerPill');
+const quizQuestionText = document.getElementById('quizQuestionText');
+const quizChoices = document.getElementById('quizChoices');
+const quizNextBtn = document.getElementById('quizNextBtn');
+const quizFeedback = document.getElementById('quizFeedback');
+
+const quizScoreText = document.getElementById('quizScoreText');
+const quizCongratsText = document.getElementById('quizCongratsText');
+const quizPlayAgainBtn = document.getElementById('quizPlayAgainBtn');
+const quizBackHomeBtn = document.getElementById('quizBackHomeBtn');
 
 const option1 = document.getElementById('welcomeOption1');
 const option2 = document.getElementById('welcomeOption2');
@@ -420,6 +449,18 @@ function ageBandFromNumber(n) {
   return        { ageKey: "VeryElderly", ageText: "Very Elderly Age: 75+" };
 }
 
+function defaultGradeByAge(profile) {
+  const a = Number(profile?.ageNumber);
+  if (!Number.isFinite(a)) return "Grade 7–9";
+  if (a <= 5) return "Kindergarten";
+  if (a <= 8) return "Grade 1–3";
+  if (a <= 12) return "Grade 4–6";
+  if (a <= 15) return "Grade 7–9";
+  if (a <= 17) return "Grade 10–12";
+  if (a <= 24) return "University";
+  return "Professional";
+}
+
 // =========================================================
 // ✅ TABS / HOME CARDS
 // =========================================================
@@ -432,14 +473,14 @@ const tabConfig = {
 };
 
 let currentTabName = 'home';
-let lastFrame6Tab = 'home'; // ✅ จำว่าเข้า chat มาจากแท็บไหน
+let lastFrame6Tab = 'home';
 
 const HOME_CARD_WIDTH = 340;
 const HOME_CARD_GAP = 17;
 const HOME_STEP = HOME_CARD_WIDTH + HOME_CARD_GAP;
 
 let homeIndex = 0;
-let lastHomeIndex = 0; // ✅ จำ index ล่าสุดของ Home (6 cards)
+let lastHomeIndex = 0;
 let homeStartX = 0;
 let homeStartTranslate = 0;
 let homeDragging = false;
@@ -448,24 +489,6 @@ let homeMaxTranslate = 0;
 let homeLastX = 0;
 let homeLastTime = 0;
 let homeVelocity = 0;
-
-// ✅ mapping tab -> chatType
-function singleCardTypeForTab(tabName) {
-  if (tabName === "healthcare") return "healthcare";
-  if (tabName === "sports") return "sports";
-  if (tabName === "education") return "education";
-  if (tabName === "community") return "community";
-  return null;
-}
-
-// ✅ mapping tab -> card index (ตาม DOM order: Card1..Card6)
-function cardIndexForTab(tabName) {
-  if (tabName === "healthcare") return 0; // Card1
-  if (tabName === "sports") return 1;     // Card2
-  if (tabName === "education") return 2;  // Card3
-  if (tabName === "community") return 3;  // Card4
-  return null;
-}
 
 // ---- VIDEO / IDLE STATE ----
 let startupMode = true;
@@ -478,7 +501,7 @@ let lastActiveFrame = null;
 // ✅ FRAME NAV
 // =========================================================
 function hideAllFrames() {
-  [frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7].forEach(f => {
+  [frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7, frame8, frame9, frame10].forEach(f => {
     if (f) f.style.display = 'none';
   });
 }
@@ -546,7 +569,6 @@ function goToFrame5Accounts() {
   lastActiveFrame = 'frame5';
 }
 
-// ✅ เพิ่ม param เพื่อ “กลับแท็บเดิม” ได้
 function goToFrame6(preferredTab = null) {
   if (!currentProfile && profiles.length > 0) currentProfile = profiles[0];
   if (currentProfile?.id) ensureChatBucket(currentProfile.id);
@@ -560,7 +582,6 @@ function goToFrame6(preferredTab = null) {
   const tabToUse = preferredTab || 'home';
   setActiveTab(tabToUse);
 
-  // ✅ ถ้าเป็น Home ให้กลับ index ล่าสุด
   if (tabToUse === "home") setHomeIndex(lastHomeIndex || 0, false);
 
   lastActiveFrame = 'frame6';
@@ -577,6 +598,9 @@ function restoreLastFrame() {
     case 'frame5': goToFrame5Accounts(); break;
     case 'frame6': goToFrame6(); break;
     case 'frame7': goToFrame7(activeChatType); break;
+    case 'frame8': goToFrame8(currentQuizTab || "healthcare"); break;
+    case 'frame9': goToFrame9(); break;
+    case 'frame10': goToFrame10(); break;
     default: goToFrame1(); break;
   }
 }
@@ -617,7 +641,7 @@ function handleUserInteraction(e) {
       '.frame6-profile, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
       '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, ' +
       '.frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang, .mini-btn, .thread-item,' +
-      '.modal, .modal-card, .modal-btn'
+      '.modal, .modal-card, .modal-btn, .quiz-primary, .quiz-secondary, .quiz-input, .quiz-select, .quiz-choice, .quiz-back'
     );
     if (block) return;
   }
@@ -701,7 +725,6 @@ function setIndex(idx, withTransition = true) {
   updateDots();
 }
 
-// ✅ Frame1 -> Frame2 ONLY
 function showFrame2FromWelcome() {
   goToFrame2();
   startIdleTimer();
@@ -1137,30 +1160,41 @@ function attachLongPressDeleteToggle(card, id) {
 
 // =========================================================
 // ✅ FRAME 6 Tabs
-//    ✅ Home = แสดง Card1..Card6
-//    ✅ HealthCare/Sports/Education/Community = แสดง “แค่ Card1..Card4 ตามแท็บ”
-//       (Card5/6 จะไม่โผล่ในแท็บอื่นเด็ดขาด)
+//    ✅ Home: show ONLY data-home="1"
+//    ✅ Sub-tabs: show 2 cards (chat card + quiz card) in order
 // =========================================================
 function applyFrame6TabView(name) {
   if (!homeCardsWrapper || !homeCardsTrack) return;
 
-  // ✅ เลือกการ์ดทุกใบ (รวม Card5/6)
   const cards = Array.from(homeCardsTrack.querySelectorAll('.frame6-card'));
 
+  // reset order
+  cards.forEach(c => { c.style.order = ""; });
+
   if (name === "home") {
-    // Home = โชว์หมด 6 ใบ
-    cards.forEach(c => { c.style.display = ""; });
+    cards.forEach(c => {
+      const isHome = c.getAttribute("data-home") === "1";
+      c.style.display = isHome ? "" : "none";
+    });
     setHomeIndex(lastHomeIndex || 0, false);
     return;
   }
 
-  // แท็บย่อย = โชว์แค่ Card1..Card4 ตามแท็บ
-  const showIdx = cardIndexForTab(name); // 0..3
-  cards.forEach((c, i) => {
-    c.style.display = (i === showIdx) ? "" : "none";
-  });
+  // sub tab => show exactly two: chat + quiz
+  cards.forEach(c => { c.style.display = "none"; });
 
-  // ✅ มีแค่ 1 card -> รีเซ็ตตำแหน่ง track
+  const chatCard = cards.find(c => c.getAttribute("data-card") === name);
+  const quizCard = cards.find(c => c.getAttribute("data-quiz") === "1" && c.getAttribute("data-for-tab") === name);
+
+  if (chatCard) {
+    chatCard.style.display = "";
+    chatCard.style.order = "1";
+  }
+  if (quizCard) {
+    quizCard.style.display = "";
+    quizCard.style.order = "2";
+  }
+
   homeIndex = 0;
   homeCardsTrack.style.transition = "none";
   homeCardsTrack.style.transform = "translateX(0px)";
@@ -1170,7 +1204,6 @@ function setActiveTab(name) {
   const cfg = tabConfig[name];
   if (!cfg || !tabHighlight) return;
 
-  // ✅ ถ้าออกจาก Home ให้จำ index ล่าสุดไว้
   if (currentTabName === "home") lastHomeIndex = homeIndex;
 
   currentTabName = name;
@@ -1215,13 +1248,9 @@ function getTranslateX(el) {
 function calcHomeBounds() {
   if (!homeCardsTrack || !homeCardsWrapper) return { min: 0, max: 0 };
 
-  // ✅ ถ้าไม่ใช่ Home: มี 1 card เท่านั้น
-  if (currentTabName !== "home") {
-    return { min: 0, max: 0 };
-  }
-
   const trackWidth = homeCardsTrack.scrollWidth;
   const wrapperWidth = homeCardsWrapper.offsetWidth;
+
   const max = 0;
   const min = Math.min(0, wrapperWidth - trackWidth - 42);
   return { min, max };
@@ -1229,13 +1258,6 @@ function calcHomeBounds() {
 
 function setHomeIndex(idx, withTransition = true) {
   if (!homeCardsTrack) return;
-
-  if (currentTabName !== "home") {
-    homeIndex = 0;
-    homeCardsTrack.style.transition = withTransition ? 'transform 0.25s ease' : 'none';
-    homeCardsTrack.style.transform = `translateX(0px)`;
-    return;
-  }
 
   homeIndex = idx;
   const bounds = calcHomeBounds();
@@ -1358,21 +1380,22 @@ function bindCardTapOnly(cardEl, onTap) {
 }
 
 function attachFrame6CardHandlers() {
-  document.querySelectorAll('.frame6-card[data-card]').forEach(card => {
+  document.querySelectorAll('.frame6-card').forEach(card => {
     if (card.dataset.bound === "1") return;
     card.dataset.bound = "1";
 
     bindCardTapOnly(card, () => {
-      // ✅ จำแท็บที่เข้ามา เพื่อ “กดออกแล้วกลับแท็บเดิม”
       lastFrame6Tab = currentTabName || "home";
 
-      // ✅ ถ้าเข้าจากแท็บย่อย ให้ใช้ type ตามแท็บ (กัน Card5/6 / กัน type เพี้ยน)
-      let type = card.getAttribute('data-card');
-      if (currentTabName !== "home") {
-        const forced = singleCardTypeForTab(currentTabName);
-        if (forced) type = forced;
+      const isQuiz = card.getAttribute("data-quiz") === "1";
+      if (isQuiz) {
+        const tab = card.getAttribute("data-for-tab") || currentTabName || "healthcare";
+        goToFrame8(tab);
+        return;
       }
 
+      let type = card.getAttribute('data-card');
+      if (!type) return;
       goToFrame7(type);
     });
   });
@@ -1401,6 +1424,11 @@ function updateChatScale() {
 
 window.addEventListener('resize', () => {
   if (frame7 && frame7.style.display === 'block') updateChatScale();
+  if ((frame8 && frame8.style.display === 'block') ||
+      (frame9 && frame9.style.display === 'block') ||
+      (frame10 && frame10.style.display === 'block')) {
+    updateQuizScale();
+  }
 });
 
 function goToFrame7(chatType) {
@@ -1446,7 +1474,6 @@ if (newChatBtn) {
   }, { passive: false });
 }
 
-// ✅ Back: ออกแล้วกลับไป “แท็บเดิมที่กดเข้ามา” (Home/HealthCare/Sports/Education/Community)
 bindTap(chatBackBtn, () => {
   startIdleTimer();
   stopVoiceIfAny();
@@ -1541,7 +1568,7 @@ async function callServerAI(type, userText) {
   const history = buildHistoryForServer(type);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const timeout = setTimeout(() => controller.abort(), 20000);
 
   try {
     const r = await fetch(`${SERVER_BASE}/api/chat`, {
@@ -1747,7 +1774,7 @@ if (micLangBtn && micLangMenu) {
 }
 
 // =========================================================
-// ✅ Voice input
+// ✅ Voice input (same as yours)
 // =========================================================
 let recognition = null;
 let isListening = false;
@@ -1861,7 +1888,377 @@ bindTap(chatSend, onSendOrYesClick);
 updateTapHint();
 
 // =========================================================
+// ✅ QUIZ SYSTEM
+// =========================================================
+let currentQuizTab = "healthcare"; // healthcare | sports | education | community
+let quizData = null; // { questions: [...] }
+let quizIndex = 0;
+let quizScore = 0;
+let quizAnswered = false;
+let quizSelectedIndex = null;
+
+let quizTimerSecPerQ = 0;
+let quizCountdown = 0;
+let quizTimerHandle = null;
+
+function quizLabelForTab(tab) {
+  if (tab === "healthcare") return { title: "Healthcare Quiz", label: "Enter a Healthcare quiz topic" };
+  if (tab === "sports") return { title: "Sports & Fitness Quiz", label: "Enter a Sports & Fitness quiz topic" };
+  if (tab === "education") return { title: "Education Quiz", label: "Enter an Education quiz topic" };
+  if (tab === "community") return { title: "Community Quiz", label: "Enter a Community quiz topic" };
+  return { title: "Quiz", label: "Enter a quiz topic" };
+}
+
+function updateQuizScale() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const baseW = 864;
+  const baseH = 444;
+  const s = Math.min(vw / baseW, vh / baseH);
+
+  if (quizStageSetup) quizStageSetup.style.setProperty('--qs', s.toString());
+  if (quizStagePlay) quizStagePlay.style.setProperty('--qs', s.toString());
+  if (quizStageResult) quizStageResult.style.setProperty('--qs', s.toString());
+}
+
+function goToFrame8(tab) {
+  currentQuizTab = tab || "healthcare";
+  hideAllFrames();
+
+  if (frame8) frame8.style.display = "block";
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+  lastActiveFrame = 'frame8';
+
+  updateQuizScale();
+  startIdleTimer();
+
+  const meta = quizLabelForTab(currentQuizTab);
+  if (quizSetupTitle) quizSetupTitle.textContent = meta.title;
+  if (quizTopicLabel) quizTopicLabel.textContent = meta.label;
+
+  // default grade by age
+  const autoGrade = defaultGradeByAge(currentProfile);
+  if (quizGradeSelect) {
+    quizGradeSelect.value = "Auto (based on age)";
+    quizGradeSelect.setAttribute("data-auto-grade", autoGrade);
+  }
+
+  if (quizTopicInput) quizTopicInput.value = "";
+  if (quizSetupHint) quizSetupHint.textContent = "Tip: Choose a topic and press Start. The AI will generate the quiz for you.";
+  if (quizStartBtn) {
+    quizStartBtn.disabled = false;
+    quizStartBtn.textContent = "Start Quiz";
+  }
+}
+
+function goToFrame9() {
+  hideAllFrames();
+  if (frame9) frame9.style.display = "block";
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+  lastActiveFrame = 'frame9';
+  updateQuizScale();
+  startIdleTimer();
+}
+
+function goToFrame10() {
+  hideAllFrames();
+  if (frame10) frame10.style.display = "block";
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+  lastActiveFrame = 'frame10';
+  updateQuizScale();
+  startIdleTimer();
+}
+
+function clearQuizTimer() {
+  clearInterval(quizTimerHandle);
+  quizTimerHandle = null;
+  quizCountdown = 0;
+  if (quizTimerPill) quizTimerPill.textContent = "—";
+}
+
+function startQuizTimer(secPerQ) {
+  clearQuizTimer();
+  if (!secPerQ || secPerQ <= 0) {
+    if (quizTimerPill) quizTimerPill.textContent = "No timer";
+    return;
+  }
+  quizCountdown = secPerQ;
+  if (quizTimerPill) quizTimerPill.textContent = formatTime(quizCountdown);
+
+  quizTimerHandle = setInterval(() => {
+    quizCountdown -= 1;
+    if (quizTimerPill) quizTimerPill.textContent = formatTime(Math.max(0, quizCountdown));
+    if (quizCountdown <= 0) {
+      clearQuizTimer();
+      // auto lock + show correct
+      if (!quizAnswered) {
+        lockQuizAnswer(null, true);
+      }
+    }
+  }, 1000);
+}
+
+function formatTime(s) {
+  const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
+function normalizeQuizJSON(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  const qs = Array.isArray(obj.questions) ? obj.questions : [];
+  const clean = qs
+    .map(q => ({
+      question: String(q.question || q.q || "").trim(),
+      choices: Array.isArray(q.choices) ? q.choices.map(x => String(x)) : Array.isArray(q.options) ? q.options.map(x => String(x)) : [],
+      answerIndex: Number.isFinite(Number(q.answerIndex)) ? Number(q.answerIndex) : Number.isFinite(Number(q.correctIndex)) ? Number(q.correctIndex) : null,
+      explanation: String(q.explanation || q.reason || "").trim()
+    }))
+    .filter(q => q.question && q.choices.length >= 2 && q.answerIndex !== null);
+
+  if (!clean.length) return null;
+  return { questions: clean };
+}
+
+function extractJSON(text) {
+  const t = String(text || "").trim();
+  if (!t) return null;
+  // try direct JSON
+  try { return JSON.parse(t); } catch (_) {}
+
+  // try find first {...} block
+  const start = t.indexOf("{");
+  const end = t.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    const chunk = t.slice(start, end + 1);
+    try { return JSON.parse(chunk); } catch (_) {}
+  }
+  return null;
+}
+
+function mockQuiz(topic, count = 5) {
+  const questions = [];
+  for (let i = 0; i < count; i++) {
+    questions.push({
+      question: `(${i+1}) Basics about "${topic}": Which statement is most correct?`,
+      choices: [
+        "Option A (general correct idea)",
+        "Option B (partly true)",
+        "Option C (common mistake)",
+        "Option D (unrelated)"
+      ],
+      answerIndex: 0,
+      explanation: "This is a simple fallback question when AI is unavailable."
+    });
+  }
+  return { questions };
+}
+
+function renderQuizQuestion() {
+  if (!quizData || !quizData.questions || !quizData.questions.length) return;
+
+  const total = quizData.questions.length;
+  const q = quizData.questions[quizIndex];
+
+  quizAnswered = false;
+  quizSelectedIndex = null;
+  if (quizFeedback) quizFeedback.textContent = "";
+  if (quizNextBtn) { quizNextBtn.disabled = true; quizNextBtn.textContent = (quizIndex === total - 1) ? "Finish" : "Next"; }
+
+  if (quizProgress) quizProgress.textContent = `Q${quizIndex + 1} / ${total}`;
+  if (quizQuestionText) quizQuestionText.textContent = q.question;
+
+  if (quizChoices) {
+    quizChoices.innerHTML = "";
+    q.choices.forEach((choiceText, idx) => {
+      const btn = document.createElement("button");
+      btn.className = "quiz-choice";
+      btn.type = "button";
+      btn.textContent = choiceText;
+
+      btn.addEventListener("click", () => {
+        if (quizAnswered) return;
+        lockQuizAnswer(idx, false);
+      });
+
+      btn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        if (quizAnswered) return;
+        lockQuizAnswer(idx, false);
+      }, { passive: false });
+
+      quizChoices.appendChild(btn);
+    });
+  }
+
+  startQuizTimer(quizTimerSecPerQ);
+}
+
+function lockQuizAnswer(selectedIdx, timedOut) {
+  if (!quizData) return;
+  const q = quizData.questions[quizIndex];
+  quizAnswered = true;
+  quizSelectedIndex = selectedIdx;
+
+  clearQuizTimer();
+
+  const correct = q.answerIndex;
+  const children = Array.from(quizChoices?.children || []);
+
+  children.forEach((el, i) => {
+    if (!(el instanceof HTMLElement)) return;
+    if (i === correct) el.classList.add("correct");
+    if (selectedIdx !== null && i === selectedIdx && i !== correct) el.classList.add("wrong");
+    el.style.pointerEvents = "none";
+  });
+
+  if (!timedOut && selectedIdx !== null && selectedIdx === correct) quizScore += 1;
+
+  if (quizFeedback) {
+    if (timedOut) quizFeedback.textContent = `Time’s up! Correct answer highlighted. ${q.explanation ? " " + q.explanation : ""}`;
+    else if (selectedIdx === correct) quizFeedback.textContent = `Correct ✅ ${q.explanation ? " " + q.explanation : ""}`;
+    else quizFeedback.textContent = `Not quite. Correct answer highlighted. ${q.explanation ? " " + q.explanation : ""}`;
+  }
+
+  if (quizNextBtn) quizNextBtn.disabled = false;
+}
+
+async function generateQuizFromAI(payload) {
+  const quizType = `${currentQuizTab}_quiz`; // healthcare_quiz, sports_quiz, ...
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const r = await fetch(`${SERVER_BASE}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        type: quizType,
+        message: JSON.stringify(payload),
+        history: [],
+        profile: currentProfile ? {
+          id: currentProfile.id,
+          name: currentProfile.name,
+          ageNumber: currentProfile.ageNumber,
+          ageKey: currentProfile.ageKey,
+          ageText: currentProfile.ageText
+        } : null
+      })
+    });
+
+    const data = await r.json().catch(() => ({}));
+    const raw = String(data?.reply || "").trim();
+    const obj = extractJSON(raw);
+    const normalized = normalizeQuizJSON(obj);
+    return normalized;
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function resetQuizState() {
+  quizData = null;
+  quizIndex = 0;
+  quizScore = 0;
+  quizAnswered = false;
+  quizSelectedIndex = null;
+  clearQuizTimer();
+}
+
+async function startQuizFlow() {
+  startIdleTimer();
+
+  const topic = (quizTopicInput?.value || "").trim();
+  const count = Number(quizCountSelect?.value || 8);
+  const difficulty = String(quizDifficultySelect?.value || "Medium");
+  const timer = Number(quizTimerSelect?.value || 0);
+
+  let grade = String(quizGradeSelect?.value || "Auto (based on age)");
+  const autoGrade = quizGradeSelect?.getAttribute("data-auto-grade") || defaultGradeByAge(currentProfile);
+  if (grade.startsWith("Auto")) grade = autoGrade;
+
+  if (!topic) {
+    if (quizSetupHint) quizSetupHint.textContent = "Please enter a topic first.";
+    return;
+  }
+
+  if (quizStartBtn) { quizStartBtn.disabled = true; quizStartBtn.textContent = "Generating…"; }
+  if (quizSetupHint) quizSetupHint.textContent = "Generating quiz with AI…";
+
+  resetQuizState();
+
+  const payload = {
+    category: currentQuizTab,
+    topic,
+    numQuestions: Math.max(3, Math.min(15, count)),
+    gradeLevel: grade,
+    difficulty,
+    timed: timer > 0,
+    secondsPerQuestion: timer
+  };
+
+  let data = await generateQuizFromAI(payload);
+
+  // fallback
+  if (!data) data = mockQuiz(topic, payload.numQuestions);
+
+  quizData = data;
+  quizTimerSecPerQ = payload.timed ? payload.secondsPerQuestion : 0;
+
+  goToFrame9();
+  renderQuizQuestion();
+}
+
+function finishQuiz() {
+  const total = quizData?.questions?.length || 0;
+  goToFrame10();
+
+  if (quizScoreText) quizScoreText.textContent = `Score: ${quizScore} / ${total}`;
+
+  // customize congrats
+  const pct = total ? (quizScore / total) : 0;
+  let msg = "Congratulations! 🎉";
+  if (pct >= 0.9) msg = "Amazing! You crushed it! 🏆";
+  else if (pct >= 0.7) msg = "Great job! 🎉";
+  else if (pct >= 0.5) msg = "Nice work — keep going! 💪";
+  else msg = "Good try! Practice makes perfect 💜";
+
+  if (quizCongratsText) quizCongratsText.textContent = msg;
+}
+
+if (quizStartBtn) bindTap(quizStartBtn, startQuizFlow);
+
+if (quizNextBtn) bindTap(quizNextBtn, () => {
+  startIdleTimer();
+  if (!quizData) return;
+
+  const total = quizData.questions.length;
+  if (quizIndex >= total - 1) {
+    finishQuiz();
+    return;
+  }
+  quizIndex += 1;
+  goToFrame9();
+  renderQuizQuestion();
+});
+
+function quizBackToHome() {
+  clearQuizTimer();
+  goToFrame6(lastFrame6Tab || "home");
+}
+
+if (quizBackBtn1) bindTap(quizBackBtn1, quizBackToHome);
+if (quizBackBtn2) bindTap(quizBackBtn2, quizBackToHome);
+if (quizBackBtn3) bindTap(quizBackBtn3, quizBackToHome);
+
+if (quizPlayAgainBtn) bindTap(quizPlayAgainBtn, () => goToFrame8(currentQuizTab));
+if (quizBackHomeBtn) bindTap(quizBackHomeBtn, quizBackToHome);
+
+// =========================================================
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
-
