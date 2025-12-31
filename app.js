@@ -2006,7 +2006,6 @@ function formatTime(s) {
 
 function normalizeQuizJSON(obj) {
   if (!obj || typeof obj !== "object") return null;
-
   const qs = Array.isArray(obj.questions) ? obj.questions : [];
 
   const clean = qs.map(q => {
@@ -2015,10 +2014,8 @@ function normalizeQuizJSON(obj) {
       Number.isFinite(Number(q.correctIndex)) ? Number(q.correctIndex) :
       null;
 
-    // 🔥 FIX: convert 1-based → 0-based if needed
-    if (idx !== null && idx >= 1 && idx <= 4) {
-      idx = idx - 1;
-    }
+    // FIX: ถ้าโมเดลส่ง 1..4 ให้แปลงเป็น 0..3
+    if (idx !== null && idx >= 1 && idx <= 4) idx = idx - 1;
 
     return {
       question: String(q.question || q.q || "").trim(),
@@ -2342,4 +2339,5 @@ if (quizBackHomeBtn) bindTap(quizBackHomeBtn, quizBackToHome);
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
 
