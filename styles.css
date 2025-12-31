@@ -988,10 +988,178 @@ body{
 #chatMic{ left:530px; top:360px; }
 #chatSend{ left:575px; top:360px; }
 
-.chat-icon img{ width:100%; height:100%; object-fit:contain; display:block; }
+/* =========================
+   RESTORE CHATBOT EXTRAS (Threads + Mic-lang + Voice)
+   ========================= */
 
-/* Threads, mic-lang, voice ... (keep your existing styles) */
-/* (I’m not removing anything; your current CSS for threads/mic/voice can stay below if you want) */
+.voice-center{
+  position:absolute;
+  left:312px;
+  top:342px;
+  width:240px;
+  height:50px;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  pointer-events:none;
+}
+
+.voice-pill{
+  width:150px;
+  height:44px;
+  border-radius:999px;
+  background:rgba(255,255,255,0.8);
+  border:1px solid rgba(231,231,231,1);
+  box-shadow:2px 3px 4px rgba(0,0,0,0.18);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  font-weight:700;
+  color:rgba(0,0,0,0.55);
+  pointer-events:none;
+}
+.voice-time{ font-size:12px; line-height:12px; }
+.voice-wave{ font-size:12px; line-height:14px; letter-spacing:1px; }
+
+/* Threads controls/panel */
+.chat-threads-controls{
+  position:absolute;
+  left:751px;
+  top:72px;
+  width:155px;
+  display:flex;
+  justify-content:flex-end;
+  z-index:40;
+  pointer-events:auto;
+}
+
+.mini-btn{
+  height:28px;
+  padding:0 10px;
+  border-radius:10px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.75);
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+}
+
+.chat-threads-panel{
+  position:absolute;
+  left:751px;
+  top:105px;
+  width:155px;
+  height:220px;
+  border-radius:16px;
+  background:rgba(255,255,255,0.86);
+  border:1px solid rgba(0,0,0,0.10);
+  box-shadow:0 14px 28px rgba(0,0,0,0.16);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  z-index:30;
+  pointer-events:auto;
+}
+.chat-threads-panel.show{ display:flex; }
+
+.threads-head{
+  height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  padding:0 10px;
+  border-bottom:1px solid rgba(0,0,0,0.08);
+}
+.threads-title{
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.55);
+}
+.threads-list{
+  flex:1;
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:8px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.thread-item{
+  width:100%;
+  min-height:40px;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.08);
+  background:rgba(255,255,255,0.82);
+  padding:9px 8px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  touch-action: manipulation;
+}
+.thread-item.active{
+  border-color:rgba(99,26,173,0.38);
+  box-shadow:0 8px 16px rgba(99,26,173,0.14);
+}
+.thread-title{
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.6);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  flex:1;
+}
+
+/* Mic language */
+.mic-lang{
+  position:absolute;
+  left:485px;
+  top:360px;
+  width:40px;
+  height:40px;
+  pointer-events:auto;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:25;
+}
+.mic-lang-btn{
+  width:40px;
+  height:40px;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.75);
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+  touch-action: manipulation;
+}
+.mic-lang-menu{
+  position:absolute;
+  bottom:46px;
+  left:0;
+  width:72px;
+  border-radius:14px;
+  background:rgba(255,255,255,0.9);
+  border:1px solid rgba(0,0,0,0.10);
+  box-shadow:0 12px 24px rgba(0,0,0,0.16);
+  display:none;
+  overflow:hidden;
+}
+.mic-lang-menu.show{ display:block; }
+.mic-lang-item{
+  padding:10px 10px;
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+  touch-action: manipulation;
+}
+.mic-lang-item:hover{ background:rgba(99,26,173,0.08); }
+
+.chat-icon img{ width:100%; height:100%; object-fit:contain; display:block; }
 
 /* =========================================================
    ✅ QUIZ FRAMES (8/9/10)
@@ -1003,7 +1171,7 @@ body{
   height:100vh;
   overflow:hidden;
   display:none;
-  background:url("Pic18.png") center/cover no-repeat;
+  background:url("Quiz_Background.png") center/cover no-repeat;
 }
 
 .quiz-stage{
@@ -1258,3 +1426,4 @@ body{
   .quiz-panel{ width:92vw; }
   .quiz-card{ width:92vw; }
 }
+
