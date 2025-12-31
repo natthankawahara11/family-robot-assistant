@@ -2006,15 +2006,37 @@ function formatTime(s) {
 
 function normalizeQuizJSON(obj) {
   if (!obj || typeof obj !== "object") return null;
+
   const qs = Array.isArray(obj.questions) ? obj.questions : [];
-  const clean = qs
-    .map(q => ({
+
+  const clean = qs.map(q => {
+    let idx =
+      Number.isFinite(Number(q.answerIndex)) ? Number(q.answerIndex) :
+      Number.isFinite(Number(q.correctIndex)) ? Number(q.correctIndex) :
+      null;
+
+    // 🔥 FIX: convert 1-based → 0-based if needed
+    if (idx !== null && idx >= 1 && idx <= 4) {
+      idx = idx - 1;
+    }
+
+    return {
       question: String(q.question || q.q || "").trim(),
-      choices: Array.isArray(q.choices) ? q.choices.map(x => String(x)) : Array.isArray(q.options) ? q.options.map(x => String(x)) : [],
-      answerIndex: Number.isFinite(Number(q.answerIndex)) ? Number(q.answerIndex) : Number.isFinite(Number(q.correctIndex)) ? Number(q.correctIndex) : null,
+      choices: Array.isArray(q.choices)
+        ? q.choices.map(x => String(x))
+        : Array.isArray(q.options)
+        ? q.options.map(x => String(x))
+        : [],
+      answerIndex: idx,
       explanation: String(q.explanation || q.reason || "").trim()
-    }))
-    .filter(q => q.question && q.choices.length >= 2 && q.answerIndex !== null);
+    };
+  }).filter(q =>
+    q.question &&
+    q.choices.length === 4 &&
+    q.answerIndex !== null &&
+    q.answerIndex >= 0 &&
+    q.answerIndex < 4
+  );
 
   if (!clean.length) return null;
   return { questions: clean };
@@ -2320,3 +2342,4 @@ if (quizBackHomeBtn) bindTap(quizBackHomeBtn, quizBackToHome);
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
