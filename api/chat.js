@@ -38,6 +38,9 @@ function buildSystemPrompt(type, profile) {
   const age = getAgeBand(profile);
   const name = profile?.name ? String(profile.name).slice(0, 60) : "User";
 
+  const isQuiz = typeof type === "string" && type.endsWith("_quiz");
+  const quizBase = isQuiz ? type.replace("_quiz", "") : null;
+
   const ageStyleMap = {
     Baby: [
       "Use ultra-simple language and very short sentences.",
@@ -113,6 +116,56 @@ function buildSystemPrompt(type, profile) {
     "Be polite and helpful.",
   ];
 
+  if (isQuiz) {
+    const quizDomainRules = {
+      healthcare: [
+        "Quiz must be educational and general (wellness, first aid basics, nutrition, hygiene, safety).",
+        "Do NOT give diagnosis or personalized medical treatment advice.",
+      ],
+      sports: [
+        "Quiz may include fitness basics, training principles, injury prevention basics, sports rules, anatomy basics.",
+      ],
+      education: [
+        "Quiz may include general school topics based on the user's topic (math, science, language, history, etc.).",
+      ],
+      community: [
+        "Quiz may include civics, empathy, communication, safety, digital citizenship, teamwork, basic social skills.",
+      ],
+    }[quizBase] || ["Quiz must be safe and age-appropriate."];
+
+    return [
+      `User: ${name}`,
+      `Age group: ${age.label}`,
+      "",
+      "You are a quiz generator.",
+      "The user message is JSON with fields:",
+      "- category (string), topic (string), numQuestions (int), gradeLevel (string), difficulty (Easy/Medium/Hard), timed (bool), secondsPerQuestion (int).",
+      "",
+      "OUTPUT RULES (VERY IMPORTANT):",
+      "1) Output ONLY valid JSON. No markdown. No explanation outside JSON.",
+      "2) JSON schema:",
+      "{",
+      '  "questions": [',
+      "    {",
+      '      "question": "string",',
+      '      "choices": ["A","B","C","D"],',
+      '      "answerIndex": 0,',
+      '      "explanation": "short reason (1 sentence)"',
+      "    }",
+      "  ]",
+      "}",
+      "3) Exactly numQuestions questions.",
+      "4) Always 4 choices. answerIndex must be 0..3.",
+      "5) Keep language simple and match gradeLevel and age.",
+      "",
+      "Domain safety:",
+      ...quizDomainRules.map(x => `- ${x}`),
+      "",
+      "General safety:",
+      ...baseSafety.map(x => `- ${x}`),
+    ].join("\n");
+  }
+
   const typePrompt = {
     healthcare: [
       "You are a safe healthcare assistant for general wellness.",
@@ -167,9 +220,8 @@ module.exports = async function handler(req, res) {
     }
 
     const { type, message, history = [], profile = null } = req.body || {};
-    const userMsg = String(message || "").slice(0, 6000);
+    const userMsg = String(message || "").slice(0, 9000);
 
-    // ✅ ถ้าไม่มี key -> อย่าทำให้เป็น 500 (จะดูเหมือนเว็บพังตลอด)
     if (!client) {
       return res.status(200).json({
         reply: "AI is not configured yet (missing GROQ_API_KEY). Please set it in your deployment environment."
@@ -184,21 +236,22 @@ module.exports = async function handler(req, res) {
 
     const system = buildSystemPrompt(type, profile);
 
+    const isQuiz = typeof type === "string" && type.endsWith("_quiz");
+
     const completion = await client.chat.completions.create({
       model: "llama-3.1-8b-instant",
       messages: [
         { role: "system", content: system },
-        ...cleanHistory,
+        ...(isQuiz ? [] : cleanHistory),
         { role: "user", content: userMsg },
       ],
-      temperature: 0.7,
+      temperature: isQuiz ? 0.35 : 0.7,
     });
 
     const reply = completion?.choices?.[0]?.message?.content?.trim() || "…";
     return res.status(200).json({ reply });
   } catch (err) {
     console.error("CHAT_API_ERROR:", err);
-    // ✅ อย่าส่ง 500 ให้หน้าเว็บดู “เกิดปัญหาตลอด”
     return res.status(200).json({
       reply: "AI is temporarily unavailable. Please try again in a moment."
     });
