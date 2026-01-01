@@ -169,6 +169,12 @@ function buildSystemPrompt(type, profile) {
       "",
       "General safety:",
       ...baseSafety.map((x) => `- ${x}`),
+      "",
+      // ✅ Extra hard rules to reduce wrong-math outputs from model:
+      "MATH ACCURACY RULES (VERY IMPORTANT):",
+      "- If you create a math question, you MUST compute the correct answer and include it in choices.",
+      "- Never mismatch explanation vs answerIndex; they must match the same correct answer.",
+      "- For decimal answers: DO NOT round. Show exact terminating decimals when possible (e.g., 2.125).",
     ].join("\n");
   }
 
@@ -236,23 +242,60 @@ function normalizeQuizJSON(obj) {
         ? Number(q.answerIndex)
         : Number.isFinite(Number(q.correctIndex))
         ? Number(q.correctIndex)
-        : null,
+        : 0, // ✅ do not drop question if answerIndex missing
       explanation: String(q.explanation || q.reason || "").trim(),
     }))
-    .filter((q) => q.question && q.choices.length >= 2 && q.answerIndex !== null);
+    .filter((q) => q.question && q.choices.length >= 2);
 
   if (!clean.length) return null;
   return { questions: clean };
 }
 
 /* =========================================================
-   ✅ MATH SOLVER (regex-based) + repair choices
+   ✅ EXACT DECIMAL (NO ROUNDING) HELPERS
    ========================================================= */
-function toMoney2(x) {
-  // currency should be 2 decimals
-  const n = Number(x);
-  if (!Number.isFinite(n)) return null;
-  return `$${n.toFixed(2)}`;
+// returns decimal string for a fraction WITHOUT rounding, stops when terminating or maxDigits reached.
+function fractionToDecimalString(numer, denom, maxDigits = 12) {
+  if (!Number.isInteger(numer) || !Number.isInteger(denom) || denom === 0) return null;
+
+  const sign = (numer < 0) ^ (denom < 0) ? "-" : "";
+  let n = Math.abs(numer);
+  let d = Math.abs(denom);
+
+  const intPart = Math.floor(n / d);
+  let rem = n % d;
+
+  if (rem === 0) return `${sign}${intPart}`;
+
+  let frac = "";
+  for (let i = 0; i < maxDigits && rem !== 0; i++) {
+    rem *= 10;
+    const digit = Math.floor(rem / d);
+    frac += String(digit);
+    rem = rem % d;
+  }
+  return `${sign}${intPart}.${frac}`;
+}
+
+function parseMoneyToMills(priceStr) {
+  // parse "2.50" -> 2500 mills (3 decimals). Works for "2", "2.5", "2.500"
+  const s = String(priceStr || "").trim().replace(/^\$/, "");
+  const m = s.match(/^(\d+)(?:\.(\d+))?$/);
+  if (!m) return null;
+  const whole = Number(m[1]);
+  const frac = (m[2] || "").slice(0, 3).padEnd(3, "0"); // no rounding, just pad/truncate
+  const mills = whole * 1000 + Number(frac);
+  return Number.isFinite(mills) ? mills : null;
+}
+
+function millsToMoney(mills, decimals = 3) {
+  if (!Number.isFinite(mills)) return null;
+  const sign = mills < 0 ? "-" : "";
+  const m = Math.abs(Math.trunc(mills));
+  const whole = Math.floor(m / 1000);
+  const frac = String(m % 1000).padStart(3, "0");
+  const outFrac = frac.slice(0, decimals).padEnd(decimals, "0"); // no rounding
+  return `${sign}$${whole}.${outFrac}`;
 }
 
 function uniq(arr) {
@@ -263,6 +306,9 @@ function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n));
 }
 
+/* =========================================================
+   ✅ CHOICE GENERATORS
+   ========================================================= */
 function makeIntChoices(correct) {
   const c = Number(correct);
   const pool = uniq([
@@ -276,14 +322,14 @@ function makeIntChoices(correct) {
     c * 2,
     Math.max(0, c - 5),
   ]).filter((x) => Number.isFinite(x));
-  // pick 4 distinct with correct included
+
   const out = [c];
   for (const v of pool) {
     if (out.length >= 4) break;
     if (!out.includes(v)) out.push(v);
   }
   while (out.length < 4) out.push(c + out.length);
-  // shuffle
+
   return out.sort(() => Math.random() - 0.5);
 }
 
@@ -302,18 +348,20 @@ function makePercentChoices(correctPct) {
   return out.sort(() => Math.random() - 0.5).map((x) => `${x}%`);
 }
 
-function makeMoneyChoices(correctMoneyNumber) {
-  const c = Number(correctMoneyNumber);
-  const cents = (d) => Math.round(d * 100) / 100;
-
+// ✅ Money choices in "mills" (3 decimals) — NO rounding.
+function makeMoneyChoicesMills(correctMills) {
+  const c = Math.trunc(correctMills);
+  const step = 25; // 0.025
   const pool = uniq([
     c,
-    cents(c + 0.05),
-    cents(c - 0.05),
-    cents(c + 0.10),
-    cents(c - 0.10),
-    cents(c + 0.25),
-    cents(c - 0.25),
+    c + step,
+    c - step,
+    c + step * 2,
+    c - step * 2,
+    c + 100, // 0.100
+    c - 100,
+    c + 250, // 0.250
+    c - 250,
   ]).filter((x) => Number.isFinite(x) && x > 0);
 
   const out = [c];
@@ -321,10 +369,14 @@ function makeMoneyChoices(correctMoneyNumber) {
     if (out.length >= 4) break;
     if (!out.includes(v)) out.push(v);
   }
-  while (out.length < 4) out.push(cents(c + 0.01 * out.length));
-  return out.sort(() => Math.random() - 0.5).map(toMoney2);
+  while (out.length < 4) out.push(c + out.length); // tiny differences
+
+  return out.sort(() => Math.random() - 0.5).map((mills) => millsToMoney(mills, 3));
 }
 
+/* =========================================================
+   ✅ MATH SOLVER (regex-based) + repair choices
+   ========================================================= */
 function computeMathFromQuestionText(qText) {
   const t = String(qText || "");
 
@@ -335,30 +387,35 @@ function computeMathFromQuestionText(qText) {
     const W = Number(m[2]);
     if (Number.isFinite(L) && Number.isFinite(W)) {
       const ans = L * W;
+      const ansInt = Number.isInteger(ans) ? ans : ans; // keep numeric
+      const shown = Number.isInteger(ansInt) ? String(ansInt) : String(ansInt);
       return {
         kind: "int",
-        answer: Math.round(ans),
-        answerStr: `${Math.round(ans)} square cm`,
-        explanation: `To find the area of a rectangle, multiply length by width: ${L} × ${W} = ${Math.round(ans)}.`,
+        answer: ansInt,
+        answerStr: `${shown} square cm`,
+        explanation: `To find the area of a rectangle, multiply length by width: ${L} × ${W} = ${shown}.`,
       };
     }
   }
 
-  // 2) Division equally: 48 pieces and 8 friends
-  m = t.match(/have\s+(\d+)\s+pieces.*\s(\d+)\s+friends/i);
+  // 2) Division equally: "... have 20 pieces ... there are 5 friends"
+  m = t.match(/have\s+(\d+)\s+pieces.*there\s+are\s+(\d+)\s+friends/i);
+  if (!m) m = t.match(/have\s+(\d+)\s+pieces.*\b(\d+)\s+friends\b/i);
   if (m) {
     const total = Number(m[1]);
     const ppl = Number(m[2]);
     if (Number.isFinite(total) && Number.isFinite(ppl) && ppl !== 0) {
       const ans = total / ppl;
-      if (Number.isFinite(ans)) {
-        return {
-          kind: "int",
-          answer: Math.round(ans),
-          answerStr: `${Math.round(ans)} pieces`,
-          explanation: `Divide total pieces by friends: ${total} ÷ ${ppl} = ${Math.round(ans)}.`,
-        };
-      }
+      // if non-integer, show exact terminating decimal when possible (no rounding)
+      let shown = null;
+      if (Number.isInteger(ans)) shown = String(ans);
+      else shown = fractionToDecimalString(total, ppl, 12) || String(ans);
+      return {
+        kind: "int",
+        answer: ans,
+        answerStr: `${shown} pieces`,
+        explanation: `Divide total pieces by friends: ${total} ÷ ${ppl} = ${shown}.`,
+      };
     }
   }
 
@@ -378,20 +435,21 @@ function computeMathFromQuestionText(qText) {
     }
   }
 
-  // 4) Pencil divided: 15 cm divided into 5 parts
+  // 4) Pencil divided: "15 cm long ... divided into 5 parts"
   m = t.match(/(\d+)\s*cm.*divided\s+into\s+(\d+)\s+parts/i);
   if (m) {
     const len = Number(m[1]);
     const parts = Number(m[2]);
     if (Number.isFinite(len) && Number.isFinite(parts) && parts !== 0) {
       const ans = len / parts;
-      // show as integer if clean
-      const nice = Number.isInteger(ans) ? String(ans) : String(ans);
+      let shown = null;
+      if (Number.isInteger(ans)) shown = String(ans);
+      else shown = fractionToDecimalString(len, parts, 12) || String(ans);
       return {
         kind: "int",
-        answer: Number.isInteger(ans) ? ans : ans,
-        answerStr: nice,
-        explanation: `Divide total length by parts: ${len} ÷ ${parts} = ${ans}.`,
+        answer: ans,
+        answerStr: shown,
+        explanation: `Divide total length by parts: ${len} ÷ ${parts} = ${shown}.`,
       };
     }
   }
@@ -403,12 +461,12 @@ function computeMathFromQuestionText(qText) {
     const inTank = Number(m[2]);
     if (Number.isFinite(cap) && Number.isFinite(inTank) && cap !== 0) {
       const pct = (inTank / cap) * 100;
-      const ans = Math.round(pct);
+      const ans = Math.round(pct); // percent choice is integer in UI
       return {
         kind: "percent",
         answer: ans,
         answerStr: `${ans}%`,
-        explanation: `Percentage filled = (${inTank} ÷ ${cap}) × 100 = ${Math.round(pct)}%.`,
+        explanation: `Percentage filled = (${inTank} ÷ ${cap}) × 100 = ${ans}%.`,
       };
     }
   }
@@ -429,21 +487,24 @@ function computeMathFromQuestionText(qText) {
     }
   }
 
-  // 7) Discount: costs $2.50, 15% off
+  // 7) Discount: $2.50, 15% off  => use "mills" exact 3 decimals (NO rounding)
+  // Examples: "costs $2.50, ... 15% off"
   m = t.match(/costs?\s*\$?(\d+(?:\.\d+)?).*(\d+(?:\.\d+)?)\s*%\s*off/i);
   if (m) {
-    const price = Number(m[1]);
+    const priceStr = m[1];
     const pct = Number(m[2]);
-    if (Number.isFinite(price) && Number.isFinite(pct)) {
-      const sale = price * (1 - pct / 100);
-      const rounded = Math.round(sale * 100) / 100;
+    const mills = parseMoneyToMills(priceStr);
+    if (mills !== null && Number.isFinite(pct)) {
+      const payPct = 100 - pct;
+      // mills * payPct / 100 MUST be integer for terminating 3-decimal result in many grade-school problems.
+      // We do exact integer math with truncation (no rounding).
+      const saleMills = Math.trunc((mills * payPct) / 100);
+      const shown = millsToMoney(saleMills, 3);
       return {
-        kind: "money",
-        answer: rounded,
-        answerStr: toMoney2(rounded),
-        explanation: `${pct}% off means pay ${100 - pct}%: $${price.toFixed(2)} × ${(1 - pct / 100).toFixed(2)} ≈ ${toMoney2(
-          rounded
-        )}.`,
+        kind: "money3",
+        answer: saleMills, // store mills
+        answerStr: shown,
+        explanation: `${pct}% off means pay ${payPct}%: $${String(priceStr)} × ${payPct}% = ${shown}.`,
       };
     }
   }
@@ -451,85 +512,89 @@ function computeMathFromQuestionText(qText) {
   return null;
 }
 
+/* =========================================================
+   ✅ REPAIR QUIZ (ensure answerIndex matches correct choice)
+   ========================================================= */
 function repairQuizMath(q) {
-  // Ensure choices include the true answer when solvable
   const solved = computeMathFromQuestionText(q.question);
   if (!solved) return q;
 
   let choices = Array.isArray(q.choices) ? q.choices.map((x) => String(x).trim()) : [];
-  if (choices.length < 4) {
-    while (choices.length < 4) choices.push("");
-  }
+  while (choices.length < 4) choices.push("—");
   choices = choices.slice(0, 4);
 
-  // Build correct choice text based on kind
-  let correctText = solved.answerStr;
-
-  // Normalize existing choices to compare loosely
   const norm = (s) => String(s).toLowerCase().replace(/\s+/g, " ").trim();
-  const idxExisting = choices.findIndex((c) => norm(c) === norm(correctText));
 
+  // If correct already exists, just fix answerIndex + explanation
+  const idxExisting = choices.findIndex((c) => norm(c) === norm(solved.answerStr));
   if (idxExisting >= 0) {
+    q.choices = choices;
     q.answerIndex = idxExisting;
     q.explanation = solved.explanation || q.explanation;
-    q.choices = choices;
     return q;
   }
 
-  // If not exist: rebuild all choices for that kind
-  if (solved.kind === "money") {
-    const base = makeMoneyChoices(solved.answer);
-    choices = base;
-    correctText = toMoney2(solved.answer);
-  } else if (solved.kind === "percent") {
-    choices = makePercentChoices(solved.answer);
-    correctText = `${Math.round(solved.answer)}%`;
-  } else {
-    // int (or numeric)
-    const c = Number(solved.answer);
-    const base = makeIntChoices(Number.isFinite(c) ? Math.round(c) : 0);
-    // If question expects "square cm"/"pieces" etc, keep suffix style:
-    if (/\bsquare\s+cm\b/i.test(correctText)) {
-      choices = base.map((x) => `${x} square cm`);
-      correctText = `${Math.round(c)} square cm`;
-    } else if (/\bpieces\b/i.test(correctText)) {
-      choices = base.map((x) => `${x} pieces`);
-      correctText = `${Math.round(c)} pieces`;
-    } else {
-      choices = base.map((x) => String(x));
-      correctText = String(Math.round(c));
-    }
+  // Otherwise rebuild choices based on solved kind
+  if (solved.kind === "money3") {
+    choices = makeMoneyChoicesMills(solved.answer); // mills
+    const idx = choices.findIndex((c) => norm(c) === norm(solved.answerStr));
+    q.choices = choices;
+    q.answerIndex = idx >= 0 ? idx : 0;
+    q.explanation = solved.explanation || q.explanation || "Because it matches the correct calculation.";
+    return q;
   }
 
-  const answerIndex = choices.findIndex((c) => norm(c) === norm(correctText));
+  if (solved.kind === "percent") {
+    choices = makePercentChoices(solved.answer);
+    const idx = choices.findIndex((c) => norm(c) === norm(solved.answerStr));
+    q.choices = choices;
+    q.answerIndex = idx >= 0 ? idx : 0;
+    q.explanation = solved.explanation || q.explanation || "Because it matches the correct calculation.";
+    return q;
+  }
+
+  // int / general numeric
+  const cNum = Number(solved.answer);
+  const cInt = Number.isFinite(cNum) ? (Number.isInteger(cNum) ? cNum : cNum) : 0;
+  const base = makeIntChoices(Number.isFinite(cInt) ? Math.round(cInt) : 0);
+
+  if (/\bsquare\s+cm\b/i.test(solved.answerStr)) {
+    choices = base.map((x) => `${x} square cm`);
+  } else if (/\bpieces\b/i.test(solved.answerStr)) {
+    choices = base.map((x) => `${x} pieces`);
+  } else {
+    choices = base.map((x) => String(x));
+  }
+
+  const idx = choices.findIndex((c) => norm(c) === norm(solved.answerStr));
   q.choices = choices;
-  q.answerIndex = answerIndex >= 0 ? answerIndex : 0;
+  q.answerIndex = idx >= 0 ? idx : 0;
   q.explanation = solved.explanation || q.explanation || "Because it matches the correct calculation.";
   return q;
 }
 
 function repairQuizJSON(quiz) {
   if (!quiz || !Array.isArray(quiz.questions)) return quiz;
+
   quiz.questions = quiz.questions.map((q) => {
     const fixed = {
       question: String(q.question || "").trim(),
-      choices: Array.isArray(q.choices) ? q.choices.map((x) => String(x)) : [],
+      choices: Array.isArray(q.choices) ? q.choices.map((x) => String(x).trim()) : [],
       answerIndex: Number.isFinite(Number(q.answerIndex)) ? Number(q.answerIndex) : 0,
       explanation: String(q.explanation || "").trim(),
     };
 
     // Ensure 4 choices
-    if (fixed.choices.length !== 4) {
-      fixed.choices = fixed.choices.slice(0, 4);
-      while (fixed.choices.length < 4) fixed.choices.push("—");
-    }
+    fixed.choices = fixed.choices.slice(0, 4);
+    while (fixed.choices.length < 4) fixed.choices.push("—");
 
     // Ensure answerIndex in range
     if (fixed.answerIndex < 0 || fixed.answerIndex > 3) fixed.answerIndex = 0;
 
-    // ✅ attempt to solve/repair common math errors
+    // ✅ Fix math / ensure correct answer exists & answerIndex points to it
     return repairQuizMath(fixed);
   });
+
   return quiz;
 }
 
@@ -558,7 +623,6 @@ function isLikelyMathTopic(payload) {
   ];
   if (keys.some((k) => topic.includes(k))) return true;
   if (grade.includes("grade 1") || grade.includes("grade 2") || grade.includes("grade 3") || grade.includes("grade 4") || grade.includes("grade 5") || grade.includes("grade 6")) {
-    // many elementary "Education" quizzes are math; allow
     if (topic.includes("number") || topic.includes("arithmetic") || topic.includes("basic")) return true;
   }
   return false;
@@ -599,7 +663,7 @@ function genMathQuestion() {
 
   if (pick === "percent_fill") {
     const cap = 120 + Math.floor(Math.random() * 9) * 20; // 120..280 step 20
-    const inTank = cap / 2; // always 50% (simple + guaranteed)
+    const inTank = cap / 2; // simple 50%
     const ans = Math.round((inTank / cap) * 100);
     const choices = makePercentChoices(ans);
     const answerIndex = choices.findIndex((c) => c === `${ans}%`);
@@ -612,17 +676,26 @@ function genMathQuestion() {
   }
 
   if (pick === "discount") {
-    const price = (2 + Math.floor(Math.random() * 10)) + 0.5; // x.50
+    // ✅ Make sure discount yields exact 3-decimal money (mills) (NO rounding)
+    // price in mills: choose whole dollars + .000/.250/.500/.750 patterns
+    const whole = 2 + Math.floor(Math.random() * 10); // 2..11
+    const fracChoices = [0, 250, 500, 750];
+    const frac = fracChoices[Math.floor(Math.random() * fracChoices.length)];
+    const priceMills = whole * 1000 + frac;
+
     const pct = [10, 15, 20, 25][Math.floor(Math.random() * 4)];
-    const sale = Math.round(price * (1 - pct / 100) * 100) / 100;
-    const ansText = toMoney2(sale);
-    const choices = makeMoneyChoices(sale);
+    const payPct = 100 - pct;
+    const saleMills = Math.trunc((priceMills * payPct) / 100); // exact, no rounding
+    const ansText = millsToMoney(saleMills, 3);
+    const priceText = millsToMoney(priceMills, 3);
+    const choices = makeMoneyChoicesMills(saleMills);
     const answerIndex = choices.findIndex((c) => c === ansText);
+
     return {
-      question: `A shop has a sale. An item normally costs $${price.toFixed(2)}, but it's on sale for ${pct}% off. How much will you pay during the sale?`,
+      question: `A shop has a sale. An item normally costs ${priceText}, but it's on sale for ${pct}% off. How much will you pay during the sale?`,
       choices,
       answerIndex: answerIndex >= 0 ? answerIndex : 0,
-      explanation: `Pay ${100 - pct}%: $${price.toFixed(2)} × ${(1 - pct / 100).toFixed(2)} ≈ ${ansText}.`,
+      explanation: `Pay ${payPct}%: ${priceText} × ${payPct}% = ${ansText}.`,
     };
   }
 
@@ -710,20 +783,18 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ reply: JSON.stringify(quiz) });
     }
 
-    // ✅ Base completion payload
     const payload = {
       model: "llama-3.1-8b-instant",
       messages: [{ role: "system", content: system }, ...(isQuiz ? [] : cleanHistory), { role: "user", content: userMsg }],
       temperature: isQuiz ? 0.25 : 0.7,
     };
 
-    // ✅ Try force JSON object for quiz (may be ignored by Groq for some models, but harmless)
     if (isQuiz) payload.response_format = { type: "json_object" };
 
     const completion = await client.chat.completions.create(payload);
     const replyText = completion?.choices?.[0]?.message?.content?.trim() || "…";
 
-    // ✅ If quiz: normalize + repair math errors
+    // ✅ If quiz: normalize + repair (force correct answer included + correct answerIndex)
     if (isQuiz) {
       const obj = safeJSONParse(replyText, null);
       const normalized = normalizeQuizJSON(obj);
@@ -731,7 +802,8 @@ module.exports = async function handler(req, res) {
         const repaired = repairQuizJSON(normalized);
         return res.status(200).json({ reply: JSON.stringify(repaired) });
       }
-      // if model returns junk: fallback deterministic for education
+
+      // model returns junk: fallback deterministic for education
       if (type === "education_quiz") {
         const n = clamp(Number(quizPayload?.numQuestions) || 8, 3, 15);
         const quiz = makeDeterministicMathQuiz(n);
