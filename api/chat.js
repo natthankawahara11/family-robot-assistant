@@ -1,3 +1,4 @@
+// api/chat.js
 const OpenAI = require("openai");
 
 const GROQ_KEY = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || "";
@@ -155,9 +156,9 @@ function buildSystemPrompt(type, profile) {
       "  ]",
       "}",
       "3) Exactly numQuestions questions.",
-      "4) Always 4 choices. answerIndex MUST be 0..3 (0 = first choice). NEVER use 1-based indexing.",
-      "IMPORTANT: answerIndex is ZERO-BASED. First choice = 0, second = 1, third = 2, fourth = 3.",
-      "5) Keep language simple and match gradeLevel and age.",
+      "4) Always 4 choices. answerIndex must be 0..3.",
+      "5) IMPORTANT: choices MUST contain the correct answer. Do not make impossible questions.",
+      "6) For math questions: compute the correct numeric answer precisely and include it in choices.",
       "",
       "Domain safety:",
       ...quizDomainRules.map(x => `- ${x}`),
@@ -204,6 +205,211 @@ function buildSystemPrompt(type, profile) {
   ].join("\n");
 }
 
+/* =========================================================
+   ✅ QUIZ SANITIZER (Fix wrong / missing correct math answers)
+   ========================================================= */
+
+function safeJSONParse(text) {
+  try { return JSON.parse(text); } catch (_) {}
+  const t = String(text || "");
+  const s = t.indexOf("{");
+  const e = t.lastIndexOf("}");
+  if (s >= 0 && e > s) {
+    try { return JSON.parse(t.slice(s, e + 1)); } catch (_) {}
+  }
+  return null;
+}
+
+function normalizeQuiz(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  const qs = Array.isArray(obj.questions) ? obj.questions : [];
+  const clean = qs.map(q => ({
+    question: String(q.question || "").trim(),
+    choices: Array.isArray(q.choices) ? q.choices.map(x => String(x)) : [],
+    answerIndex: Number.isFinite(Number(q.answerIndex)) ? Number(q.answerIndex) : null,
+    explanation: String(q.explanation || "").trim(),
+  })).filter(q => q.question && q.choices.length >= 2);
+  if (!clean.length) return null;
+  return { questions: clean };
+}
+
+function uniqChoices(arr) {
+  const seen = new Set();
+  const out = [];
+  for (const x of arr) {
+    const k = String(x).trim();
+    if (!k) continue;
+    if (seen.has(k.toLowerCase())) continue;
+    seen.add(k.toLowerCase());
+    out.push(k);
+  }
+  return out;
+}
+
+// Extract first integer-ish number from a string
+function firstNumber(str) {
+  const m = String(str || "").match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+
+// Detect simple math and compute correct answer.
+// Returns { value: number, unitHint?: string } or null
+function computeMathAnswer(question, choices) {
+  const q = String(question || "").replace(/\u2212/g, "-"); // normalize minus
+  const qc = q.toLowerCase();
+
+  // pattern: "What is 7 - 2?"
+  let m = q.match(/what\s+is\s+(-?\d+)\s*([\+\-\*x×\/])\s*(-?\d+)\s*\??/i);
+  if (m) {
+    const a = Number(m[1]);
+    const op = m[2];
+    const b = Number(m[3]);
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      if (op === "+") return { value: a + b };
+      if (op === "-" ) return { value: a - b };
+      if (op === "*" || op.toLowerCase() === "x" || op === "×") return { value: a * b };
+      if (op === "/") return { value: a / b };
+    }
+  }
+
+  // pattern: "Divide 15 cm by 5 parts" / "divided into 5 parts"
+  if (qc.includes("divided") && qc.includes("parts")) {
+    const nums = q.match(/-?\d+(\.\d+)?/g)?.map(Number) || [];
+    if (nums.length >= 2) {
+      const total = nums[0], parts = nums[1];
+      if (parts !== 0) {
+        const unit = qc.includes("cm") ? "cm" : null;
+        return { value: total / parts, unitHint: unit };
+      }
+    }
+  }
+
+  // pattern: "If it takes 5 apples ... and you have 15 apples ... how many pies"
+  if (qc.includes("apples") && qc.includes("pie")) {
+    const nums = q.match(/-?\d+(\.\d+)?/g)?.map(Number) || [];
+    if (nums.length >= 2) {
+      // assume first is apples per pie, second is total apples (or vice versa)
+      // choose the division that gives an integer and matches choices if possible
+      const [n1, n2] = nums;
+      const cand = [];
+      if (n1 !== 0) cand.push(n2 / n1);
+      if (n2 !== 0) cand.push(n1 / n2);
+      // pick best: integer first
+      let best = cand.find(v => Number.isFinite(v) && Math.abs(v - Math.round(v)) < 1e-9);
+      if (best === undefined) best = cand.find(v => Number.isFinite(v));
+      if (best !== undefined) return { value: best };
+    }
+  }
+
+  // pattern: rectangle area length L width W
+  if (qc.includes("rectangle") && qc.includes("area") && (qc.includes("length") && qc.includes("width"))) {
+    const nums = q.match(/-?\d+(\.\d+)?/g)?.map(Number) || [];
+    if (nums.length >= 2) {
+      const L = nums[0], W = nums[1];
+      const unit = qc.includes("cm") ? "square cm" : null;
+      return { value: L * W, unitHint: unit };
+    }
+  }
+
+  // generic: if question contains "multiply" and has 2 nums
+  if (qc.includes("multiply")) {
+    const nums = q.match(/-?\d+(\.\d+)?/g)?.map(Number) || [];
+    if (nums.length >= 2) return { value: nums[0] * nums[1] };
+  }
+
+  // If choices look like pure numbers and question includes + - x /, try fallback
+  if (/[+\-*x×\/]/i.test(q)) {
+    const nums = q.match(/-?\d+(\.\d+)?/g)?.map(Number) || [];
+    if (nums.length >= 2) {
+      // very rough: if has x or × => multiply, if has / => divide, if has - => subtract, if has + => add
+      const a = nums[0], b = nums[1];
+      if (qc.includes("×") || qc.includes(" x ") || qc.includes("x")) return { value: a * b };
+      if (qc.includes("/")) return { value: b !== 0 ? a / b : NaN };
+      if (qc.includes("-")) return { value: a - b };
+      if (qc.includes("+")) return { value: a + b };
+    }
+  }
+
+  return null;
+}
+
+// Format answer to match choice style (units etc.)
+function formatAnswer(value, question, choices, unitHint) {
+  const v = Number(value);
+  if (!Number.isFinite(v)) return null;
+
+  // integer if very close
+  const isInt = Math.abs(v - Math.round(v)) < 1e-9;
+  const base = isInt ? String(Math.round(v)) : String(v);
+
+  // If choices contain "square cm" or question mentions area, add unit
+  const all = [...(choices || []), String(question || "")].join(" ").toLowerCase();
+  if (unitHint) return `${base} ${unitHint}`;
+
+  if (all.includes("square cm")) return `${base} square cm`;
+  if (all.includes(" cm")) return `${base} cm`;
+
+  return base;
+}
+
+function sanitizeQuiz(quiz) {
+  if (!quiz || !Array.isArray(quiz.questions)) return quiz;
+
+  for (const q of quiz.questions) {
+    q.question = String(q.question || "").trim();
+    q.explanation = String(q.explanation || "").trim();
+    q.choices = uniqChoices(Array.isArray(q.choices) ? q.choices : []);
+
+    // ensure 4 choices (pad if needed)
+    while (q.choices.length < 4) q.choices.push(`Option ${String.fromCharCode(65 + q.choices.length)}`);
+
+    // trim to 4
+    q.choices = q.choices.slice(0, 4);
+
+    // fix answerIndex range
+    if (!Number.isInteger(q.answerIndex) || q.answerIndex < 0 || q.answerIndex > 3) {
+      q.answerIndex = 0;
+    }
+
+    // ✅ Math auto-fix: if correct answer missing or answerIndex points wrong
+    const computed = computeMathAnswer(q.question, q.choices);
+    if (computed) {
+      const correctText = formatAnswer(computed.value, q.question, q.choices, computed.unitHint);
+      if (correctText) {
+        const foundIdx = q.choices.findIndex(c => String(c).trim().toLowerCase() === correctText.trim().toLowerCase());
+
+        if (foundIdx >= 0) {
+          // ensure answerIndex points to correct
+          q.answerIndex = foundIdx;
+        } else {
+          // inject correct answer by replacing a non-correct slot (prefer replacing current answer if it's wrong)
+          const replaceIdx = (q.answerIndex >= 0 && q.answerIndex <= 3) ? q.answerIndex : 0;
+          q.choices[replaceIdx] = correctText;
+          q.answerIndex = replaceIdx;
+
+          // re-unique again (if duplicates occur)
+          q.choices = uniqChoices(q.choices).slice(0, 4);
+          while (q.choices.length < 4) q.choices.push(`Option ${String.fromCharCode(65 + q.choices.length)}`);
+        }
+
+        // Make explanation consistent (optional but helps UX)
+        if (!q.explanation) {
+          q.explanation = "Compute the values carefully to find the correct answer.";
+        }
+      }
+    }
+  }
+
+  // keep only valid questions with 4 choices and answerIndex 0..3
+  quiz.questions = quiz.questions.filter(q =>
+    q.question &&
+    Array.isArray(q.choices) && q.choices.length === 4 &&
+    Number.isInteger(q.answerIndex) && q.answerIndex >= 0 && q.answerIndex <= 3
+  );
+
+  return quiz;
+}
+
 module.exports = async function handler(req, res) {
   try {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -236,10 +442,8 @@ module.exports = async function handler(req, res) {
       : [];
 
     const system = buildSystemPrompt(type, profile);
-
     const isQuiz = typeof type === "string" && type.endsWith("_quiz");
 
-    // ✅ Base completion payload
     const payload = {
       model: "llama-3.1-8b-instant",
       messages: [
@@ -247,17 +451,40 @@ module.exports = async function handler(req, res) {
         ...(isQuiz ? [] : cleanHistory),
         { role: "user", content: userMsg },
       ],
-      temperature: isQuiz ? 0.35 : 0.7,
+      temperature: isQuiz ? 0.25 : 0.7, // ลดสุ่มสำหรับ quiz
     };
 
-    // ✅ IMPORTANT: force quiz output to be JSON object
+    // NOTE: บางที Groq อาจ ignore response_format ได้ แต่ไม่เป็นไร เพราะเรามี sanitizer แล้ว
     if (isQuiz) {
       payload.response_format = { type: "json_object" };
     }
 
     const completion = await client.chat.completions.create(payload);
+    let reply = completion?.choices?.[0]?.message?.content?.trim() || "…";
 
-    const reply = completion?.choices?.[0]?.message?.content?.trim() || "…";
+    // ✅ If quiz: parse->normalize->sanitize->return JSON (as string)
+    if (isQuiz) {
+      const obj = safeJSONParse(reply);
+      const normalized = normalizeQuiz(obj);
+      const fixed = sanitizeQuiz(normalized);
+
+      if (fixed && fixed.questions?.length) {
+        reply = JSON.stringify(fixed);
+      } else {
+        // fallback: return minimal safe quiz JSON
+        reply = JSON.stringify({
+          questions: [
+            {
+              question: "What is 6 × 4?",
+              choices: ["24", "20", "16", "12"],
+              answerIndex: 0,
+              explanation: "Multiply 6 by 4."
+            }
+          ]
+        });
+      }
+    }
+
     return res.status(200).json({ reply });
   } catch (err) {
     console.error("CHAT_API_ERROR:", err);
