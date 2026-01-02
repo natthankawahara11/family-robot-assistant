@@ -164,7 +164,7 @@ function buildSystemPrompt(type, profile) {
       "4) Always 4 choices.",
       "5) answerIndex MUST be 0..3 (0-based). IMPORTANT.",
       "6) Do NOT prefix choices with 'A)', 'B)'. Choices must be plain text only.",
-      "7) Never output placeholder choices like 'A' or empty strings.",
+      "7) Never output placeholder choices like 'Option 1', '-', '—', 'A', or empty strings.",
       "8) For decimals: do NOT round up/down; show the full exact decimal result (no rounding).",
       "",
       "Domain safety:",
@@ -249,29 +249,44 @@ function isBadChoice(s) {
   if (/^[A-D]$/i.test(t)) return true; // "A"
   if (t.length <= 1) return true;
   if (t === "—" || t === "-" || t === "...") return true;
+  if (/^option\s*\d+$/i.test(t)) return true;
   return false;
 }
 
-function sanitizeChoices(rawChoices) {
-  const choices = (Array.isArray(rawChoices) ? rawChoices : []).map((x) => stripLetterPrefix(x));
-  for (let i = 0; i < choices.length; i++) {
-    if (isBadChoice(choices[i])) choices[i] = "—";
+// ✅ NEW: strict sanitize (NO placeholder injection)
+function sanitizeChoicesStrict(rawChoices) {
+  const arr = Array.isArray(rawChoices) ? rawChoices : [];
+  const cleaned = [];
+
+  for (const x of arr) {
+    const t = stripLetterPrefix(x);
+    if (isBadChoice(t)) continue;
+    // avoid duplicates (case/space-insensitive)
+    if (cleaned.some((y) => norm(y) === norm(t))) continue;
+    cleaned.push(t);
+    if (cleaned.length >= 4) break;
   }
-  const out = choices.slice(0, 4);
-  while (out.length < 4) out.push("—");
-  // if still too many dashes, fill with generic distractors
-  const dashCount = out.filter((x) => x === "—").length;
-  if (dashCount >= 2) {
-    for (let i = 0; i < out.length; i++) {
-      if (out[i] === "—") out[i] = `Option ${i + 1}`;
-    }
+
+  return cleaned; // might be <4, that's OK (verifier will fix)
+}
+
+function ensureValid4Choices(choices) {
+  if (!Array.isArray(choices)) return null;
+  if (choices.length !== 4) return null;
+  if (choices.some((c) => isBadChoice(c))) return null;
+
+  // ensure unique by normalized comparison
+  const seen = new Set();
+  for (const c of choices) {
+    const k = norm(c);
+    if (seen.has(k)) return null;
+    seen.add(k);
   }
-  return out;
+  return choices.map((c) => String(c).trim());
 }
 
 /* =========================================================
-   ✅ NORMALIZE QUIZ JSON
-   - Always output 0-based answerIndex (0..3)
+   ✅ NORMALIZE QUIZ JSON (0-based answerIndex)
    ========================================================= */
 function detectIndexBaseFromAll(questions) {
   const idxs = questions
@@ -281,7 +296,6 @@ function detectIndexBaseFromAll(questions) {
   if (!idxs.length) return "zero";
   if (idxs.some((x) => x === 0)) return "zero";
   if (idxs.some((x) => x === 4)) return "one";
-  // ambiguous (1..3 only) → prefer zero to avoid shifting bug
   return "zero";
 }
 
@@ -296,22 +310,22 @@ function normalizeQuizJSON(obj) {
   const clean = qsRaw
     .map((q) => {
       const rawChoices = Array.isArray(q.choices) ? q.choices : Array.isArray(q.options) ? q.options : [];
-      const choices = sanitizeChoices(rawChoices);
+      const choices = sanitizeChoicesStrict(rawChoices);
 
       let ai = Number.isFinite(Number(q.answerIndex)) ? Number(q.answerIndex) : null;
       if (ai === null && Number.isFinite(Number(q.correctIndex))) ai = Number(q.correctIndex);
 
-      if (ai !== null && base === "one") ai = ai - 1; // convert to 0-based
-      ai = ai === null ? null : clamp(ai, 0, 3);
+      if (ai !== null && base === "one") ai = ai - 1;
+      ai = ai === null ? 0 : clamp(ai, 0, 3);
 
       return {
         question: String(q.question || q.q || "").trim(),
-        choices,
+        choices, // may be <4 (will be fixed later)
         answerIndex: ai,
         explanation: String(q.explanation || q.reason || "").trim(),
       };
     })
-    .filter((q) => q.question && q.choices.length === 4 && q.answerIndex !== null);
+    .filter((q) => q.question);
 
   if (!clean.length) return null;
   return { questions: clean };
@@ -365,7 +379,7 @@ function exactSalePriceScaled(priceStr, pctStr) {
 
   const pctDec = pct.decimals;
   const hundredScaled = 100n * pow10BigInt(pctDec);
-  const keepScaled = hundredScaled - pct.bi; // (100 - pct) scaled by 10^pctDec
+  const keepScaled = hundredScaled - pct.bi;
 
   const outDecimals = p.decimals + pctDec + 2;
   const saleScaled = p.bi * keepScaled;
@@ -378,7 +392,7 @@ function moneyStrFromScaled(scaled, decimals) {
 }
 
 /* =========================================================
-   ✅ GENERATE CHOICES
+   ✅ GENERATE CHOICES (for deterministic math fallback)
    ========================================================= */
 function makeIntChoices(correct) {
   const c = Number(correct);
@@ -432,21 +446,20 @@ function makeMoneyChoicesExact(correctScaled, decimals) {
 }
 
 /* =========================================================
-   ✅ MATH SOLVER (EN + TH) incl. "8 * 2 = ?" / "9×8=?"
+   ✅ MATH SOLVER (EN + TH)
    ========================================================= */
 function computeMathFromQuestionText(qText) {
   const t = String(qText || "");
-
   let m;
 
-  // (0) Multiplication: "8 * 2 = ?", "9×8=?", "9 x 8"
+  // Multiplication: "8 * 2 = ?", "9×8=?", "9 x 8"
   m = t.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*[*x×]\s*(\d+(?:\.\d+)?)(?:\s*(?:=|\?|$))/i);
   if (m) {
     const a = Number(m[1]);
     const b = Number(m[2]);
     if (Number.isFinite(a) && Number.isFinite(b)) {
       const ans = a * b;
-      const ansStr = String(ans); // no rounding
+      const ansStr = String(ans);
       return {
         kind: "int_or_text",
         answerText: ansStr,
@@ -539,9 +552,7 @@ function computeMathFromQuestionText(qText) {
     }
   }
 
-  // -------- Thai patterns --------
-
-  // หาร 24 ด้วย 4
+  // Thai: หาร X ด้วย Y
   m = t.match(/หาร\s*(\d+(?:\.\d+)?)\s*ด้วย\s*(\d+(?:\.\d+)?)/);
   if (m) {
     const a = Number(m[1]);
@@ -558,7 +569,7 @@ function computeMathFromQuestionText(qText) {
     }
   }
 
-  // บวก 3 และ 5
+  // Thai: บวก
   m = t.match(/บวก\s*(\d+(?:\.\d+)?)\s*(?:และ|\+)\s*(\d+(?:\.\d+)?)/);
   if (m) {
     const a = Number(m[1]);
@@ -575,7 +586,7 @@ function computeMathFromQuestionText(qText) {
     }
   }
 
-  // ลบ 15 ด้วย 3
+  // Thai: ลบ
   m = t.match(/ลบ\s*(\d+(?:\.\d+)?)\s*(?:ด้วย|กับ)?\s*(\d+(?:\.\d+)?)/);
   if (m) {
     const a = Number(m[1]);
@@ -592,7 +603,7 @@ function computeMathFromQuestionText(qText) {
     }
   }
 
-  // คูณ 3 และ 5 / 3×5
+  // Thai: คูณ
   m = t.match(/คูณ\s*(\d+(?:\.\d+)?)\s*(?:และ|\*|x|×)\s*(\d+(?:\.\d+)?)/i);
   if (m) {
     const a = Number(m[1]);
@@ -613,7 +624,7 @@ function computeMathFromQuestionText(qText) {
 }
 
 /* =========================================================
-   ✅ SIMPLE HEALTH/FIRST AID REPAIR (prevents "A" choice)
+   ✅ SIMPLE HEALTH/FIRST AID PATCH
    ========================================================= */
 function computeFirstAidFromQuestionText(qText) {
   const t = norm(qText);
@@ -647,26 +658,18 @@ function computeFirstAidFromQuestionText(qText) {
 }
 
 /* =========================================================
-   ✅ REPAIR QUIZ QUESTION
-   - math repair (EN/TH + multiply)
-   - healthcare first-aid patch
-   - ensure answerIndex matches actual correct choice if solvable
+   ✅ REPAIR QUIZ QUESTION (local patch only)
+   - DO NOT inject placeholders
    ========================================================= */
 function repairQuizQuestion(q, quizType) {
   const fixed = {
     question: String(q.question || "").trim(),
-    choices: sanitizeChoices(q.choices),
+    choices: sanitizeChoicesStrict(q.choices),
     answerIndex: clamp(Number.isFinite(Number(q.answerIndex)) ? Number(q.answerIndex) : 0, 0, 3),
     explanation: String(q.explanation || "").trim(),
   };
 
-  // If answer points to junk choice, move to first non-junk
-  if (isBadChoice(fixed.choices[fixed.answerIndex])) {
-    const j = fixed.choices.findIndex((c) => !isBadChoice(c));
-    fixed.answerIndex = j >= 0 ? j : 0;
-  }
-
-  // healthcare patch
+  // healthcare patch (strong deterministic)
   if (quizType === "healthcare_quiz") {
     const fa = computeFirstAidFromQuestionText(fixed.question);
     if (fa) {
@@ -678,7 +681,7 @@ function repairQuizQuestion(q, quizType) {
     }
   }
 
-  // math patch
+  // math patch (strong deterministic)
   const solved = computeMathFromQuestionText(fixed.question);
   if (!solved) return fixed;
 
@@ -692,20 +695,20 @@ function repairQuizQuestion(q, quizType) {
     return fixed;
   }
 
-  // rebuild choices
+  // rebuild choices deterministically for math
   if (solved.kind === "money_exact" && solved.answerMoney) {
     const { scaled, decimals } = solved.answerMoney;
     fixed.choices = makeMoneyChoicesExact(scaled, decimals);
-    const idx = fixed.choices.findIndex((c) => norm(c) === norm(correctText));
-    fixed.answerIndex = idx >= 0 ? idx : 0;
+    fixed.answerIndex = fixed.choices.findIndex((c) => norm(c) === norm(correctText));
+    fixed.answerIndex = fixed.answerIndex >= 0 ? fixed.answerIndex : 0;
     fixed.explanation = solved.explanation || fixed.explanation;
     return fixed;
   }
 
   if (solved.kind === "percent") {
     fixed.choices = makePercentChoicesInt(solved.answerNum ?? 0);
-    const idx = fixed.choices.findIndex((c) => norm(c) === norm(correctText));
-    fixed.answerIndex = idx >= 0 ? idx : 0;
+    fixed.answerIndex = fixed.choices.findIndex((c) => norm(c) === norm(correctText));
+    fixed.answerIndex = fixed.answerIndex >= 0 ? fixed.answerIndex : 0;
     fixed.explanation = solved.explanation || fixed.explanation;
     return fixed;
   }
@@ -720,8 +723,8 @@ function repairQuizQuestion(q, quizType) {
     } else {
       fixed.choices = base.map((x) => String(x));
     }
-    const idx = fixed.choices.findIndex((c) => norm(c) === norm(correctText));
-    fixed.answerIndex = idx >= 0 ? idx : 0;
+    fixed.answerIndex = fixed.choices.findIndex((c) => norm(c) === norm(correctText));
+    fixed.answerIndex = fixed.answerIndex >= 0 ? fixed.answerIndex : 0;
     fixed.explanation = solved.explanation || fixed.explanation;
     return fixed;
   }
@@ -738,9 +741,10 @@ function repairQuizJSON(quiz, quizType) {
 }
 
 /* =========================================================
-   ✅ LLM VERIFIER (for ANY quiz topic)
-   - One extra API call total (not per question)
-   - Returns corrected answerIndex (0..3) for each question
+   ✅ LLM VERIFIER (ONE CALL) - returns corrected choices + answerIndex
+   - Fixes:
+     1) wrong highlight (answerIndex mismatch)
+     2) bad choices ("-", "Option 1", etc.)
    ========================================================= */
 async function verifyQuizWithLLM(quiz, quizType) {
   if (!client) return quiz;
@@ -749,17 +753,21 @@ async function verifyQuizWithLLM(quiz, quizType) {
   const compact = quiz.questions.map((q, i) => ({
     i,
     question: q.question,
-    choices: q.choices,
+    // send whatever we have; may be <4
+    choices: Array.isArray(q.choices) ? q.choices : [],
   }));
 
   const verifierSystem = [
-    "You are a strict quiz answer verifier.",
-    "Given questions and 4 choices, pick the single best correct choice.",
+    "You are a strict quiz quality fixer and answer verifier.",
+    "For each question: produce EXACTLY 4 choices (plain text), and exactly ONE correct choice.",
     "Return ONLY JSON.",
-    'Schema: { "answers": [ { "i": 0, "answerIndex": 0, "reason": "short" } ] }',
-    "answerIndex MUST be 0..3.",
-    "Do not invent extra fields.",
-    "Be accurate. If ambiguous, choose the most standard/expected answer.",
+    'Schema: { "answers": [ { "i": 0, "choices": ["c1","c2","c3","c4"], "answerIndex": 0, "explanation": "1 short sentence" } ] }',
+    "Rules:",
+    "- answerIndex MUST be 0..3 (0-based).",
+    "- choices must NOT be '-', '—', 'Option 1', single letters, or empty.",
+    "- choices must be unique (no duplicates).",
+    "- Keep it age-appropriate and safe.",
+    "- If the provided choices already contain a clear correct option, you may reuse them (but still output 4 clean choices).",
     "",
     `Quiz type: ${quizType}`,
   ].join("\n");
@@ -787,18 +795,38 @@ async function verifyQuizWithLLM(quiz, quizType) {
     for (const a of answers) {
       const i = Number(a?.i);
       const ai = Number(a?.answerIndex);
-      if (Number.isFinite(i) && Number.isFinite(ai)) map.set(i, clamp(ai, 0, 3));
+      const ch = Array.isArray(a?.choices) ? a.choices : null;
+      const ex = typeof a?.explanation === "string" ? a.explanation : "";
+
+      if (!Number.isFinite(i) || !Number.isFinite(ai)) continue;
+      const fixedAI = clamp(ai, 0, 3);
+
+      const cleanedChoices = ch ? ensureValid4Choices(ch.map(stripLetterPrefix)) : null;
+      if (!cleanedChoices) continue;
+
+      map.set(i, { answerIndex: fixedAI, choices: cleanedChoices, explanation: ex.trim() });
     }
 
     const out = {
       questions: quiz.questions.map((q, i) => {
         if (!map.has(i)) return q;
-        const ai = map.get(i);
-        // If verifier points to bad choice, ignore
-        if (isBadChoice(q.choices[ai])) return q;
-        return { ...q, answerIndex: ai };
+
+        const v = map.get(i);
+        const finalChoices = v.choices;
+        const finalAI = clamp(v.answerIndex, 0, 3);
+
+        // final guard: answerIndex must point to a non-bad choice
+        if (isBadChoice(finalChoices[finalAI])) return q;
+
+        return {
+          question: String(q.question || "").trim(),
+          choices: finalChoices,
+          answerIndex: finalAI,
+          explanation: v.explanation || String(q.explanation || "").trim(),
+        };
       }),
     };
+
     return out;
   } catch (_) {
     return quiz;
@@ -827,7 +855,6 @@ function isLikelyMathTopic(payload) {
     "decimal",
     "word problem",
     "ratio",
-    // Thai
     "คณิต",
     "หาร",
     "บวก",
@@ -837,7 +864,14 @@ function isLikelyMathTopic(payload) {
     "เปอร์เซ็น",
   ];
   if (keys.some((k) => topic.includes(k))) return true;
-  if (grade.includes("grade 1") || grade.includes("grade 2") || grade.includes("grade 3") || grade.includes("grade 4") || grade.includes("grade 5") || grade.includes("grade 6")) {
+  if (
+    grade.includes("grade 1") ||
+    grade.includes("grade 2") ||
+    grade.includes("grade 3") ||
+    grade.includes("grade 4") ||
+    grade.includes("grade 5") ||
+    grade.includes("grade 6")
+  ) {
     if (topic.includes("number") || topic.includes("arithmetic") || topic.includes("basic")) return true;
   }
   return false;
@@ -1007,25 +1041,39 @@ module.exports = async function handler(req, res) {
     const completion = await client.chat.completions.create(payload);
     const replyText = completion?.choices?.[0]?.message?.content?.trim() || "…";
 
-    // ✅ Quiz: normalize + repair + (NEW) verify answers for ANY topic
+    // ✅ Quiz pipeline: normalize -> local repair (math/first aid) -> verifier fixes choices+answerIndex
     if (isQuiz) {
       const obj = safeJSONParse(replyText, null);
       const normalized = normalizeQuizJSON(obj);
 
       if (normalized) {
-        // 1) local repair (math + first-aid + sanitation)
+        // 1) local deterministic repairs (only when solvable)
         let repaired = repairQuizJSON(normalized, type);
 
-        // 2) LLM verifier pass (one call) to make answers correct for ANY topic
+        // 2) verifier returns CLEAN 4 choices + answerIndex (ONE call total)
         repaired = await verifyQuizWithLLM(repaired, type);
 
-        // ALWAYS 0..3
-        repaired.questions = repaired.questions.map((q) => ({
-          question: String(q.question || "").trim(),
-          choices: sanitizeChoices(q.choices),
-          answerIndex: clamp(Number(q.answerIndex) || 0, 0, 3),
-          explanation: String(q.explanation || "").trim(),
-        }));
+        // 3) final hard validation (no placeholders)
+        repaired.questions = repaired.questions
+          .map((q) => {
+            const question = String(q.question || "").trim();
+            const choices = ensureValid4Choices((q.choices || []).map(stripLetterPrefix));
+            const answerIndex = clamp(Number(q.answerIndex) || 0, 0, 3);
+            const explanation = String(q.explanation || "").trim();
+
+            if (!question || !choices) return null;
+            if (isBadChoice(choices[answerIndex])) return null;
+
+            return { question, choices, answerIndex, explanation };
+          })
+          .filter(Boolean);
+
+        // If verifier somehow fails and leaves us empty, fallback for education_quiz only
+        if (repaired.questions.length === 0 && type === "education_quiz") {
+          const n = clamp(Number(quizPayload?.numQuestions) || 8, 3, 15);
+          const quiz = makeDeterministicMathQuiz(n);
+          return res.status(200).json({ reply: JSON.stringify(quiz) });
+        }
 
         return res.status(200).json({ reply: JSON.stringify(repaired) });
       }
