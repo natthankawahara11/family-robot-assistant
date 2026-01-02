@@ -285,6 +285,20 @@ function ensureValid4Choices(choices) {
   return choices.map((c) => String(c).trim());
 }
 
+function shuffleChoicesKeepAnswer(choices, answerIndex) {
+  const arr = choices.map((c, i) => ({ c, i })); // เก็บ index เดิมไว้
+  // Fisher–Yates shuffle
+  for (let j = arr.length - 1; j > 0; j--) {
+    const k = Math.floor(Math.random() * (j + 1));
+    [arr[j], arr[k]] = [arr[k], arr[j]];
+  }
+
+  const newChoices = arr.map((x) => x.c);
+  const newAnswerIndex = arr.findIndex((x) => x.i === answerIndex);
+
+  return { choices: newChoices, answerIndex: newAnswerIndex < 0 ? 0 : newAnswerIndex };
+}
+
 /* =========================================================
    ✅ NORMALIZE QUIZ JSON (0-based answerIndex)
    ========================================================= */
@@ -1055,18 +1069,31 @@ module.exports = async function handler(req, res) {
 
         // 3) final hard validation (no placeholders)
         repaired.questions = repaired.questions
-          .map((q) => {
-            const question = String(q.question || "").trim();
-            const choices = ensureValid4Choices((q.choices || []).map(stripLetterPrefix));
-            const answerIndex = clamp(Number(q.answerIndex) || 0, 0, 3);
-            const explanation = String(q.explanation || "").trim();
+  .map((q) => {
+    const question = String(q.question || "").trim();
+    const choices0 = ensureValid4Choices((q.choices || []).map(stripLetterPrefix));
+    const answerIndex0 = clamp(Number(q.answerIndex), 0, 3);
+    const explanation = String(q.explanation || "").trim();
 
-            if (!question || !choices) return null;
-            if (isBadChoice(choices[answerIndex])) return null;
+    if (!question || !choices0) return null;
+    if (!Number.isFinite(answerIndex0)) return null;
+    if (isBadChoice(choices0[answerIndex0])) return null;
 
-            return { question, choices, answerIndex, explanation };
-          })
-          .filter(Boolean);
+    // ✅ Shuffle choices so correct answer is NOT always choice #1
+    const shuffled = shuffleChoicesKeepAnswer(choices0, answerIndex0);
+
+    // guard อีกชั้น
+    if (!ensureValid4Choices(shuffled.choices)) return null;
+    if (isBadChoice(shuffled.choices[shuffled.answerIndex])) return null;
+
+    return {
+      question,
+      choices: shuffled.choices,
+      answerIndex: shuffled.answerIndex,
+      explanation,
+    };
+  })
+  .filter(Boolean);
 
         // If verifier somehow fails and leaves us empty, fallback for education_quiz only
         if (repaired.questions.length === 0 && type === "education_quiz") {
