@@ -205,6 +205,12 @@
           <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
         </div>
 
+        <!-- ✅ NEW: Word Scramble game (Education tab card #3) -->
+        <div class="frame6-card frame6-card-game" data-home="0" data-game="scramble" data-for-tab="education">
+          <img src="Card_Game_Education1.png" alt="Word Scramble Game" decoding="async">
+          <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
+        </div>
+
         <div class="frame6-card" data-home="1" data-card="community">
           <img src="Card4.png" alt="Community card" decoding="async">
           <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
@@ -212,6 +218,12 @@
 
         <div class="frame6-card frame6-card-quiz" data-home="0" data-quiz="1" data-for-tab="community">
           <img src="Card_Quiz4.png" alt="Community Quiz" decoding="async">
+          <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
+        </div>
+
+        <!-- ✅ NEW: Tic Tac Toe game (Community tab card #3) -->
+        <div class="frame6-card frame6-card-game" data-home="0" data-game="tictactoe" data-for-tab="community">
+          <img src="Card_Game_Community1.png" alt="Tic Tac Toe Game" decoding="async">
           <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
         </div>
 
@@ -396,6 +408,144 @@
           <button class="quiz-primary" id="quizBackHomeBtn" type="button">Back to Home</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ✅ FRAME 11: WORD SCRAMBLE SETUP -->
+  <div class="frame-11" id="frame11ScrambleSetup">
+    <div class="game-stage scramble-stage">
+      <div class="game-back" id="scrambleBackBtn1" title="Go back">
+        <img src="ChatBot_GoBack.png" alt="Go Back" decoding="async">
+      </div>
+
+      <div class="game-title" id="scrambleSetupTitle">Word Scramble</div>
+
+      <div class="game-panel">
+        <div class="game-row">
+          <div class="game-label">Topic</div>
+          <select class="game-select" id="scrambleTopicSelect">
+            <option value="Random" selected>Random</option>
+            <option value="Animals">Animals</option>
+            <option value="Science">Science</option>
+            <option value="Technology">Technology</option>
+            <option value="Sports">Sports</option>
+            <option value="Food">Food</option>
+            <option value="Geography">Geography</option>
+            <option value="Movies">Movies</option>
+          </select>
+        </div>
+
+        <div class="game-row">
+          <div class="game-label">Difficulty</div>
+          <select class="game-select" id="scrambleDifficultySelect">
+            <option value="Easy">Easy</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+        </div>
+
+        <button class="game-primary" id="scrambleStartBtn" type="button">Start</button>
+
+        <div class="game-hint" id="scrambleSetupHint">
+          Tip: You will get a scrambled word. Use Hint if you need help.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ FRAME 12: WORD SCRAMBLE PLAY -->
+  <div class="frame-12" id="frame12ScramblePlay">
+    <div class="game-stage scramble-stage">
+      <div class="game-back" id="scrambleBackBtn2" title="Go back">
+        <img src="ChatBot_GoBack.png" alt="Go Back" decoding="async">
+      </div>
+
+      <div class="game-topbar">
+        <div class="game-pill" id="scrambleTimePill">Time: 00:30</div>
+      </div>
+
+      <div class="game-card">
+        <div class="scramble-word" id="scrambleWordText">L O A D I N G</div>
+
+        <div class="scramble-hint">
+          <div class="hint-label">Hint</div>
+          <div class="hint-text" id="scrambleHintText">—</div>
+        </div>
+
+        <div class="game-row">
+          <input class="game-input" id="scrambleAnswerInput" placeholder="Type your answer…" autocomplete="off" />
+        </div>
+
+        <div class="game-actions">
+          <button class="game-secondary" id="scrambleRefreshBtn" type="button">Refresh word</button>
+          <button class="game-primary" id="scrambleCheckBtn" type="button">Check word</button>
+        </div>
+
+        <div class="game-feedback" id="scrambleFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ FRAME 13: TIC TAC TOE SETUP -->
+  <div class="frame-13" id="frame13TttSetup">
+    <div class="game-stage ttt-stage">
+      <div class="game-back" id="tttBackBtn1" title="Go back">
+        <img src="ChatBot_GoBack.png" alt="Go Back" decoding="async">
+      </div>
+
+      <div class="game-title">Tic Tac Toe</div>
+
+      <div class="game-panel">
+        <div class="game-row">
+          <div class="game-label">Mode</div>
+          <div class="game-toggle-row">
+            <button class="game-toggle active" id="tttMode1p" type="button">1 Player</button>
+            <button class="game-toggle" id="tttMode2p" type="button">2 Player</button>
+          </div>
+        </div>
+
+        <div class="game-row">
+          <div class="game-label">Choose side</div>
+          <div class="game-toggle-row">
+            <button class="game-toggle active" id="tttSideX" type="button">X</button>
+            <button class="game-toggle" id="tttSideO" type="button">O</button>
+          </div>
+        </div>
+
+        <button class="game-primary" id="tttStartBtn" type="button">Start</button>
+
+        <div class="game-hint" id="tttSetupHint">
+          Tip: In 2 player mode, it will switch turns between Player 1 and Player 2.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ FRAME 14: TIC TAC TOE PLAY -->
+  <div class="frame-14" id="frame14TttPlay">
+    <div class="game-stage ttt-stage">
+      <div class="game-back" id="tttBackBtn2" title="Go back">
+        <img src="ChatBot_GoBack.png" alt="Go Back" decoding="async">
+      </div>
+
+      <div class="ttt-top">
+        <div class="game-pill" id="tttStatusPill">Player X turn</div>
+        <button class="game-secondary" id="tttResetBtn" type="button">Reset</button>
+      </div>
+
+      <div class="ttt-board" id="tttBoard" aria-label="Tic Tac Toe Board">
+        <button class="ttt-cell" data-cell="0" type="button"></button>
+        <button class="ttt-cell" data-cell="1" type="button"></button>
+        <button class="ttt-cell" data-cell="2" type="button"></button>
+        <button class="ttt-cell" data-cell="3" type="button"></button>
+        <button class="ttt-cell" data-cell="4" type="button"></button>
+        <button class="ttt-cell" data-cell="5" type="button"></button>
+        <button class="ttt-cell" data-cell="6" type="button"></button>
+        <button class="ttt-cell" data-cell="7" type="button"></button>
+        <button class="ttt-cell" data-cell="8" type="button"></button>
+      </div>
+
+      <div class="game-feedback" id="tttFeedback"></div>
     </div>
   </div>
 
