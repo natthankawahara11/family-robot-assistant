@@ -45,7 +45,8 @@ body{
 .frame3-btn-left, .frame3-btn-right, .frame4-btn-left, .frame4-btn-right,
 .frame6-tab, .frame6-card, .chat-icon, .mini-btn, .thread-item,
 .profile-card, .profile-option, .frame6-profile,
-.quiz-primary, .quiz-secondary, .quiz-choice, .quiz-back{
+.quiz-primary, .quiz-secondary, .quiz-choice, .quiz-back, 
+.game-primary, .game-secondary, .toggle-btn, .ttt-cell, .game-back{
   cursor:pointer;
   -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
@@ -211,7 +212,7 @@ body{
 /* ✅ Z-INDEX */
 .frame-1{ z-index:1; }
 .frame-2, .frame-3, .frame-4, .frame-5, .frame-6, .frame-7, .frame-avatar,
-.frame-8, .frame-9, .frame-10{ z-index:2; }
+.frame-8, .frame-9, .frame-10, .frame-11, .frame-12, .frame-13, .frame-14{ z-index:2; }
 
 /* FRAME 1 */
 .frame-1{
@@ -827,6 +828,10 @@ body{
 }
 .frame6-card-menu img{ width:100%; height:100%; object-fit:contain; display:block; }
 
+.frame6-card.frame6-card-game img{
+  filter: drop-shadow(0 10px 16px rgba(0,0,0,0.18));
+}
+
 /* FRAME 7 Chatbot (same as your existing) */
 .frame-7{
   position:fixed;
@@ -1164,7 +1169,7 @@ body{
 /* =========================================================
    ✅ QUIZ FRAMES (8/9/10)
    ========================================================= */
-.frame-8, .frame-9, .frame-10{
+.frame-8, .frame-9, .frame-10, .frame-11, .frame-12, .frame-13, .frame-14{
   position:fixed;
   inset:0;
   width:100vw;
@@ -1426,4 +1431,253 @@ body{
   .quiz-panel{ width:92vw; }
   .quiz-card{ width:92vw; }
 }
+
+/* =========================================================
+   ✅ GAME FRAMES (11/12/13/14) — reusing Quiz style
+   ========================================================= */
+
+.game-stage{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:864px;
+  height:444px;
+  transform:translate(-50%, -50%) scale(var(--gs, 1));
+  transform-origin:center center;
+}
+
+.game-back{
+  position:absolute;
+  left:15px;
+  top:25px;
+  width:40px;
+  height:40px;
+  opacity:0.65;
+  touch-action: manipulation;
+  z-index:10;
+}
+.game-back img{ width:100%; height:100%; object-fit:contain; display:block; }
+
+.game-title{
+  position:absolute;
+  left:50%;
+  top:35px;
+  transform:translateX(-50%);
+  font-weight:900;
+  font-size:40px;
+  line-height:1;
+  background:linear-gradient(90deg, #79aaaa 0%, #96D7C6 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  -webkit-text-stroke:2px rgba(102,102,102,0.75);
+  text-align:center;
+  white-space:nowrap;
+  pointer-events:none;
+}
+
+.game-panel{
+  position:absolute;
+  left:50%;
+  top:110px;
+  transform:translateX(-50%);
+  width:740px;
+  border-radius:18px;
+  background:rgba(255,255,255,0.86);
+  border:1px solid rgba(0,0,0,0.10);
+  box-shadow:0 14px 28px rgba(0,0,0,0.16);
+  padding:16px 16px 14px;
+}
+
+.game-row{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-bottom:12px;
+}
+
+.game-label{
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.60);
+}
+
+.game-select{
+  width:100%;
+  height:40px;
+  border:none;
+  outline:none;
+  background:rgba(255,255,255,0.9);
+  border:1px solid rgba(0,0,0,0.10);
+  border-radius:12px;
+  padding:0 10px;
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+}
+
+.game-input{
+  width:100%;
+  height:42px;
+  border:none;
+  outline:none;
+  background:rgba(255,255,255,0.9);
+  border:1px solid rgba(0,0,0,0.10);
+  border-radius:12px;
+  padding:0 12px;
+  font-weight:900;
+  font-size:13px;
+  color:rgba(0,0,0,0.65);
+}
+
+.game-primary{
+  margin-top:12px;
+  width:100%;
+  height:44px;
+  border:none;
+  border-radius:14px;
+  background:rgba(99,26,173,0.92);
+  color:#fff;
+  font-weight:900;
+  font-size:13px;
+  box-shadow:0 12px 22px rgba(99,26,173,0.18);
+}
+
+.game-secondary{
+  height:40px;
+  padding:0 14px;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.85);
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+}
+
+.game-hint{
+  margin-top:10px;
+  font-weight:800;
+  font-size:12px;
+  color:rgba(0,0,0,0.48);
+}
+
+.game-topbar{
+  position:absolute;
+  right:20px;
+  top:25px;
+  display:flex;
+  gap:10px;
+  z-index:10;
+}
+.game-pill{
+  height:34px;
+  padding:0 12px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.82);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+}
+
+.game-card{
+  position:absolute;
+  left:50%;
+  top:95px;
+  transform:translateX(-50%);
+  width:760px;
+  height:310px;
+  border-radius:18px;
+  background:rgba(255,255,255,0.86);
+  border:1px solid rgba(0,0,0,0.10);
+  box-shadow:0 14px 28px rgba(0,0,0,0.16);
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.game-actions{
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+}
+
+.game-feedback{
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.55);
+  min-height:16px;
+}
+
+/* Toggles (mode + side) */
+.game-toggle{
+  display:flex;
+  gap:10px;
+}
+.toggle-btn{
+  flex:1;
+  height:40px;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.85);
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+  touch-action: manipulation;
+}
+.toggle-btn.active{
+  border-color:rgba(99,26,173,0.38);
+  box-shadow:0 10px 18px rgba(99,26,173,0.12);
+}
+
+/* Word Scramble */
+.scramble-word{
+  font-weight:900;
+  font-size:32px;
+  color:rgba(0,0,0,0.72);
+  text-align:center;
+  letter-spacing:6px;
+  margin-top:6px;
+}
+.scramble-hint{
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.55);
+  text-align:center;
+}
+
+/* Tic Tac Toe */
+.ttt-grid{
+  width:100%;
+  flex:1;
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:10px;
+  margin-top:8px;
+}
+.ttt-cell{
+  height:82px;
+  border-radius:16px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.92);
+  font-weight:900;
+  font-size:32px;
+  color:rgba(0,0,0,0.75);
+  touch-action: manipulation;
+}
+.ttt-cell:disabled{
+  opacity:0.65;
+}
+
+/* scale */
+@media (max-width: 900px){
+  .game-panel{ width:92vw; }
+  .game-card{ width:92vw; }
+}
+
+
 
