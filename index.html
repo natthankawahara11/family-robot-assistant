@@ -205,6 +205,13 @@
           <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
         </div>
 
+        <!-- ✅ Word Scramble game card (ONLY shown in Education tab, order #3) -->
+<div class="frame6-card frame6-card-game" data-home="0" data-game="scramble" data-for-tab="education">
+  <img src="Card_Game_Education1.png" alt="Word Scramble" decoding="async">
+  <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
+</div>
+
+
         <div class="frame6-card" data-home="1" data-card="community">
           <img src="Card4.png" alt="Community card" decoding="async">
           <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
@@ -214,6 +221,13 @@
           <img src="Card_Quiz4.png" alt="Community Quiz" decoding="async">
           <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
         </div>
+
+        <!-- ✅ Tic Tac Toe game card (ONLY shown in Community tab, order #3) -->
+<div class="frame6-card frame6-card-game" data-home="0" data-game="tictactoe" data-for-tab="community">
+  <img src="Card_Game_Community1.png" alt="Tic Tac Toe" decoding="async">
+  <div class="frame6-card-menu"><img src="Fix_Menu.png" alt="Menu" decoding="async"></div>
+</div>
+
 
         <!-- Home-only extras -->
         <div class="frame6-card" data-home="1">
@@ -398,6 +412,103 @@
       </div>
     </div>
   </div>
+
+  <!-- ✅ FRAME 11: WORD SCRAMBLE SETUP -->
+<div class="frame-11" id="frame11">
+  <div class="game-stage" id="scrambleStageSetup">
+    <div class="game-back" id="scrambleBackBtn1" title="Go back">
+      <img src="ChatBot_GoBack.png" alt="Go Back" decoding="async">
+    </div>
+
+    <div class="game-title">Word Scramble</div>
+
+    <div class="game-panel">
+      <div class="game-row">
+        <div class="game-label">Choose a topic</div>
+        <select class="game-select" id="scrambleTopicSelect">
+          <option value="Random" selected>Random</option>
+          <option value="Animals">Animals</option>
+          <option value="Food">Food</option>
+          <option value="Science">Science</option>
+          <option value="Technology">Technology</option>
+        </select>
+      </div>
+
+      <div class="game-row">
+        <div class="game-label">Difficulty</div>
+        <select class="game-select" id="scrambleDifficultySelect">
+          <option value="Easy">Easy</option>
+          <option value="Medium" selected>Medium</option>
+          <option value="Hard">Hard</option>
+        </select>
+      </div>
+
+      <button class="game-primary" id="scrambleStartBtn" type="button">Start</button>
+      <div class="game-hint">Tip: You’ll get scrambled letters + a hint. Beat the timer!</div>
+    </div>
+  </div>
+</div>
+
+  <!-- ✅ FRAME 12: WORD SCRAMBLE PLAY -->
+<div class="frame-12" id="frame12">
+  <div class="game-stage" id="scrambleStagePlay">
+    <div class="game-back" id="scrambleBackBtn2" title="Go back">
+      <img src="ChatBot_GoBack.png" alt="Go Back" decoding="async">
+    </div>
+
+    <div class="game-topbar">
+      <div class="game-pill" id="scrambleTimePill">Time: 30</div>
+      <div class="game-pill" id="scrambleTopicPill">Topic: Random</div>
+    </div>
+
+    <div class="game-card">
+      <div class="scramble-word" id="scrambleWordText">L O A D I N G</div>
+
+      <div class="scramble-hint" id="scrambleHintText">Hint: ...</div>
+
+      <input class="game-input" id="scrambleAnswerInput" placeholder="Type your answer…" />
+
+      <div class="game-actions">
+        <button class="game-secondary" id="scrambleRefreshBtn" type="button">Refresh word</button>
+        <button class="game-primary" id="scrambleCheckBtn" type="button">Check word</button>
+      </div>
+
+      <div class="game-feedback" id="scrambleFeedback"></div>
+    </div>
+  </div>
+</div>
+
+  <!-- ✅ FRAME 13: TIC TAC TOE SETUP -->
+<div class="frame-13" id="frame13">
+  <div class="game-stage" id="tttStageSetup">
+    <div class="game-back" id="tttBackBtn1" title="Go back">
+      <img src="ChatBot_GoBack.png" alt="Go Back" decoding="async">
+    </div>
+
+    <div class="game-title">Tic Tac Toe</div>
+
+    <div class="game-panel">
+      <div class="game-row">
+        <div class="game-label">Mode</div>
+        <div class="game-toggle">
+          <button class="toggle-btn" id="tttMode1Btn" type="button" data-mode="1">1 Player</button>
+          <button class="toggle-btn active" id="tttMode2Btn" type="button" data-mode="2">2 Player</button>
+        </div>
+      </div>
+
+      <div class="game-row">
+        <div class="game-label">Choose your side</div>
+        <div class="game-toggle">
+          <button class="toggle-btn active" id="tttSideXBtn" type="button" data-side="X">X</button>
+          <button class="toggle-btn" id="tttSideOBtn" type="button" data-side="O">O</button>
+        </div>
+      </div>
+
+      <button class="game-primary" id="tttStartBtn" type="button">Start</button>
+      <div class="game-hint">Tip: In 2 Player mode, it alternates Player 1 and Player 2.</div>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
