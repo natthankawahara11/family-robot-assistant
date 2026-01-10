@@ -101,7 +101,7 @@ function domImgUrls() {
 
 async function preloadAssets() {
   const imgs = uniq([...cssBgUrls(), ...domImgUrls()]);
-  const vids = ["Face.webm"];
+  const vids = ["Face.mp4"];
 
   const tasks = [
     ...imgs.map(u => ({ type: "img", url: u })),
@@ -2319,6 +2319,52 @@ async function generateQuizFromAI(payload) {
   }
 }
 
+async function generateScrambleFromAI(payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const r = await fetch(`${SERVER_BASE}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        type: "scramble_game",
+        message: JSON.stringify(payload),
+        history: [],
+        profile: currentProfile ? {
+          id: currentProfile.id,
+          name: currentProfile.name,
+          ageNumber: currentProfile.ageNumber,
+          ageKey: currentProfile.ageKey,
+          ageText: currentProfile.ageText
+        } : null
+      })
+    });
+
+    const data = await r.json().catch(() => ({}));
+    const raw = String(data?.reply || "").trim();
+    const obj = extractJSON(raw);
+
+    // ต้องได้ { words: [...] }
+    if (!obj || !Array.isArray(obj.words) || !obj.words.length) return null;
+
+    // clean
+    const clean = obj.words.map(w => ({
+      answer: String(w.answer || "").toUpperCase().replace(/\s+/g, ""),
+      scrambled: String(w.scrambled || "").toUpperCase().replace(/\s+/g, ""),
+      hint: String(w.hint || "").trim()
+    })).filter(w => w.answer && w.scrambled && w.scrambled !== w.answer);
+
+    if (!clean.length) return null;
+    return { words: clean };
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function resetQuizState() {
   quizData = null;
   quizIndex = 0;
@@ -2615,7 +2661,7 @@ function scrambleLockAnswer(timedOut) {
   if (scrambleNextBtn) scrambleNextBtn.disabled = false;
 }
 
-function startScrambleFlow() {
+async function startScrambleFlow() {
   startIdleTimer();
 
   const topic = (scrambleTopicInput?.value || "").trim();
@@ -2628,12 +2674,41 @@ function startScrambleFlow() {
     return;
   }
 
-  if (scrambleStartBtn) { scrambleStartBtn.disabled = true; scrambleStartBtn.textContent = "Starting…"; }
+  if (scrambleStartBtn) {
+    scrambleStartBtn.disabled = true;
+    scrambleStartBtn.textContent = "Starting…";
+  }
 
-  scrambleData = buildScrambleWords(topic, Math.max(3, Math.min(15, count)), currentGameTab, difficulty);
+  // ✅ payload สำหรับ AI
+  const payload = {
+    topic,
+    count: Math.max(3, Math.min(15, count)),
+    difficulty
+  };
+
+  // ✅ 1) ลองสร้างจาก AI ก่อน
+  let data = null;
+  try {
+    data = await generateScrambleFromAI(payload); // ต้องมีฟังก์ชันนี้ในไฟล์
+  } catch (_) {
+    data = null;
+  }
+
+  // ✅ 2) ถ้า AI พัง/เน็ตหลุด => ใช้ของเดิมแบบ offline
+  if (!data) {
+    data = buildScrambleWords(topic, payload.count, currentGameTab, difficulty);
+  }
+
+  scrambleData = data;
   scrambleIndex = 0;
   scrambleScore = 0;
   scrambleSecPerWord = timer;
+
+  // ✅ เผื่ออยากให้กด Start ได้อีกตอนกลับไปหน้า setup
+  if (scrambleStartBtn) {
+    scrambleStartBtn.disabled = false;
+    scrambleStartBtn.textContent = "Start Game";
+  }
 
   goToFrame13();
   renderScramble();
@@ -2818,5 +2893,6 @@ if (tttRestartBtn) bindTap(tttRestartBtn, () => {
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
 
 
