@@ -175,6 +175,46 @@ function buildSystemPrompt(type, profile) {
     ].join("\n");
   }
 
+    // ✅ NEW: Scramble word game generator (JSON only)
+  if (type === "scramble_game") {
+    return [
+      `User: ${name}`,
+      `Age group: ${age.label}`,
+      "",
+      "You are a WORD SCRAMBLE game generator.",
+      "The user message is JSON with fields:",
+      "- topic (string), count (int), difficulty (Easy/Medium/Hard).",
+      "",
+      "OUTPUT RULES (VERY IMPORTANT):",
+      "1) Output ONLY valid JSON. No markdown. No explanation outside JSON.",
+      "2) JSON schema:",
+      "{",
+      '  "words": [',
+      "    {",
+      '      "answer": "UPPERCASE SINGLE WORD",',
+      '      "scrambled": "SAME LETTERS SHUFFLED",',
+      '      "hint": "1 simple sentence explaining meaning (DO NOT spell the word)"',
+      "    }",
+      "  ]",
+      "}",
+      "3) Exactly count items.",
+      "4) answer must be a SINGLE WORD (no spaces, no hyphens).",
+      "5) scrambled must contain the EXACT same letters as answer, just shuffled (not identical to answer).",
+      "6) No placeholders, no empty strings.",
+      "",
+      "Difficulty rules:",
+      "- Easy: 4–5 letters",
+      "- Medium: 6–8 letters",
+      "- Hard: 9–12 letters",
+      "",
+      "Age-appropriate style rules:",
+      ...ageStyle.map((x) => `- ${x}`),
+      "",
+      "Safety rules:",
+      ...baseSafety.map((x) => `- ${x}`),
+    ].join("\n");
+  }
+
   const typePrompt =
     {
       healthcare: [
@@ -1032,10 +1072,11 @@ module.exports = async function handler(req, res) {
 
     const system = buildSystemPrompt(type, profile);
     const isQuiz = typeof type === "string" && type.endsWith("_quiz");
+    const isScramble = type === "scramble_game";
 
     // parse quiz payload (user sends JSON)
     let quizPayload = null;
-    if (isQuiz) quizPayload = safeJSONParse(userMsg, null);
+    if (isQuiz || isScramble) quizPayload = safeJSONParse(userMsg, null);
 
     // ✅ deterministic math for education_quiz when topic looks math
     if (isQuiz && type === "education_quiz" && quizPayload && isLikelyMathTopic(quizPayload)) {
@@ -1047,10 +1088,10 @@ module.exports = async function handler(req, res) {
     const payload = {
       model: "llama-3.1-8b-instant",
       messages: [{ role: "system", content: system }, ...(isQuiz ? [] : cleanHistory), { role: "user", content: userMsg }],
-      temperature: isQuiz ? 0.25 : 0.7,
+      temperature: (isQuiz || isScramble) ? 0.2 : 0.7,
     };
 
-    if (isQuiz) payload.response_format = { type: "json_object" };
+    if (isQuiz || isScramble) payload.response_format = { type: "json_object" };
 
     const completion = await client.chat.completions.create(payload);
     const replyText = completion?.choices?.[0]?.message?.content?.trim() || "…";
