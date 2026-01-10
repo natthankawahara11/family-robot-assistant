@@ -2628,7 +2628,7 @@ function renderScramble() {
   if (scrambleFeedback) scrambleFeedback.textContent = "";
   if (scrambleGuessInput) { scrambleGuessInput.value = ""; }
   if (scrambleWordText) scrambleWordText.textContent = item.scrambled;
-  if (scrambleHintText) scrambleHintText.textContent = "Hint: (tap Check if you want feedback)";
+  if (scrambleHintText) scrambleHintText.textContent = `Hint: ${item.hint}`;
   if (scrambleProgress) scrambleProgress.textContent = `Word ${scrambleIndex + 1} / ${total} • Score ${scrambleScore}`;
 
   if (scrambleNextBtn) {
@@ -2893,6 +2893,7 @@ if (tttRestartBtn) bindTap(tttRestartBtn, () => {
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
 
 
 
