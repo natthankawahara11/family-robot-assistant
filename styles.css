@@ -804,6 +804,11 @@ body{
   will-change:transform;
 }
 
+/* =========================================================
+   ✅ FRAME 6 — PIN/UNPIN SYSTEM (OVERRIDE BLOCK)
+   Paste this at the VERY END of styles.css
+   ========================================================= */
+
 .frame6-card{
   flex:0 0 340px;
   height:210px;
@@ -818,7 +823,7 @@ body{
   border-radius:16px;
 }
 
-/* ✅ MENU (Fix_Menu) — make it easier to tap */
+/* ✅ Fix_Menu tap target + overlay circle (40x40, rgba(0,0,0,0.25)) */
 .frame6-card-menu{
   position:absolute;
   top:14px;
@@ -831,7 +836,9 @@ body{
   display:flex;
   align-items:center;
   justify-content:center;
-  z-index:30;
+  z-index:60;
+  pointer-events:auto;
+  touch-action: manipulation;
 }
 
 .frame6-card-menu .menu-circle{
@@ -849,64 +856,92 @@ body{
   pointer-events:none;     /* click goes to wrapper */
 }
 
-.frame6-card.frame6-card-game img{
-  filter: drop-shadow(0 10px 16px rgba(0,0,0,0.18));
+/* ✅ Popover menu (Pin/Unpin) */
+.frame6-card-menu-pop{
+  position:absolute;
+  top:62px;                /* below the 40px menu */
+  right:12px;
+  width:140px;
+  border-radius:14px;
+  background:rgba(255,255,255,0.94);
+  border:1px solid rgba(0,0,0,0.10);
+  box-shadow:0 14px 28px rgba(0,0,0,0.18);
+  padding:6px;
+  display:none;
+  z-index:70;
+  pointer-events:auto;
 }
 
-/* ✅ Pin overlay (circle on Fix_Menu) */
-.frame6-pin-overlay{
-  position:absolute;
-  right:30px;
-  bottom:25px;
-  width:40px;
+/* show when card has menu open */
+.frame6-card.menu-open .frame6-card-menu-pop{
+  display:block;
+}
+
+/* Pin toggle button inside menu */
+.frame6-card-menu-pop .pin-toggle{
+  width:100%;
   height:40px;
-  border-radius:999px;
-  background:rgba(0,0,0,0.25);
-  z-index:7;
-  pointer-events:auto; /* overlay clickable */
-}
-
-/* ✅ Pin/Unpin button under the circle */
-.frame6-pin-action{
-  position:absolute;
-  right:22px;           /* adjust a bit to center under circle */
-  bottom:-6px;          /* sits slightly below menu area */
-  width:56px;
-  height:56px;
-  z-index:8;
+  border:none;
+  border-radius:12px;
+  background:rgba(255,255,255,0.92);
   display:flex;
   align-items:center;
-  justify-content:center;
-  pointer-events:auto;
+  justify-content:flex-start;
+  gap:10px;
+  padding:0 10px;
+  font-weight:900;
+  font-size:13px;
+  color:rgba(0,0,0,0.70);
   touch-action: manipulation;
 }
 
-.frame6-pin-action img{
-  width:100%;
-  height:100%;
+.frame6-card-menu-pop .pin-toggle:active{
+  transform:scale(0.98);
+}
+
+.frame6-card-menu-pop .pin-icon{
+  width:18px;
+  height:18px;
   object-fit:contain;
   display:block;
 }
 
-/* ✅ Pin header marker on top-left of card */
-.frame6-pin-header{
+.frame6-card-menu-pop .pin-text{
+  font-weight:900;
+  font-size:13px;
+  color:rgba(0,0,0,0.70);
+}
+
+/* ✅ Pin header marker (Pin_Header.png)
+   - place at top-left corner using CENTER of PNG */
+.frame6-card .pin-header{
   position:absolute;
   left:0;
   top:0;
-
-  width:44px;   /* ปรับได้ตามขนาดไฟล์รูปจริง */
+  width:44px;         /* adjust if your PNG differs */
   height:44px;
-
-  transform:translate(-50%, -50%); /* ✅ center of PNG sits on card corner */
-  z-index:5;
+  transform:translate(-50%, -50%);
+  z-index:40;
   pointer-events:none;
+  display:none;       /* hidden unless pinned */
+  object-fit:contain;
 }
 
-.frame6-pin-header img{
-  width:100%;
-  height:100%;
-  object-fit:contain;
+/* show marker only when pinned */
+.frame6-card.is-pinned .pin-header{
   display:block;
+}
+
+/* Optional: little depth for marker */
+.frame6-card.is-pinned .pin-header{
+  filter: drop-shadow(0 10px 14px rgba(0,0,0,0.18));
+}
+
+/* ✅ Prevent menu clicks from triggering card click (helps iPhone) */
+.frame6-card-menu,
+.frame6-card-menu-pop,
+.frame6-card-menu-pop *{
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
 
 /* FRAME 7 Chatbot (same as your existing) */
@@ -1756,6 +1791,13 @@ body{
   .game-card{ width:92vw; }
 }
 
-
-
-
+.pin-badge{
+  position:absolute;
+  top:0;
+  left:0;
+  width:60px;          /* ปรับได้ */
+  height:auto;
+  transform: translate(-50%, -50%); /* ✅ เอาจุดกึ่งกลางไปทับมุม */
+  pointer-events:none;
+  z-index:5;
+}
