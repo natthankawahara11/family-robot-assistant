@@ -809,9 +809,18 @@ body{
    Paste this at the VERY END of styles.css
    ========================================================= */
 
-/* Make sure card is menu anchor */
 .frame6-card{
+  flex:0 0 340px;
+  height:210px;
   position:relative;
+  touch-action: manipulation;
+}
+.frame6-card img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+  border-radius:16px;
 }
 
 /* ✅ Fix_Menu tap target + overlay circle (40x40, rgba(0,0,0,0.25)) */
@@ -1792,3 +1801,4 @@ body{
   pointer-events:none;
   z-index:5;
 }
+
