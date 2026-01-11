@@ -29,6 +29,7 @@ function scheduleSaveAll() {
       micLang
     });
     lsSet(LS_PINS_KEY, pinnedByProfile);
+    lsSet(LS_FRUIT_BEST_KEY, fruitBestByProfile);
   }, 150);
 }
 
@@ -97,6 +98,7 @@ function domImgUrls() {
     "ChatBot_GoBack.png",
     "ChatBot_Add.png","ChatBot_Mic.png","ChatBot_Send.png",
     "ChatBot_No.png","ChatBot_Yes.png",
+    "Card_Game_Community2.png",
   ];
 }
 
@@ -189,6 +191,9 @@ const frame12 = document.getElementById('frame12'); // TicTacToe setup
 const frame13 = document.getElementById('frame13'); // Scramble play
 const frame14 = document.getElementById('frame14'); // TicTacToe play
 
+// ✅ Fruit Slash frame
+const frame15 = document.getElementById('frame15');
+
 // ---- Scramble UI ----
 const scrambleStageSetup = document.getElementById('scrambleStageSetup');
 const scrambleStagePlay  = document.getElementById('scrambleStagePlay');
@@ -230,6 +235,28 @@ const tttSetupHint = document.getElementById('tttSetupHint');
 const tttStatus = document.getElementById('tttStatus');
 const tttGrid = document.getElementById('tttGrid');
 const tttRestartBtn = document.getElementById('tttRestartBtn');
+
+// ---- Fruit Slash UI ----
+const fruitBackBtn = document.getElementById('fruitBackBtn');
+const fruitVideo = document.getElementById('fruitVideo');
+const fruitCanvas = document.getElementById('fruitCanvas');
+const fruitHud = document.getElementById('fruitHud');
+const fruitTimer = document.getElementById('fruitTimer');
+const fruitScore = document.getElementById('fruitScore');
+const fruitScore2 = document.getElementById('fruitScore2');
+const fruitBest = document.getElementById('fruitBest');
+
+const fruitOverlay = document.getElementById('fruitOverlay');
+const fruitMode1pBtn = document.getElementById('fruitMode1p');
+const fruitMode2pBtn = document.getElementById('fruitMode2p');
+const fruitStartBtn = document.getElementById('fruitStartBtn');
+const fruitHint = document.getElementById('fruitHint');
+
+const fruitEnd = document.getElementById('fruitEnd');
+const fruitEndResult = document.getElementById('fruitEndResult');
+const fruitEndBest = document.getElementById('fruitEndBest');
+const fruitReplayBtn = document.getElementById('fruitReplayBtn');
+const fruitBackHomeBtn = document.getElementById('fruitBackHomeBtn');
 
 const quizStageSetup = document.getElementById('quizStageSetup');
 const quizStagePlay = document.getElementById('quizStagePlay');
@@ -631,7 +658,7 @@ function hideAllFrames() {
   [
     frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7,
     frame8, frame9, frame10,
-    frame11, frame12, frame13, frame14
+    frame11, frame12, frame13, frame14, frame15
   ].forEach(f => { if (f) f.style.display = 'none'; });
 }
 
@@ -735,6 +762,7 @@ function restoreLastFrame() {
     case 'frame12': goToFrame12(currentGameTab || "education"); break;
     case 'frame13': goToFrame13(); break;
     case 'frame14': goToFrame14(); break;
+    case 'frame15': goToFrame15(currentGameTab || "community"); break;
     default: goToFrame1(); break;
   }
 }
@@ -1338,7 +1366,7 @@ function applyFrame6TabView(name) {
   const quizCard = cards.find(c => c.getAttribute("data-quiz") === "1" && c.getAttribute("data-for-tab") === name);
 
   // ✅ game card: use data-game="scramble" or "ttt" and data-for-tab
-  const gameCard = cards.find(c => c.getAttribute("data-game") && c.getAttribute("data-for-tab") === name);
+  const gameCards = cards.filter(c => c.getAttribute("data-game") && c.getAttribute("data-for-tab") === name);
 
   const pins = getPinsForActiveProfile();
 const pinnedKeys = pins?.[name] || [];
@@ -1355,7 +1383,7 @@ function applyOne(cardEl, fallbackOrder) {
 let order = 1;
 applyOne(chatCard, order++);
 applyOne(quizCard, order++);
-applyOne(gameCard, order++);
+gameCards.forEach(gc => applyOne(gc, order++));
 
   homeIndex = 0;
   homeCardsTrack.style.transition = "none";
@@ -1648,6 +1676,7 @@ function attachFrame6CardHandlers() {
           const tab = card.getAttribute("data-for-tab") || currentTabName || "education";
           if (game === "scramble") { goToFrame11(tab); return; }
           if (game === "ttt")      { goToFrame12(tab); return; }
+      if (game === "fruit")    { goToFrame15(tab); return; }
           return;
         }
 
@@ -1705,8 +1734,10 @@ window.addEventListener('resize', () => {
   if ((frame11 && frame11.style.display === 'block') ||
       (frame12 && frame12.style.display === 'block') ||
       (frame13 && frame13.style.display === 'block') ||
-      (frame14 && frame14.style.display === 'block')) {
+      (frame14 && frame14.style.display === 'block') ||
+      (frame15 && frame15.style.display === 'block')) {
     updateGameScale();
+    resizeFruitCanvas();
   }
 });
 
@@ -2728,6 +2759,16 @@ function goToFrame14() {
   updateGameScale();
   startIdleTimer();
 }
+
+// ===================== Fruit Slash (camera game) =====================
+function goToFrame15(tab = "community") {
+  currentGameTab = tab;
+  hideAllFrames();
+  frame15.style.display = "block";
+  showFruitMenu();
+  resizeFruitCanvas();
+}
+
 
 function gameBackToHome() {
   clearScrambleTimer();
