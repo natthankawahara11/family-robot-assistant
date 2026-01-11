@@ -29,7 +29,6 @@ function scheduleSaveAll() {
       micLang
     });
     lsSet(LS_PINS_KEY, pinnedByProfile);
-    lsSet(LS_FRUIT_BEST_KEY, fruitBestByProfile);
   }, 150);
 }
 
@@ -98,7 +97,6 @@ function domImgUrls() {
     "ChatBot_GoBack.png",
     "ChatBot_Add.png","ChatBot_Mic.png","ChatBot_Send.png",
     "ChatBot_No.png","ChatBot_Yes.png",
-    "Card_Game_Community2.png",
   ];
 }
 
@@ -190,9 +188,30 @@ const frame11 = document.getElementById('frame11'); // Scramble setup
 const frame12 = document.getElementById('frame12'); // TicTacToe setup
 const frame13 = document.getElementById('frame13'); // Scramble play
 const frame14 = document.getElementById('frame14'); // TicTacToe play
-
-// ✅ Fruit Slash frame
+// ✅ fruit slash frame (15)
 const frame15 = document.getElementById('frame15');
+
+// ---- Fruit Slash UI ----
+const fruitStageMenu = document.getElementById('fruitStageMenu');
+const fruitStagePlay = document.getElementById('fruitStagePlay');
+
+const fruitBackBtn = document.getElementById('fruitBackBtn');
+const fruitBackHomeBtn = document.getElementById('fruitBackHomeBtn');
+
+const fruitMode1p = document.getElementById('fruitMode1p');
+const fruitMode2p = document.getElementById('fruitMode2p');
+
+const fruitStartBtn = document.getElementById('fruitStartBtn');
+const fruitReplayBtn = document.getElementById('fruitReplayBtn');
+
+const fruitTimerEl = document.getElementById('fruitTimer');
+const fruitScoreEl = document.getElementById('fruitScore');
+const fruitBestEl  = document.getElementById('fruitBest');
+const fruitHintEl  = document.getElementById('fruitHint');
+
+const fruitCanvas = document.getElementById('fruitCanvas');
+const fruitVideo  = document.getElementById('fruitVideo');
+
 
 // ---- Scramble UI ----
 const scrambleStageSetup = document.getElementById('scrambleStageSetup');
@@ -235,28 +254,6 @@ const tttSetupHint = document.getElementById('tttSetupHint');
 const tttStatus = document.getElementById('tttStatus');
 const tttGrid = document.getElementById('tttGrid');
 const tttRestartBtn = document.getElementById('tttRestartBtn');
-
-// ---- Fruit Slash UI ----
-const fruitBackBtn = document.getElementById('fruitBackBtn');
-const fruitVideo = document.getElementById('fruitVideo');
-const fruitCanvas = document.getElementById('fruitCanvas');
-const fruitHud = document.getElementById('fruitHud');
-const fruitTimer = document.getElementById('fruitTimer');
-const fruitScore = document.getElementById('fruitScore');
-const fruitScore2 = document.getElementById('fruitScore2');
-const fruitBest = document.getElementById('fruitBest');
-
-const fruitOverlay = document.getElementById('fruitOverlay');
-const fruitMode1pBtn = document.getElementById('fruitMode1p');
-const fruitMode2pBtn = document.getElementById('fruitMode2p');
-const fruitStartBtn = document.getElementById('fruitStartBtn');
-const fruitHint = document.getElementById('fruitHint');
-
-const fruitEnd = document.getElementById('fruitEnd');
-const fruitEndResult = document.getElementById('fruitEndResult');
-const fruitEndBest = document.getElementById('fruitEndBest');
-const fruitReplayBtn = document.getElementById('fruitReplayBtn');
-const fruitBackHomeBtn = document.getElementById('fruitBackHomeBtn');
 
 const quizStageSetup = document.getElementById('quizStageSetup');
 const quizStagePlay = document.getElementById('quizStagePlay');
@@ -762,7 +759,7 @@ function restoreLastFrame() {
     case 'frame12': goToFrame12(currentGameTab || "education"); break;
     case 'frame13': goToFrame13(); break;
     case 'frame14': goToFrame14(); break;
-    case 'frame15': goToFrame15(currentGameTab || "community"); break;
+    case 'frame15': goToFrame15(currentGameTab || \"community\"); break;
     default: goToFrame1(); break;
   }
 }
@@ -1366,7 +1363,7 @@ function applyFrame6TabView(name) {
   const quizCard = cards.find(c => c.getAttribute("data-quiz") === "1" && c.getAttribute("data-for-tab") === name);
 
   // ✅ game card: use data-game="scramble" or "ttt" and data-for-tab
-  const gameCards = cards.filter(c => c.getAttribute("data-game") && c.getAttribute("data-for-tab") === name);
+  const gameCard = cards.find(c => c.getAttribute("data-game") && c.getAttribute("data-for-tab") === name);
 
   const pins = getPinsForActiveProfile();
 const pinnedKeys = pins?.[name] || [];
@@ -1383,7 +1380,7 @@ function applyOne(cardEl, fallbackOrder) {
 let order = 1;
 applyOne(chatCard, order++);
 applyOne(quizCard, order++);
-gameCards.forEach(gc => applyOne(gc, order++));
+applyOne(gameCard, order++);
 
   homeIndex = 0;
   homeCardsTrack.style.transition = "none";
@@ -1676,7 +1673,7 @@ function attachFrame6CardHandlers() {
           const tab = card.getAttribute("data-for-tab") || currentTabName || "education";
           if (game === "scramble") { goToFrame11(tab); return; }
           if (game === "ttt")      { goToFrame12(tab); return; }
-      if (game === "fruit")    { goToFrame15(tab); return; }
+          if (game === "fruit")    { goToFrame15(tab); return; }
           return;
         }
 
@@ -1735,9 +1732,8 @@ window.addEventListener('resize', () => {
       (frame12 && frame12.style.display === 'block') ||
       (frame13 && frame13.style.display === 'block') ||
       (frame14 && frame14.style.display === 'block') ||
-      (frame15 && frame15.style.display === 'block')) {
+      (frame15 && frame15.style.display === 'block') {
     updateGameScale();
-    fitFruitCanvas();
   }
 });
 
@@ -2759,8 +2755,6 @@ function goToFrame14() {
   updateGameScale();
   startIdleTimer();
 }
-
-// ===================== Fruit Slash (camera game) =====================
 function goToFrame15(tab = "community") {
   currentGameTab = tab || "community";
   hideAllFrames();
@@ -2768,9 +2762,11 @@ function goToFrame15(tab = "community") {
   document.body.style.backgroundImage = 'url("Pic18.png")';
   lastActiveFrame = 'frame15';
   updateGameScale();
+  startIdleTimer();
 
   enterFruitFrame(); // ✅ reset menu + best score + timer
 }
+
 
 function gameBackToHome() {
   clearScrambleTimer();
@@ -3139,10 +3135,6 @@ if (tttRestartBtn) bindTap(tttRestartBtn, () => {
   startIdleTimer();
   startTTTFlow();
 });
-
-// =========================================================
-// ✅ Initial screen
-// =========================================================
 
 // =========================================================
 // ✅ FRUIT SLASH GAME (Camera + 1P/2P, 3 min, Best Score)
@@ -3578,13 +3570,7 @@ function enterFruitFrame() {
 attachFruitButtons();
 attachFruitInput();
 
+// =========================================================
+// ✅ Initial screen
+// =========================================================
 goToFrame1();
-
-
-
-
-
-
-
-
-
