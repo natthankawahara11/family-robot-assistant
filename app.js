@@ -28,6 +28,7 @@ function scheduleSaveAll() {
       currentProfileId: currentProfile?.id || null,
       micLang
     });
+    lsSet(LS_PINS_KEY, pinnedByProfile);
   }, 150);
 }
 
@@ -359,6 +360,34 @@ if (profiles.length > 0) {
 }
 
 // =========================================================
+// ✅ PINNED STATE (per profile, per tab)
+// =========================================================
+const LS_PINS_KEY = "fra_pins_v1";
+
+// structure: { [profileId]: { home:[], healthcare:[], sports:[], education:[], community:[] } }
+let pinnedByProfile = lsGet(LS_PINS_KEY, {});
+
+function ensurePinsBucket(profileId) {
+  if (!profileId) return null;
+  if (!pinnedByProfile[profileId]) {
+    pinnedByProfile[profileId] = { home: [], healthcare: [], sports: [], education: [], community: [] };
+  } else {
+    pinnedByProfile[profileId].home ||= [];
+    pinnedByProfile[profileId].healthcare ||= [];
+    pinnedByProfile[profileId].sports ||= [];
+    pinnedByProfile[profileId].education ||= [];
+    pinnedByProfile[profileId].community ||= [];
+  }
+  return pinnedByProfile[profileId];
+}
+
+function getPinsForActiveProfile() {
+  const pid = currentProfile?.id;
+  if (!pid) return { home: [], healthcare: [], sports: [], education: [], community: [] };
+  return ensurePinsBucket(pid);
+}
+
+// =========================================================
 // ✅ CHAT THREADS MODEL + MIGRATION
 // =========================================================
 function ensureChatBucket(profileId) {
@@ -548,6 +577,53 @@ let idleTimer = null;
 let isVideoVisible = false;
 let lastActiveFrame = null;
 
+function cardKeyFromEl(cardEl) {
+  if (!cardEl) return null;
+
+  // chat card
+  const chatType = cardEl.getAttribute("data-card");
+  if (chatType) return `chat:${chatType}`;
+
+  // quiz card
+  const isQuiz = cardEl.getAttribute("data-quiz") === "1";
+  if (isQuiz) {
+    const tab = cardEl.getAttribute("data-for-tab") || "unknown";
+    return `quiz:${tab}`;
+  }
+
+  // game card
+  const game = cardEl.getAttribute("data-game");
+  if (game) {
+    const tab = cardEl.getAttribute("data-for-tab") || "unknown";
+    return `game:${game}:${tab}`;
+  }
+
+  // fallback (ถ้ามี id)
+  if (cardEl.id) return `id:${cardEl.id}`;
+
+  return null;
+}
+
+function isPinned(tabName, cardKey) {
+  const pins = getPinsForActiveProfile();
+  const list = pins?.[tabName] || [];
+  return list.includes(cardKey);
+}
+
+function togglePin(tabName, cardKey) {
+  const pid = currentProfile?.id;
+  if (!pid || !cardKey) return;
+
+  const pins = ensurePinsBucket(pid);
+  const list = pins[tabName] || (pins[tabName] = []);
+
+  const idx = list.indexOf(cardKey);
+  if (idx >= 0) list.splice(idx, 1); // unpin
+  else list.unshift(cardKey);        // pin (ขึ้นหน้าแรก)
+
+  scheduleSaveAll();
+}
+
 // =========================================================
 // ✅ FRAME NAV
 // =========================================================
@@ -624,7 +700,8 @@ function goToFrame5Accounts() {
 
 function goToFrame6(preferredTab = null) {
   if (!currentProfile && profiles.length > 0) currentProfile = profiles[0];
-  if (currentProfile?.id) ensureChatBucket(currentProfile.id);
+  if (currentProfile?.id) ensureChatBucket(currentProfile.id); 
+  ensurePinsBucket(currentProfile.id);
 
   hideAllFrames();
   if (frame6) frame6.style.display = 'block';
@@ -1030,6 +1107,7 @@ function createProfileFromAgeNumber() {
 
   profiles.push(profile);
   ensureChatBucket(profile.id);
+  ensurePinsBucket(profile.id);
   currentProfile = profile;
   scheduleSaveAll();
 
@@ -1230,13 +1308,27 @@ function applyFrame6TabView(name) {
   cards.forEach(c => { c.style.order = ""; });
 
   if (name === "home") {
-    cards.forEach(c => {
-      const isHome = c.getAttribute("data-home") === "1";
-      c.style.display = isHome ? "" : "none";
-    });
-    setHomeIndex(lastHomeIndex || 0, false);
-    return;
-  }
+  const homeCards = [];
+  cards.forEach(c => {
+    const isHome = c.getAttribute("data-home") === "1";
+    c.style.display = isHome ? "" : "none";
+    c.style.order = "";
+    if (isHome) homeCards.push(c);
+  });
+
+  // ✅ pinned first in home
+  const pins = getPinsForActiveProfile();
+  const pinnedKeys = pins?.home || [];
+  homeCards.forEach((c, i) => {
+    const key = cardKeyFromEl(c);
+    const pIndex = key ? pinnedKeys.indexOf(key) : -1;
+    c.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(i + 1);
+    setPinnedBadge(c, pIndex >= 0); // ✅ add marker
+  });
+
+  setHomeIndex(lastHomeIndex || 0, false);
+  return;
+}
 
   // sub tab => show: chat + quiz + (optional) game
   cards.forEach(c => { c.style.display = "none"; });
@@ -1247,10 +1339,22 @@ function applyFrame6TabView(name) {
   // ✅ game card: use data-game="scramble" or "ttt" and data-for-tab
   const gameCard = cards.find(c => c.getAttribute("data-game") && c.getAttribute("data-for-tab") === name);
 
-  let order = 1;
-  if (chatCard) { chatCard.style.display = ""; chatCard.style.order = String(order++); }
-  if (quizCard) { quizCard.style.display = ""; quizCard.style.order = String(order++); }
-  if (gameCard) { gameCard.style.display = ""; gameCard.style.order = String(order++); }
+  const pins = getPinsForActiveProfile();
+const pinnedKeys = pins?.[name] || [];
+
+function applyOne(cardEl, fallbackOrder) {
+  if (!cardEl) return;
+  cardEl.style.display = "";
+  const key = cardKeyFromEl(cardEl);
+  const pIndex = key ? pinnedKeys.indexOf(key) : -1;
+  cardEl.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(fallbackOrder);
+  setPinnedBadge(cardEl, pIndex >= 0); // ✅ add marker
+}
+
+let order = 1;
+applyOne(chatCard, order++);
+applyOne(quizCard, order++);
+applyOne(gameCard, order++);
 
   homeIndex = 0;
   homeCardsTrack.style.transition = "none";
@@ -1441,6 +1545,28 @@ function attachFrame6CardHandlers() {
     if (card.dataset.bound === "1") return;
     card.dataset.bound = "1";
 
+    // ✅ menu click => open pin/unpin
+const menuBtn = card.querySelector(".frame6-card-menu");
+if (menuBtn && menuBtn.dataset.bound !== "1") {
+  menuBtn.dataset.bound = "1";
+
+  bindTap(menuBtn, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // tabName: home ใช้ currentTabName, subtab ใช้ currentTabName เช่นกัน
+    const tabName = currentTabName || "home";
+    const key = cardKeyFromEl(card);
+
+    // toggle pin in this tab
+    togglePin(tabName, key);
+
+    // re-apply ordering + badge
+    applyFrame6TabView(tabName);
+    startIdleTimer();
+  });
+}
+
     bindCardTapOnly(card, () => {
       lastFrame6Tab = currentTabName || "home";
 
@@ -1466,6 +1592,21 @@ function attachFrame6CardHandlers() {
   });
 }
 attachFrame6CardHandlers();
+
+function setPinnedBadge(cardEl, pinned) {
+  if (!cardEl) return;
+
+  let badge = cardEl.querySelector(".pin-badge");
+  if (!badge) {
+    badge = document.createElement("img");
+    badge.className = "pin-badge";
+    badge.src = "Pin_Header.png";
+    badge.alt = "Pinned";
+    cardEl.style.position = cardEl.style.position || "relative";
+    cardEl.appendChild(badge);
+  }
+  badge.style.display = pinned ? "block" : "none";
+}
 
 // =========================================================
 // ✅ FRAME 7 Chatbot
@@ -2893,6 +3034,7 @@ if (tttRestartBtn) bindTap(tttRestartBtn, () => {
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
 
 
 
