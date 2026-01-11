@@ -42,6 +42,19 @@ const bootPercent = document.getElementById('bootPercent');
 
 let bootReady = false;
 
+// ✅ show JS errors on boot screen (helps debugging on iPhone)
+window.addEventListener("error", (e) => {
+  try {
+    if (bootStatus) bootStatus.textContent = "Error: " + (e?.message || "unknown");
+  } catch (_) {}
+});
+window.addEventListener("unhandledrejection", (e) => {
+  try {
+    const msg = e?.reason?.message || String(e?.reason || "unknown");
+    if (bootStatus) bootStatus.textContent = "Error: " + msg;
+  } catch (_) {}
+});
+
 function uniq(arr) { return Array.from(new Set(arr.filter(Boolean))); }
 
 function isIOS() {
@@ -54,23 +67,49 @@ function preloadImage(url) {
     const img = new Image();
     img.decoding = "async";
 
+    // ✅ watchdog: if an asset hangs, don't freeze boot
+    const t = setTimeout(() => resolve({ url, ok: false, timeout: true }), 6500);
+
     img.onload = async () => {
+      clearTimeout(t);
       if (!isIOS()) {
         try { if (img.decode) await img.decode(); } catch (_) {}
       }
       resolve({ url, ok: true });
     };
 
-    img.onerror = () => resolve({ url, ok: false });
+    img.onerror = () => {
+      clearTimeout(t);
+      resolve({ url, ok: false });
+    };
+
     img.src = url;
   });
 }
 
 function preloadVideo(url) {
   return new Promise((resolve) => {
-    fetch(url, { cache: "force-cache" })
-      .then(() => resolve({ url, ok: true }))
-      .catch(() => resolve({ url, ok: false }));
+    // ✅ use <video> preload instead of fetch (Safari/iOS/file:// safer)
+    const v = document.createElement("video");
+    v.preload = "auto";
+    v.muted = true;
+
+    const t = setTimeout(() => {
+      cleanup();
+      resolve({ url, ok: false, timeout: true });
+    }, 8000);
+
+    function cleanup() {
+      clearTimeout(t);
+      v.onloadeddata = null;
+      v.onerror = null;
+      try { v.src = ""; v.load(); } catch (_) {}
+    }
+
+    v.onloadeddata = () => { cleanup(); resolve({ url, ok: true }); };
+    v.onerror = () => { cleanup(); resolve({ url, ok: false }); };
+
+    try { v.src = url; v.load(); } catch (_) { cleanup(); resolve({ url, ok: false }); }
   });
 }
 
@@ -121,6 +160,21 @@ async function preloadAssets() {
 
   updateUI("Starting…");
 
+  // ✅ Hard fallback: if something breaks and progress never moves, skip boot after 8s
+  let bootForced = false;
+  const forceTimer = setTimeout(() => {
+    if (bootReady) return;
+    bootForced = true;
+    if (bootStatus) bootStatus.textContent = "Boot skipped (asset load stalled).";
+    if (bootPercent) bootPercent.textContent = "100%";
+    if (bootBarFill) bootBarFill.style.width = "100%";
+    if (bootLoader) {
+      bootLoader.classList.add('hidden');
+      bootLoader.style.pointerEvents = 'none';
+    }
+    bootReady = true;
+  }, 8000);
+
   const fontsPromise = (document.fonts && document.fonts.ready)
     ? document.fonts.ready.catch(() => null)
     : Promise.resolve(null);
@@ -142,6 +196,7 @@ async function preloadAssets() {
     bootLoader.style.pointerEvents = 'none';
   }
 
+  clearTimeout(forceTimer);
   bootReady = true;
 }
 preloadAssets();
