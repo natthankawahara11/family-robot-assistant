@@ -826,19 +826,24 @@ body{
 /* ✅ Fix_Menu tap target + overlay circle (40x40, rgba(0,0,0,0.25)) */
 .frame6-card-menu{
   position:absolute;
-  top:14px;
-  right:14px;
-  width:40px;
-  height:40px;
+  left:304px;     /* ✅ X304 */
+  top:161px;      /* ✅ Y161 */
+  width:6px;      /* ✅ Fix_Menu size */
+  height:23.71px; /* ✅ Fix_Menu size */
   padding:0;
   border:none;
   background:transparent;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  z-index:60;
-  pointer-events:auto;
-  touch-action: manipulation;
+  z-index:8;
+}
+
+.frame6-card-menu::after{
+  content:"";
+  position:absolute;
+  left:-17px;
+  top:-8px;
+  width:40px;
+  height:40px;
+  background:transparent;   /* ✅ ไม่มีวงกลมตอนแรก */
 }
 
 .frame6-card-menu .menu-circle{
@@ -942,6 +947,40 @@ body{
 .frame6-card-menu-pop,
 .frame6-card-menu-pop *{
   -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+
+/* ปุ่มวงกลม + Pin/Unpin ที่โผล่มาหลังจากกด Fix_Menu */
+.frame6-pin-action{
+  position:absolute;
+
+  /* center ของ Fix_Menu:
+     centerX = 304 + 3 = 307
+     centerY = 161 + 23.71/2 = 172.855
+     วงกลม 40x40 => left=307-20=287, top=172.855-20=152.855
+  */
+  left:287px;         /* ✅ */
+  top:152.855px;      /* ✅ */
+  width:40px;
+  height:40px;
+  border:none;
+  border-radius:999px;
+  background: rgba(0,0,0,0.25); /* ✅ โชว์ตอนเมนูเปิดเท่านั้น */
+  display:none;       /* ✅ ซ่อนตอนแรก */
+  align-items:center;
+  justify-content:center;
+  z-index:9;
+  padding:0;
+}
+
+.frame6-pin-action.show{
+  display:flex;       /* ✅ เปิดแล้วค่อยโชว์ */
+}
+
+.frame6-pin-action img{
+  width:22px;
+  height:22px;
+  display:block;
+  pointer-events:none;
 }
 
 /* FRAME 7 Chatbot (same as your existing) */
@@ -1795,9 +1834,9 @@ body{
   position:absolute;
   top:0;
   left:0;
-  width:60px;          /* ปรับได้ */
-  height:auto;
-  transform: translate(-50%, -50%); /* ✅ เอาจุดกึ่งกลางไปทับมุม */
+  width:35px;          /* ✅ 35x35 */
+  height:35px;         /* ✅ 35x35 */
+  transform: translate(-50%, -50%); /* center ไปทับมุม */
   pointer-events:none;
   z-index:5;
 }
