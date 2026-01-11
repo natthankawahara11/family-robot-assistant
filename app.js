@@ -1300,6 +1300,7 @@ function attachLongPressDeleteToggle(card, id) {
 //    ✅ Sub-tabs: show 2 cards (chat card + quiz card) in order
 // =========================================================
 function applyFrame6TabView(name) {
+  closeCardMenu();
   if (!homeCardsWrapper || !homeCardsTrack) return;
 
   const cards = Array.from(homeCardsTrack.querySelectorAll('.frame6-card'));
@@ -1349,6 +1350,7 @@ function applyOne(cardEl, fallbackOrder) {
   const pIndex = key ? pinnedKeys.indexOf(key) : -1;
   cardEl.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(fallbackOrder);
   setPinnedBadge(cardEl, pIndex >= 0); // ✅ add marker
+  setPinnedBadge(cardEl, pinned);
 }
 
 let order = 1;
@@ -1540,12 +1542,71 @@ function bindCardTapOnly(cardEl, onTap) {
   });
 }
 
-function attachFrame6CardHandlers() {
-  document.querySelectorAll('.frame6-card').forEach(card => {
-    if (card.dataset.bound === "1") return;
-    card.dataset.bound = "1";
+// =========================================================
+// ✅ CARD MENU (Fix_Menu -> show circle + Pin/Unpin)
+// =========================================================
+let openCardMenuEl = null;
 
-    // ✅ menu click => open pin/unpin
+function closeCardMenu() {
+  if (!openCardMenuEl) return;
+  const pinBtn = openCardMenuEl.querySelector(".frame6-pin-action");
+  if (pinBtn) pinBtn.classList.remove("show");
+  openCardMenuEl.classList.remove("menu-open");
+  openCardMenuEl = null;
+}
+
+function openCardMenu(cardEl) {
+  if (!cardEl) return;
+
+  // close other
+  if (openCardMenuEl && openCardMenuEl !== cardEl) closeCardMenu();
+
+  // create pin action if not exist
+  let pinBtn = cardEl.querySelector(".frame6-pin-action");
+  if (!pinBtn) {
+    pinBtn = document.createElement("button");
+    pinBtn.type = "button";
+    pinBtn.className = "frame6-pin-action";
+    pinBtn.innerHTML = `<img src="Pin.png" alt="">`;
+    cardEl.appendChild(pinBtn);
+
+    // click Pin/Unpin => toggle pin then close menu
+    bindTap(pinBtn, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const tabName = currentTabName || "home";
+      const key = cardKeyFromEl(cardEl);
+
+      // ✅ กด Pin.png/Unpin.png ถึงค่อยปัก/ยกเลิก
+      togglePin(tabName, key);
+
+      closeCardMenu();
+      applyFrame6TabView(tabName); // refresh order + badge
+      startIdleTimer();
+    });
+  }
+
+  // set icon based on pinned state in current tab
+  const tabName = currentTabName || "home";
+  const key = cardKeyFromEl(cardEl);
+  const pinned = isPinned(tabName, key);
+
+  const img = pinBtn.querySelector("img");
+  if (img) img.src = pinned ? "Unpin.png" : "Pin.png";
+
+  // show circle+icon
+  pinBtn.classList.add("show");
+  cardEl.classList.add("menu-open");
+  openCardMenuEl = cardEl;
+}
+
+// tap outside => close menu (like Google)
+document.addEventListener("click", () => closeCardMenu());
+document.addEventListener("touchstart", () => closeCardMenu(), { passive: true });
+
+function attachFrame6CardHandlers() {
+// ✅ menu click => show circle + Pin/Unpin (NOT toggle yet)
 const menuBtn = card.querySelector(".frame6-card-menu");
 if (menuBtn && menuBtn.dataset.bound !== "1") {
   menuBtn.dataset.bound = "1";
@@ -1553,17 +1614,14 @@ if (menuBtn && menuBtn.dataset.bound !== "1") {
   bindTap(menuBtn, (e) => {
     e.preventDefault();
     e.stopPropagation();
-
-    // tabName: home ใช้ currentTabName, subtab ใช้ currentTabName เช่นกัน
-    const tabName = currentTabName || "home";
-    const key = cardKeyFromEl(card);
-
-    // toggle pin in this tab
-    togglePin(tabName, key);
-
-    // re-apply ordering + badge
-    applyFrame6TabView(tabName);
     startIdleTimer();
+
+    // toggle open/close
+    const pinBtn = card.querySelector(".frame6-pin-action");
+    const isOpen = pinBtn && pinBtn.classList.contains("show");
+
+    if (isOpen) closeCardMenu();
+    else openCardMenu(card);
   });
 }
 
@@ -3034,6 +3092,7 @@ if (tttRestartBtn) bindTap(tttRestartBtn, () => {
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
 
 
 
