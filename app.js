@@ -1350,7 +1350,6 @@ function applyOne(cardEl, fallbackOrder) {
   const pIndex = key ? pinnedKeys.indexOf(key) : -1;
   cardEl.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(fallbackOrder);
   setPinnedBadge(cardEl, pIndex >= 0); // ✅ add marker
-  setPinnedBadge(cardEl, pinned);
 }
 
 let order = 1;
@@ -1606,47 +1605,57 @@ document.addEventListener("click", () => closeCardMenu());
 document.addEventListener("touchstart", () => closeCardMenu(), { passive: true });
 
 function attachFrame6CardHandlers() {
-// ✅ menu click => show circle + Pin/Unpin (NOT toggle yet)
-const menuBtn = card.querySelector(".frame6-card-menu");
-if (menuBtn && menuBtn.dataset.bound !== "1") {
-  menuBtn.dataset.bound = "1";
+  if (!homeCardsTrack) return;
 
-  bindTap(menuBtn, (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    startIdleTimer();
+  const cards = Array.from(homeCardsTrack.querySelectorAll(".frame6-card"));
 
-    // toggle open/close
-    const pinBtn = card.querySelector(".frame6-pin-action");
-    const isOpen = pinBtn && pinBtn.classList.contains("show");
+  cards.forEach((card) => {
+    // ✅ menu click => show circle + Pin/Unpin (NOT toggle yet)
+    const menuBtn = card.querySelector(".frame6-card-menu");
+    if (menuBtn && menuBtn.dataset.bound !== "1") {
+      menuBtn.dataset.bound = "1";
 
-    if (isOpen) closeCardMenu();
-    else openCardMenu(card);
-  });
-}
+      bindTap(menuBtn, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startIdleTimer();
 
-    bindCardTapOnly(card, () => {
-      lastFrame6Tab = currentTabName || "home";
+        // toggle open/close
+        const pinBtn = card.querySelector(".frame6-pin-action");
+        const isOpen = pinBtn && pinBtn.classList.contains("show");
 
-      const isQuiz = card.getAttribute("data-quiz") === "1";
-      if (isQuiz) {
-        const tab = card.getAttribute("data-for-tab") || currentTabName || "healthcare";
-        goToFrame8(tab);
-        return;
-      }
+        if (isOpen) closeCardMenu();
+        else openCardMenu(card);
+      });
+    }
+
+    // ✅ tap-only open card (ignore swipes)
+    if (card.dataset.tapBound !== "1") {
+      card.dataset.tapBound = "1";
+
+      bindCardTapOnly(card, () => {
+        lastFrame6Tab = currentTabName || "home";
+
+        const isQuiz = card.getAttribute("data-quiz") === "1";
+        if (isQuiz) {
+          const tab = card.getAttribute("data-for-tab") || currentTabName || "healthcare";
+          goToFrame8(tab);
+          return;
+        }
 
         const game = card.getAttribute("data-game");
-      if (game) {
-        const tab = card.getAttribute("data-for-tab") || currentTabName || "education";
-        if (game === "scramble") { goToFrame11(tab); return; }
-        if (game === "ttt")      { goToFrame12(tab); return; }
-        return;
-      }
+        if (game) {
+          const tab = card.getAttribute("data-for-tab") || currentTabName || "education";
+          if (game === "scramble") { goToFrame11(tab); return; }
+          if (game === "ttt")      { goToFrame12(tab); return; }
+          return;
+        }
 
-      let type = card.getAttribute('data-card');
-      if (!type) return;
-      goToFrame7(type);
-    });
+        const type = card.getAttribute("data-card");
+        if (!type) return;
+        goToFrame7(type);
+      });
+    }
   });
 }
 attachFrame6CardHandlers();
@@ -3092,6 +3101,7 @@ if (tttRestartBtn) bindTap(tttRestartBtn, () => {
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
 
 
 
