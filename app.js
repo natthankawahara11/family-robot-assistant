@@ -2772,6 +2772,378 @@ function goToFrame15(tab = "community") {
   enterFruitFrame(); // ✅ reset menu + best score + timer
 }
 
+function gameBackToHome() {
+  clearScrambleTimer();
+  goToFrame6(lastFrame6Tab || "home");
+}
+
+if (scrambleBackBtn1) bindTap(scrambleBackBtn1, gameBackToHome);
+if (scrambleBackBtn2) bindTap(scrambleBackBtn2, gameBackToHome);
+if (tttBackBtn1) bindTap(tttBackBtn1, gameBackToHome);
+if (tttBackBtn2) bindTap(tttBackBtn2, gameBackToHome);
+
+// ---------- Scramble ----------
+let scrambleData = null; // { words:[{answer,scrambled,hint}] }
+let scrambleIndex = 0;
+let scrambleScore = 0;
+let scrambleAnswered = false;
+
+let scrambleSecPerWord = 0;
+let scrambleCountdown = 0;
+let scrambleTimerHandle = null;
+
+function clearScrambleTimer() {
+  clearInterval(scrambleTimerHandle);
+  scrambleTimerHandle = null;
+  scrambleCountdown = 0;
+  if (scrambleTimerPill) scrambleTimerPill.textContent = "—";
+}
+function startScrambleTimer(sec) {
+  clearScrambleTimer();
+  if (!sec || sec <= 0) {
+    if (scrambleTimerPill) scrambleTimerPill.textContent = "No timer";
+    return;
+  }
+  scrambleCountdown = sec;
+  if (scrambleTimerPill) scrambleTimerPill.textContent = formatTime(scrambleCountdown);
+  scrambleTimerHandle = setInterval(() => {
+    scrambleCountdown -= 1;
+    if (scrambleTimerPill) scrambleTimerPill.textContent = formatTime(Math.max(0, scrambleCountdown));
+    if (scrambleCountdown <= 0) {
+      clearScrambleTimer();
+      if (!scrambleAnswered) scrambleLockAnswer(true);
+    }
+  }, 1000);
+}
+
+function scrambleShuffleWord(word) {
+  const s = (word || "").toUpperCase().replace(/\s+/g, "");
+  if (s.length <= 2) return s;
+  const arr = s.split("");
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  const out = arr.join("");
+  return (out === s) ? arr.reverse().join("") : out;
+}
+
+// simple local word pools (offline)
+function scramblePoolByTab(tab) {
+  const base = {
+    healthcare: ["HYDRATION","NUTRITION","SLEEP","EXERCISE","VITAMINS","STRETCH","FIRSTAID","HEALTH"],
+    sports: ["ENDURANCE","STAMINA","WARMUP","COOLDOWN","TRAINING","BALANCE","MUSCLE","RECOVERY"],
+    education: ["ALGEBRA","HISTORY","SCIENCE","LANGUAGE","GEOMETRY","ESSAY","READING","HOMEWORK"],
+    community: ["RESPECT","KINDNESS","TEAMWORK","HELPFUL","HONESTY","SAFETY","FRIENDSHIP","COMMUNITY"]
+  };
+  return base[tab] || base.education;
+}
+
+function buildScrambleWords(topic, count, tab, difficulty) {
+  const pool = scramblePoolByTab(tab);
+  const words = [];
+  const used = new Set();
+
+  const wantLen = (difficulty === "Hard") ? 9 : (difficulty === "Easy") ? 5 : 7;
+
+  while (words.length < count) {
+    let w = pool[Math.floor(Math.random() * pool.length)];
+    // mix in topic letters sometimes (just to feel “topic-based” offline)
+    if (topic && Math.random() < 0.25) {
+      const t = topic.toUpperCase().replace(/[^A-Z]/g, "");
+      if (t.length >= 4) w = t.slice(0, Math.min(10, Math.max(4, wantLen)));
+    }
+
+    if (w.length < 4) continue;
+    if (difficulty === "Hard" && w.length < 8) continue;
+    if (difficulty === "Easy" && w.length > 9) continue;
+
+    if (used.has(w)) continue;
+    used.add(w);
+
+    const scrambled = scrambleShuffleWord(w);
+    const hint = `Starts with "${w[0]}" • ${w.length} letters`;
+
+    words.push({ answer: w, scrambled, hint });
+  }
+  return { words };
+}
+
+function renderScramble() {
+  if (!scrambleData || !scrambleData.words?.length) return;
+
+  const total = scrambleData.words.length;
+  const item = scrambleData.words[scrambleIndex];
+
+  scrambleAnswered = false;
+  if (scrambleFeedback) scrambleFeedback.textContent = "";
+  if (scrambleGuessInput) { scrambleGuessInput.value = ""; }
+  if (scrambleWordText) scrambleWordText.textContent = item.scrambled;
+  if (scrambleHintText) scrambleHintText.textContent = `Hint: ${item.hint}`;
+  if (scrambleProgress) scrambleProgress.textContent = `Word ${scrambleIndex + 1} / ${total} • Score ${scrambleScore}`;
+
+  if (scrambleNextBtn) {
+    scrambleNextBtn.disabled = true;
+    scrambleNextBtn.textContent = (scrambleIndex === total - 1) ? "Finish" : "Next";
+  }
+
+  startScrambleTimer(scrambleSecPerWord);
+}
+
+function scrambleLockAnswer(timedOut) {
+  if (!scrambleData) return;
+  const item = scrambleData.words[scrambleIndex];
+  scrambleAnswered = true;
+  clearScrambleTimer();
+
+  const guess = (scrambleGuessInput?.value || "").toUpperCase().replace(/\s+/g, "");
+  const ok = (!timedOut && guess && guess === item.answer);
+
+  if (ok) scrambleScore += 1;
+
+  if (scrambleHintText) scrambleHintText.textContent = `Hint: ${item.hint}`;
+
+  if (scrambleFeedback) {
+    if (timedOut) scrambleFeedback.textContent = `Time’s up! Answer: ${item.answer}`;
+    else if (ok) scrambleFeedback.textContent = `Correct ✅`;
+    else scrambleFeedback.textContent = `Not quite. Answer: ${item.answer}`;
+  }
+
+  if (scrambleNextBtn) scrambleNextBtn.disabled = false;
+}
+
+async function startScrambleFlow() {
+  startIdleTimer();
+
+  const topic = (scrambleTopicInput?.value || "").trim();
+  const count = Number(scrambleCountSelect?.value || 8);
+  const difficulty = String(scrambleDifficultySelect?.value || "Medium");
+  const timer = Number(scrambleTimerSelect?.value || 0);
+
+  if (!topic) {
+    if (scrambleSetupHint) scrambleSetupHint.textContent = "Please enter a topic first.";
+    return;
+  }
+
+  if (scrambleStartBtn) {
+    scrambleStartBtn.disabled = true;
+    scrambleStartBtn.textContent = "Starting…";
+  }
+
+  // ✅ payload สำหรับ AI
+  const payload = {
+    topic,
+    count: Math.max(3, Math.min(15, count)),
+    difficulty
+  };
+
+  // ✅ 1) ลองสร้างจาก AI ก่อน
+  let data = null;
+  try {
+    data = await generateScrambleFromAI(payload); // ต้องมีฟังก์ชันนี้ในไฟล์
+  } catch (_) {
+    data = null;
+  }
+
+  // ✅ 2) ถ้า AI พัง/เน็ตหลุด => ใช้ของเดิมแบบ offline
+  if (!data) {
+    data = buildScrambleWords(topic, payload.count, currentGameTab, difficulty);
+  }
+
+  scrambleData = data;
+  scrambleIndex = 0;
+  scrambleScore = 0;
+  scrambleSecPerWord = timer;
+
+  // ✅ เผื่ออยากให้กด Start ได้อีกตอนกลับไปหน้า setup
+  if (scrambleStartBtn) {
+    scrambleStartBtn.disabled = false;
+    scrambleStartBtn.textContent = "Start Game";
+  }
+
+  goToFrame13();
+  renderScramble();
+}
+
+if (scrambleStartBtn) bindTap(scrambleStartBtn, startScrambleFlow);
+
+if (scrambleCheckBtn) bindTap(scrambleCheckBtn, () => {
+  startIdleTimer();
+  if (scrambleAnswered) return;
+  scrambleLockAnswer(false);
+});
+
+if (scrambleNextBtn) bindTap(scrambleNextBtn, () => {
+  startIdleTimer();
+  if (!scrambleData) return;
+
+  const total = scrambleData.words.length;
+  if (scrambleIndex >= total - 1) {
+    // finish => go back setup with result text
+    goToFrame11(currentGameTab);
+    if (scrambleSetupHint) scrambleSetupHint.textContent = `Finished! Final score: ${scrambleScore} / ${total}`;
+    return;
+  }
+  scrambleIndex += 1;
+  goToFrame13();
+  renderScramble();
+});
+
+// ---------- TicTacToe ----------
+let tttMode = "1p";     // "1p" | "2p"
+let tttHumanSide = "X"; // "X" | "O"
+let tttDifficulty = "Easy";
+
+let tttBoard = Array(9).fill("");
+let tttTurn = "X";
+let tttOver = false;
+
+function setTTTMode(mode) {
+  tttMode = (mode === "2p") ? "2p" : "1p";
+  tttModeBtns.forEach(b => b.classList.toggle("active", b.getAttribute("data-ttt-mode") === tttMode));
+}
+function setTTTSide(side) {
+  tttHumanSide = (side === "O") ? "O" : "X";
+  tttSideBtns.forEach(b => b.classList.toggle("active", b.getAttribute("data-ttt-side") === tttHumanSide));
+}
+
+tttModeBtns.forEach(btn => bindTap(btn, () => { setTTTMode(btn.getAttribute("data-ttt-mode")); startIdleTimer(); }));
+tttSideBtns.forEach(btn => bindTap(btn, () => { setTTTSide(btn.getAttribute("data-ttt-side")); startIdleTimer(); }));
+
+function tttLines() {
+  return [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ];
+}
+function tttWinner(board) {
+  for (const [a,b,c] of tttLines()) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
+  }
+  if (board.every(x => x)) return "draw";
+  return null;
+}
+
+function renderTTT() {
+  if (!tttGrid) return;
+  tttGrid.innerHTML = "";
+
+  tttBoard.forEach((v, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ttt-cell";
+    btn.textContent = v || "";
+    btn.disabled = tttOver || !!v;
+    bindTap(btn, () => onTTTMove(i));
+    tttGrid.appendChild(btn);
+  });
+
+  const w = tttWinner(tttBoard);
+  if (tttStatus) {
+    if (w === "draw") tttStatus.textContent = "Draw 🤝";
+    else if (w) tttStatus.textContent = `${w} wins! 🏆`;
+    else tttStatus.textContent = `Turn: ${tttTurn}`;
+  }
+}
+
+function tttBestMove(board, aiSide) {
+  const human = (aiSide === "X") ? "O" : "X";
+
+  // Easy: random
+  if (tttDifficulty === "Easy") {
+    const empties = board.map((v,i)=>v?null:i).filter(v=>v!==null);
+    return empties[Math.floor(Math.random() * empties.length)];
+  }
+
+  // Medium/Hard: simple win/block + center + corners
+  const empties = board.map((v,i)=>v?null:i).filter(v=>v!==null);
+
+  // win
+  for (const i of empties) {
+    const b = board.slice(); b[i] = aiSide;
+    if (tttWinner(b) === aiSide) return i;
+  }
+  // block
+  for (const i of empties) {
+    const b = board.slice(); b[i] = human;
+    if (tttWinner(b) === human) return i;
+  }
+  // center
+  if (board[4] === "") return 4;
+  // corners
+  const corners = [0,2,6,8].filter(i => board[i] === "");
+  if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
+  // else random
+  return empties[Math.floor(Math.random() * empties.length)];
+}
+
+function maybeAIMove() {
+  if (tttMode !== "1p") return;
+  const aiSide = (tttHumanSide === "X") ? "O" : "X";
+  if (tttTurn !== aiSide) return;
+  if (tttOver) return;
+
+  setTimeout(() => {
+    const idx = tttBestMove(tttBoard, aiSide);
+    if (idx == null) return;
+
+    tttBoard[idx] = aiSide;
+    const w = tttWinner(tttBoard);
+    if (w) tttOver = true;
+    else tttTurn = (aiSide === "X") ? "O" : "X";
+
+    renderTTT();
+  }, 180);
+}
+
+function onTTTMove(i) {
+  startIdleTimer();
+  if (tttOver || tttBoard[i]) return;
+
+  // in 1p: lock human side
+  if (tttMode === "1p" && tttTurn !== tttHumanSide) return;
+
+  tttBoard[i] = tttTurn;
+
+  const w = tttWinner(tttBoard);
+  if (w) {
+    tttOver = true;
+    renderTTT();
+    return;
+  }
+
+  tttTurn = (tttTurn === "X") ? "O" : "X";
+  renderTTT();
+  maybeAIMove();
+}
+
+function startTTTFlow() {
+  startIdleTimer();
+  tttDifficulty = String(tttDiffSelect?.value || "Easy");
+  tttBoard = Array(9).fill("");
+  tttTurn = "X";
+  tttOver = false;
+
+  goToFrame14();
+  renderTTT();
+
+  // if human chose O and mode 1p => AI starts
+  if (tttMode === "1p" && tttHumanSide === "O") {
+    maybeAIMove();
+  }
+}
+
+if (tttStartBtn) bindTap(tttStartBtn, startTTTFlow);
+if (tttRestartBtn) bindTap(tttRestartBtn, () => {
+  startIdleTimer();
+  startTTTFlow();
+});
+
+// =========================================================
+// ✅ Initial screen
+// =========================================================
+
 // =========================================================
 // ✅ FRUIT SLASH GAME (Camera + 1P/2P, 3 min, Best Score)
 // =========================================================
@@ -3206,379 +3578,8 @@ function enterFruitFrame() {
 attachFruitButtons();
 attachFruitInput();
 
-
-function gameBackToHome() {
-  clearScrambleTimer();
-  goToFrame6(lastFrame6Tab || "home");
-}
-
-if (scrambleBackBtn1) bindTap(scrambleBackBtn1, gameBackToHome);
-if (scrambleBackBtn2) bindTap(scrambleBackBtn2, gameBackToHome);
-if (tttBackBtn1) bindTap(tttBackBtn1, gameBackToHome);
-if (tttBackBtn2) bindTap(tttBackBtn2, gameBackToHome);
-
-// ---------- Scramble ----------
-let scrambleData = null; // { words:[{answer,scrambled,hint}] }
-let scrambleIndex = 0;
-let scrambleScore = 0;
-let scrambleAnswered = false;
-
-let scrambleSecPerWord = 0;
-let scrambleCountdown = 0;
-let scrambleTimerHandle = null;
-
-function clearScrambleTimer() {
-  clearInterval(scrambleTimerHandle);
-  scrambleTimerHandle = null;
-  scrambleCountdown = 0;
-  if (scrambleTimerPill) scrambleTimerPill.textContent = "—";
-}
-function startScrambleTimer(sec) {
-  clearScrambleTimer();
-  if (!sec || sec <= 0) {
-    if (scrambleTimerPill) scrambleTimerPill.textContent = "No timer";
-    return;
-  }
-  scrambleCountdown = sec;
-  if (scrambleTimerPill) scrambleTimerPill.textContent = formatTime(scrambleCountdown);
-  scrambleTimerHandle = setInterval(() => {
-    scrambleCountdown -= 1;
-    if (scrambleTimerPill) scrambleTimerPill.textContent = formatTime(Math.max(0, scrambleCountdown));
-    if (scrambleCountdown <= 0) {
-      clearScrambleTimer();
-      if (!scrambleAnswered) scrambleLockAnswer(true);
-    }
-  }, 1000);
-}
-
-function scrambleShuffleWord(word) {
-  const s = (word || "").toUpperCase().replace(/\s+/g, "");
-  if (s.length <= 2) return s;
-  const arr = s.split("");
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  const out = arr.join("");
-  return (out === s) ? arr.reverse().join("") : out;
-}
-
-// simple local word pools (offline)
-function scramblePoolByTab(tab) {
-  const base = {
-    healthcare: ["HYDRATION","NUTRITION","SLEEP","EXERCISE","VITAMINS","STRETCH","FIRSTAID","HEALTH"],
-    sports: ["ENDURANCE","STAMINA","WARMUP","COOLDOWN","TRAINING","BALANCE","MUSCLE","RECOVERY"],
-    education: ["ALGEBRA","HISTORY","SCIENCE","LANGUAGE","GEOMETRY","ESSAY","READING","HOMEWORK"],
-    community: ["RESPECT","KINDNESS","TEAMWORK","HELPFUL","HONESTY","SAFETY","FRIENDSHIP","COMMUNITY"]
-  };
-  return base[tab] || base.education;
-}
-
-function buildScrambleWords(topic, count, tab, difficulty) {
-  const pool = scramblePoolByTab(tab);
-  const words = [];
-  const used = new Set();
-
-  const wantLen = (difficulty === "Hard") ? 9 : (difficulty === "Easy") ? 5 : 7;
-
-  while (words.length < count) {
-    let w = pool[Math.floor(Math.random() * pool.length)];
-    // mix in topic letters sometimes (just to feel “topic-based” offline)
-    if (topic && Math.random() < 0.25) {
-      const t = topic.toUpperCase().replace(/[^A-Z]/g, "");
-      if (t.length >= 4) w = t.slice(0, Math.min(10, Math.max(4, wantLen)));
-    }
-
-    if (w.length < 4) continue;
-    if (difficulty === "Hard" && w.length < 8) continue;
-    if (difficulty === "Easy" && w.length > 9) continue;
-
-    if (used.has(w)) continue;
-    used.add(w);
-
-    const scrambled = scrambleShuffleWord(w);
-    const hint = `Starts with "${w[0]}" • ${w.length} letters`;
-
-    words.push({ answer: w, scrambled, hint });
-  }
-  return { words };
-}
-
-function renderScramble() {
-  if (!scrambleData || !scrambleData.words?.length) return;
-
-  const total = scrambleData.words.length;
-  const item = scrambleData.words[scrambleIndex];
-
-  scrambleAnswered = false;
-  if (scrambleFeedback) scrambleFeedback.textContent = "";
-  if (scrambleGuessInput) { scrambleGuessInput.value = ""; }
-  if (scrambleWordText) scrambleWordText.textContent = item.scrambled;
-  if (scrambleHintText) scrambleHintText.textContent = `Hint: ${item.hint}`;
-  if (scrambleProgress) scrambleProgress.textContent = `Word ${scrambleIndex + 1} / ${total} • Score ${scrambleScore}`;
-
-  if (scrambleNextBtn) {
-    scrambleNextBtn.disabled = true;
-    scrambleNextBtn.textContent = (scrambleIndex === total - 1) ? "Finish" : "Next";
-  }
-
-  startScrambleTimer(scrambleSecPerWord);
-}
-
-function scrambleLockAnswer(timedOut) {
-  if (!scrambleData) return;
-  const item = scrambleData.words[scrambleIndex];
-  scrambleAnswered = true;
-  clearScrambleTimer();
-
-  const guess = (scrambleGuessInput?.value || "").toUpperCase().replace(/\s+/g, "");
-  const ok = (!timedOut && guess && guess === item.answer);
-
-  if (ok) scrambleScore += 1;
-
-  if (scrambleHintText) scrambleHintText.textContent = `Hint: ${item.hint}`;
-
-  if (scrambleFeedback) {
-    if (timedOut) scrambleFeedback.textContent = `Time’s up! Answer: ${item.answer}`;
-    else if (ok) scrambleFeedback.textContent = `Correct ✅`;
-    else scrambleFeedback.textContent = `Not quite. Answer: ${item.answer}`;
-  }
-
-  if (scrambleNextBtn) scrambleNextBtn.disabled = false;
-}
-
-async function startScrambleFlow() {
-  startIdleTimer();
-
-  const topic = (scrambleTopicInput?.value || "").trim();
-  const count = Number(scrambleCountSelect?.value || 8);
-  const difficulty = String(scrambleDifficultySelect?.value || "Medium");
-  const timer = Number(scrambleTimerSelect?.value || 0);
-
-  if (!topic) {
-    if (scrambleSetupHint) scrambleSetupHint.textContent = "Please enter a topic first.";
-    return;
-  }
-
-  if (scrambleStartBtn) {
-    scrambleStartBtn.disabled = true;
-    scrambleStartBtn.textContent = "Starting…";
-  }
-
-  // ✅ payload สำหรับ AI
-  const payload = {
-    topic,
-    count: Math.max(3, Math.min(15, count)),
-    difficulty
-  };
-
-  // ✅ 1) ลองสร้างจาก AI ก่อน
-  let data = null;
-  try {
-    data = await generateScrambleFromAI(payload); // ต้องมีฟังก์ชันนี้ในไฟล์
-  } catch (_) {
-    data = null;
-  }
-
-  // ✅ 2) ถ้า AI พัง/เน็ตหลุด => ใช้ของเดิมแบบ offline
-  if (!data) {
-    data = buildScrambleWords(topic, payload.count, currentGameTab, difficulty);
-  }
-
-  scrambleData = data;
-  scrambleIndex = 0;
-  scrambleScore = 0;
-  scrambleSecPerWord = timer;
-
-  // ✅ เผื่ออยากให้กด Start ได้อีกตอนกลับไปหน้า setup
-  if (scrambleStartBtn) {
-    scrambleStartBtn.disabled = false;
-    scrambleStartBtn.textContent = "Start Game";
-  }
-
-  goToFrame13();
-  renderScramble();
-}
-
-if (scrambleStartBtn) bindTap(scrambleStartBtn, startScrambleFlow);
-
-if (scrambleCheckBtn) bindTap(scrambleCheckBtn, () => {
-  startIdleTimer();
-  if (scrambleAnswered) return;
-  scrambleLockAnswer(false);
-});
-
-if (scrambleNextBtn) bindTap(scrambleNextBtn, () => {
-  startIdleTimer();
-  if (!scrambleData) return;
-
-  const total = scrambleData.words.length;
-  if (scrambleIndex >= total - 1) {
-    // finish => go back setup with result text
-    goToFrame11(currentGameTab);
-    if (scrambleSetupHint) scrambleSetupHint.textContent = `Finished! Final score: ${scrambleScore} / ${total}`;
-    return;
-  }
-  scrambleIndex += 1;
-  goToFrame13();
-  renderScramble();
-});
-
-// ---------- TicTacToe ----------
-let tttMode = "1p";     // "1p" | "2p"
-let tttHumanSide = "X"; // "X" | "O"
-let tttDifficulty = "Easy";
-
-let tttBoard = Array(9).fill("");
-let tttTurn = "X";
-let tttOver = false;
-
-function setTTTMode(mode) {
-  tttMode = (mode === "2p") ? "2p" : "1p";
-  tttModeBtns.forEach(b => b.classList.toggle("active", b.getAttribute("data-ttt-mode") === tttMode));
-}
-function setTTTSide(side) {
-  tttHumanSide = (side === "O") ? "O" : "X";
-  tttSideBtns.forEach(b => b.classList.toggle("active", b.getAttribute("data-ttt-side") === tttHumanSide));
-}
-
-tttModeBtns.forEach(btn => bindTap(btn, () => { setTTTMode(btn.getAttribute("data-ttt-mode")); startIdleTimer(); }));
-tttSideBtns.forEach(btn => bindTap(btn, () => { setTTTSide(btn.getAttribute("data-ttt-side")); startIdleTimer(); }));
-
-function tttLines() {
-  return [
-    [0,1,2],[3,4,5],[6,7,8],
-    [0,3,6],[1,4,7],[2,5,8],
-    [0,4,8],[2,4,6]
-  ];
-}
-function tttWinner(board) {
-  for (const [a,b,c] of tttLines()) {
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
-  }
-  if (board.every(x => x)) return "draw";
-  return null;
-}
-
-function renderTTT() {
-  if (!tttGrid) return;
-  tttGrid.innerHTML = "";
-
-  tttBoard.forEach((v, i) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "ttt-cell";
-    btn.textContent = v || "";
-    btn.disabled = tttOver || !!v;
-    bindTap(btn, () => onTTTMove(i));
-    tttGrid.appendChild(btn);
-  });
-
-  const w = tttWinner(tttBoard);
-  if (tttStatus) {
-    if (w === "draw") tttStatus.textContent = "Draw 🤝";
-    else if (w) tttStatus.textContent = `${w} wins! 🏆`;
-    else tttStatus.textContent = `Turn: ${tttTurn}`;
-  }
-}
-
-function tttBestMove(board, aiSide) {
-  const human = (aiSide === "X") ? "O" : "X";
-
-  // Easy: random
-  if (tttDifficulty === "Easy") {
-    const empties = board.map((v,i)=>v?null:i).filter(v=>v!==null);
-    return empties[Math.floor(Math.random() * empties.length)];
-  }
-
-  // Medium/Hard: simple win/block + center + corners
-  const empties = board.map((v,i)=>v?null:i).filter(v=>v!==null);
-
-  // win
-  for (const i of empties) {
-    const b = board.slice(); b[i] = aiSide;
-    if (tttWinner(b) === aiSide) return i;
-  }
-  // block
-  for (const i of empties) {
-    const b = board.slice(); b[i] = human;
-    if (tttWinner(b) === human) return i;
-  }
-  // center
-  if (board[4] === "") return 4;
-  // corners
-  const corners = [0,2,6,8].filter(i => board[i] === "");
-  if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
-  // else random
-  return empties[Math.floor(Math.random() * empties.length)];
-}
-
-function maybeAIMove() {
-  if (tttMode !== "1p") return;
-  const aiSide = (tttHumanSide === "X") ? "O" : "X";
-  if (tttTurn !== aiSide) return;
-  if (tttOver) return;
-
-  setTimeout(() => {
-    const idx = tttBestMove(tttBoard, aiSide);
-    if (idx == null) return;
-
-    tttBoard[idx] = aiSide;
-    const w = tttWinner(tttBoard);
-    if (w) tttOver = true;
-    else tttTurn = (aiSide === "X") ? "O" : "X";
-
-    renderTTT();
-  }, 180);
-}
-
-function onTTTMove(i) {
-  startIdleTimer();
-  if (tttOver || tttBoard[i]) return;
-
-  // in 1p: lock human side
-  if (tttMode === "1p" && tttTurn !== tttHumanSide) return;
-
-  tttBoard[i] = tttTurn;
-
-  const w = tttWinner(tttBoard);
-  if (w) {
-    tttOver = true;
-    renderTTT();
-    return;
-  }
-
-  tttTurn = (tttTurn === "X") ? "O" : "X";
-  renderTTT();
-  maybeAIMove();
-}
-
-function startTTTFlow() {
-  startIdleTimer();
-  tttDifficulty = String(tttDiffSelect?.value || "Easy");
-  tttBoard = Array(9).fill("");
-  tttTurn = "X";
-  tttOver = false;
-
-  goToFrame14();
-  renderTTT();
-
-  // if human chose O and mode 1p => AI starts
-  if (tttMode === "1p" && tttHumanSide === "O") {
-    maybeAIMove();
-  }
-}
-
-if (tttStartBtn) bindTap(tttStartBtn, startTTTFlow);
-if (tttRestartBtn) bindTap(tttRestartBtn, () => {
-  startIdleTimer();
-  startTTTFlow();
-});
-
-// =========================================================
-// ✅ Initial screen
-// =========================================================
 goToFrame1();
+
 
 
 
