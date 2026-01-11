@@ -1782,7 +1782,13 @@ body{
   .game-card{ width:92vw; }
 }
 
-
-
-
-
+.pin-badge{
+  position:absolute;
+  top:0;
+  left:0;
+  width:60px;          /* ปรับได้ */
+  height:auto;
+  transform: translate(-50%, -50%); /* ✅ เอาจุดกึ่งกลางไปทับมุม */
+  pointer-events:none;
+  z-index:5;
+}
