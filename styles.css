@@ -809,12 +809,19 @@ body{
    Paste this at the VERY END of styles.css
    ========================================================= */
 
+/* =========================================================
+   ✅ FRAME 6 — PIN/UNPIN SYSTEM (MATCH app.js)
+   Paste this at the VERY END of styles.css
+   ========================================================= */
+
+/* card sizing (ตามที่คุณตั้งไว้) */
 .frame6-card{
   flex:0 0 340px;
   height:210px;
   position:relative;
   touch-action: manipulation;
 }
+
 .frame6-card img{
   width:100%;
   height:100%;
@@ -823,19 +830,25 @@ body{
   border-radius:16px;
 }
 
-/* ✅ Fix_Menu tap target + overlay circle (40x40, rgba(0,0,0,0.25)) */
+/* =========================================================
+   ✅ Fix_Menu button (tap target)
+   app.js ใช้ .frame6-card-menu เป็นปุ่มเปิดวงกลม Pin/Unpin
+   ========================================================= */
 .frame6-card-menu{
   position:absolute;
-  left:304px;     /* ✅ X304 */
-  top:161px;      /* ✅ Y161 */
-  width:6px;      /* ✅ Fix_Menu size */
-  height:23.71px; /* ✅ Fix_Menu size */
+  left:304px;          /* X304 */
+  top:161px;           /* Y161 */
+  width:6px;           /* Fix_Menu size */
+  height:23.71px;      /* Fix_Menu size */
   padding:0;
   border:none;
   background:transparent;
-  z-index:8;
+  z-index:20;
+  cursor:pointer;
 }
 
+/* ✅ เพิ่มพื้นที่กด (hit-area) 40x40 แต่ไม่โชว์วงกลม
+   วงกลม “โชว์จริง” จะเป็น .frame6-pin-action ตอนเมนูเปิด */
 .frame6-card-menu::after{
   content:"";
   position:absolute;
@@ -843,113 +856,22 @@ body{
   top:-8px;
   width:40px;
   height:40px;
-  background:transparent;   /* ✅ ไม่มีวงกลมตอนแรก */
+  background:transparent;
 }
 
-.frame6-card-menu .menu-circle{
-  position:absolute;
-  inset:0;
-  border-radius:999px;
-  background:rgba(0,0,0,0.25);
-}
-
+/* icon ภายในปุ่ม */
 .frame6-card-menu img{
-  width:6px;               /* keep icon size */
+  width:6px;
   height:23.71px;
   object-fit:contain;
   display:block;
-  pointer-events:none;     /* click goes to wrapper */
+  pointer-events:none; /* ให้คลิกโดน wrapper */
 }
 
-/* ✅ Popover menu (Pin/Unpin) */
-.frame6-card-menu-pop{
-  position:absolute;
-  top:62px;                /* below the 40px menu */
-  right:12px;
-  width:140px;
-  border-radius:14px;
-  background:rgba(255,255,255,0.94);
-  border:1px solid rgba(0,0,0,0.10);
-  box-shadow:0 14px 28px rgba(0,0,0,0.18);
-  padding:6px;
-  display:none;
-  z-index:70;
-  pointer-events:auto;
-}
-
-/* show when card has menu open */
-.frame6-card.menu-open .frame6-card-menu-pop{
-  display:block;
-}
-
-/* Pin toggle button inside menu */
-.frame6-card-menu-pop .pin-toggle{
-  width:100%;
-  height:40px;
-  border:none;
-  border-radius:12px;
-  background:rgba(255,255,255,0.92);
-  display:flex;
-  align-items:center;
-  justify-content:flex-start;
-  gap:10px;
-  padding:0 10px;
-  font-weight:900;
-  font-size:13px;
-  color:rgba(0,0,0,0.70);
-  touch-action: manipulation;
-}
-
-.frame6-card-menu-pop .pin-toggle:active{
-  transform:scale(0.98);
-}
-
-.frame6-card-menu-pop .pin-icon{
-  width:18px;
-  height:18px;
-  object-fit:contain;
-  display:block;
-}
-
-.frame6-card-menu-pop .pin-text{
-  font-weight:900;
-  font-size:13px;
-  color:rgba(0,0,0,0.70);
-}
-
-/* ✅ Pin header marker (Pin_Header.png)
-   - place at top-left corner using CENTER of PNG */
-.frame6-card .pin-header{
-  position:absolute;
-  left:0;
-  top:0;
-  width:44px;         /* adjust if your PNG differs */
-  height:44px;
-  transform:translate(-50%, -50%);
-  z-index:40;
-  pointer-events:none;
-  display:none;       /* hidden unless pinned */
-  object-fit:contain;
-}
-
-/* show marker only when pinned */
-.frame6-card.is-pinned .pin-header{
-  display:block;
-}
-
-/* Optional: little depth for marker */
-.frame6-card.is-pinned .pin-header{
-  filter: drop-shadow(0 10px 14px rgba(0,0,0,0.18));
-}
-
-/* ✅ Prevent menu clicks from triggering card click (helps iPhone) */
-.frame6-card-menu,
-.frame6-card-menu-pop,
-.frame6-card-menu-pop *{
-  -webkit-tap-highlight-color: rgba(0,0,0,0);
-}
-
-/* ปุ่มวงกลม + Pin/Unpin ที่โผล่มาหลังจากกด Fix_Menu */
+/* =========================================================
+   ✅ Pin/Unpin circle button (ถูกสร้างโดย app.js)
+   class: .frame6-pin-action + .show
+   ========================================================= */
 .frame6-pin-action{
   position:absolute;
 
@@ -958,22 +880,30 @@ body{
      centerY = 161 + 23.71/2 = 172.855
      วงกลม 40x40 => left=307-20=287, top=172.855-20=152.855
   */
-  left:287px;         /* ✅ */
-  top:152.855px;      /* ✅ */
+  left:287px;
+  top:152.855px;
+
   width:40px;
   height:40px;
   border:none;
   border-radius:999px;
-  background: rgba(0,0,0,0.25); /* ✅ โชว์ตอนเมนูเปิดเท่านั้น */
-  display:none;       /* ✅ ซ่อนตอนแรก */
+  background: rgba(0,0,0,0.25);
+  display:none;
   align-items:center;
   justify-content:center;
-  z-index:9;
+  z-index:30;
   padding:0;
+
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
 
 .frame6-pin-action.show{
-  display:flex;       /* ✅ เปิดแล้วค่อยโชว์ */
+  display:flex;
+}
+
+.frame6-pin-action:active{
+  transform:scale(0.98);
 }
 
 .frame6-pin-action img{
@@ -981,6 +911,42 @@ body{
   height:22px;
   display:block;
   pointer-events:none;
+}
+
+/* =========================================================
+   ✅ Pinned badge marker (Pin_Header.png)
+   app.js ใช้คลาส: .pin-badge (ไม่ใช่ .pin-header / .is-pinned)
+   ========================================================= */
+.frame6-card .pin-badge{
+  position:absolute;
+  left:0;
+  top:0;
+  width:44px;     /* ปรับได้ตามไฟล์จริง */
+  height:44px;
+  transform: translate(-50%, -50%); /* ใช้ “center” ของ PNG วางที่มุม */
+  z-index:25;
+  pointer-events:none;
+  object-fit:contain;
+  display:none;
+  filter: drop-shadow(0 10px 14px rgba(0,0,0,0.18));
+}
+
+/* app.js จะสั่ง badge.style.display = block/none เอง */
+
+/* =========================================================
+   ✅ “menu-open” class (app.js ใส่/ถอดไว้)
+   ตอนนี้เราไม่ต้องโชว์ popover box แล้ว
+   แต่คงไว้เผื่ออนาคต ไม่ทำอะไรเพิ่มก็ได้
+   ========================================================= */
+.frame6-card.menu-open{}
+
+/* =========================================================
+   ✅ Prevent menu-related taps from triggering card tap
+   ========================================================= */
+.frame6-card-menu,
+.frame6-pin-action,
+.frame6-card-menu *{
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
 
 /* FRAME 7 Chatbot (same as your existing) */
@@ -1840,3 +1806,4 @@ body{
   pointer-events:none;
   z-index:5;
 }
+
