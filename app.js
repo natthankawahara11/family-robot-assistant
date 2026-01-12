@@ -814,7 +814,7 @@ function restoreLastFrame() {
     case 'frame12': goToFrame12(currentGameTab || "education"); break;
     case 'frame13': goToFrame13(); break;
     case 'frame14': goToFrame14(); break;
-    case 'frame15': goToFrame15(currentGameTab || \"community\"); break;
+    case 'frame15': goToFrame15(currentGameTab || "community"); break;
     default: goToFrame1(); break;
   }
 }
@@ -1787,7 +1787,7 @@ window.addEventListener('resize', () => {
       (frame12 && frame12.style.display === 'block') ||
       (frame13 && frame13.style.display === 'block') ||
       (frame14 && frame14.style.display === 'block') ||
-      (frame15 && frame15.style.display === 'block') {
+      (frame15 && frame15.style.display === 'block')) {
     updateGameScale();
   }
 });
