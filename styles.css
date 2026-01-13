@@ -45,7 +45,8 @@ body{
 .frame3-btn-left, .frame3-btn-right, .frame4-btn-left, .frame4-btn-right,
 .frame6-tab, .frame6-card, .chat-icon, .mini-btn, .thread-item,
 .profile-card, .profile-option, .frame6-profile,
-.quiz-primary, .quiz-secondary, .quiz-choice, .quiz-back{
+.quiz-primary, .quiz-secondary, .quiz-choice, .quiz-back, 
+.game-primary, .game-secondary, .toggle-btn, .ttt-cell, .game-back{
   cursor:pointer;
   -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
@@ -211,7 +212,7 @@ body{
 /* ✅ Z-INDEX */
 .frame-1{ z-index:1; }
 .frame-2, .frame-3, .frame-4, .frame-5, .frame-6, .frame-7, .frame-avatar,
-.frame-8, .frame-9, .frame-10{ z-index:2; }
+.frame-8, .frame-9, .frame-10, .frame-11, .frame-12, .frame-13, .frame-14{ z-index:2; }
 
 /* FRAME 1 */
 .frame-1{
@@ -803,12 +804,24 @@ body{
   will-change:transform;
 }
 
+/* =========================================================
+   ✅ FRAME 6 — PIN/UNPIN SYSTEM (OVERRIDE BLOCK)
+   Paste this at the VERY END of styles.css
+   ========================================================= */
+
+/* =========================================================
+   ✅ FRAME 6 — PIN/UNPIN SYSTEM (MATCH app.js)
+   Paste this at the VERY END of styles.css
+   ========================================================= */
+
+/* card sizing (ตามที่คุณตั้งไว้) */
 .frame6-card{
   flex:0 0 340px;
   height:210px;
   position:relative;
   touch-action: manipulation;
 }
+
 .frame6-card img{
   width:100%;
   height:100%;
@@ -817,15 +830,124 @@ body{
   border-radius:16px;
 }
 
+/* =========================================================
+   ✅ Fix_Menu button (tap target)
+   app.js ใช้ .frame6-card-menu เป็นปุ่มเปิดวงกลม Pin/Unpin
+   ========================================================= */
 .frame6-card-menu{
   position:absolute;
+  left:304px;          /* X304 */
+  top:161px;           /* Y161 */
+  width:6px;           /* Fix_Menu size */
+  height:23.71px;      /* Fix_Menu size */
+  padding:0;
+  border:none;
+  background:transparent;
+  z-index:20;
+  cursor:pointer;
+}
+
+/* ✅ เพิ่มพื้นที่กด (hit-area) 40x40 แต่ไม่โชว์วงกลม
+   วงกลม “โชว์จริง” จะเป็น .frame6-pin-action ตอนเมนูเปิด */
+.frame6-card-menu::after{
+  content:"";
+  position:absolute;
+  left:-17px;
+  top:-8px;
+  width:40px;
+  height:40px;
+  background:transparent;
+}
+
+/* icon ภายในปุ่ม */
+.frame6-card-menu img{
   width:6px;
   height:23.71px;
-  right:30px;
-  bottom:25px;
-  touch-action: manipulation;
+  object-fit:contain;
+  display:block;
+  pointer-events:none; /* ให้คลิกโดน wrapper */
 }
-.frame6-card-menu img{ width:100%; height:100%; object-fit:contain; display:block; }
+
+/* =========================================================
+   ✅ Pin/Unpin circle button (ถูกสร้างโดย app.js)
+   class: .frame6-pin-action + .show
+   ========================================================= */
+.frame6-pin-action{
+  position:absolute;
+
+  /* center ของ Fix_Menu:
+     centerX = 304 + 3 = 307
+     centerY = 161 + 23.71/2 = 172.855
+     วงกลม 40x40 => left=307-20=287, top=172.855-20=152.855
+  */
+  left:287px;
+  top:152.855px;
+
+  width:40px;
+  height:40px;
+  border:none;
+  border-radius:999px;
+  background: rgba(0,0,0,0.25);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:30;
+  padding:0;
+
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+
+.frame6-pin-action.show{
+  display:flex;
+}
+
+.frame6-pin-action:active{
+  transform:scale(0.98);
+}
+
+.frame6-pin-action img{
+  width:22px;
+  height:22px;
+  display:block;
+  pointer-events:none;
+}
+
+/* =========================================================
+   ✅ Pinned badge marker (Pin_Header.png)
+   app.js ใช้คลาส: .pin-badge (ไม่ใช่ .pin-header / .is-pinned)
+   ========================================================= */
+.frame6-card .pin-badge{
+  position:absolute;
+  left:0;
+  top:0;
+  width:44px;     /* ปรับได้ตามไฟล์จริง */
+  height:44px;
+  transform: translate(-50%, -50%); /* ใช้ “center” ของ PNG วางที่มุม */
+  z-index:25;
+  pointer-events:none;
+  object-fit:contain;
+  display:none;
+  filter: drop-shadow(0 10px 14px rgba(0,0,0,0.18));
+}
+
+/* app.js จะสั่ง badge.style.display = block/none เอง */
+
+/* =========================================================
+   ✅ “menu-open” class (app.js ใส่/ถอดไว้)
+   ตอนนี้เราไม่ต้องโชว์ popover box แล้ว
+   แต่คงไว้เผื่ออนาคต ไม่ทำอะไรเพิ่มก็ได้
+   ========================================================= */
+.frame6-card.menu-open{}
+
+/* =========================================================
+   ✅ Prevent menu-related taps from triggering card tap
+   ========================================================= */
+.frame6-card-menu,
+.frame6-pin-action,
+.frame6-card-menu *{
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
 
 /* FRAME 7 Chatbot (same as your existing) */
 .frame-7{
@@ -1164,7 +1286,7 @@ body{
 /* =========================================================
    ✅ QUIZ FRAMES (8/9/10)
    ========================================================= */
-.frame-8, .frame-9, .frame-10{
+.frame-8, .frame-9, .frame-10, .frame-11, .frame-12, .frame-13, .frame-14{
   position:fixed;
   inset:0;
   width:100vw;
@@ -1425,4 +1547,418 @@ body{
 @media (max-width: 900px){
   .quiz-panel{ width:92vw; }
   .quiz-card{ width:92vw; }
+}
+
+/* =========================================================
+   ✅ GAME FRAMES (11/12/13/14) — reusing Quiz style
+   ========================================================= */
+
+.game-stage{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:864px;
+  height:444px;
+  transform:translate(-50%, -50%) scale(var(--gs, 1));
+  transform-origin:center center;
+}
+
+.game-back{
+  position:absolute;
+  left:15px;
+  top:25px;
+  width:40px;
+  height:40px;
+  opacity:0.65;
+  touch-action: manipulation;
+  z-index:10;
+}
+.game-back img{ width:100%; height:100%; object-fit:contain; display:block; }
+
+.game-title{
+  position:absolute;
+  left:50%;
+  top:35px;
+  transform:translateX(-50%);
+  font-weight:900;
+  font-size:40px;
+  line-height:1;
+  background:linear-gradient(90deg, #79aaaa 0%, #96D7C6 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  -webkit-text-stroke:2px rgba(102,102,102,0.75);
+  text-align:center;
+  white-space:nowrap;
+  pointer-events:none;
+}
+
+.game-panel{
+  position:absolute;
+  left:50%;
+  top:110px;
+  transform:translateX(-50%);
+  width:740px;
+  border-radius:18px;
+  background:rgba(255,255,255,0.86);
+  border:1px solid rgba(0,0,0,0.10);
+  box-shadow:0 14px 28px rgba(0,0,0,0.16);
+  padding:16px 16px 14px;
+}
+
+.game-row{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-bottom:12px;
+}
+
+.game-label{
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.60);
+}
+
+.game-select{
+  width:100%;
+  height:40px;
+  border:none;
+  outline:none;
+  background:rgba(255,255,255,0.9);
+  border:1px solid rgba(0,0,0,0.10);
+  border-radius:12px;
+  padding:0 10px;
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+}
+
+.game-input{
+  width:100%;
+  height:42px;
+  border:none;
+  outline:none;
+  background:rgba(255,255,255,0.9);
+  border:1px solid rgba(0,0,0,0.10);
+  border-radius:12px;
+  padding:0 12px;
+  font-weight:900;
+  font-size:13px;
+  color:rgba(0,0,0,0.65);
+}
+
+.game-primary{
+  margin-top:12px;
+  width:100%;
+  height:44px;
+  border:none;
+  border-radius:14px;
+  background:rgba(99,26,173,0.92);
+  color:#fff;
+  font-weight:900;
+  font-size:13px;
+  box-shadow:0 12px 22px rgba(99,26,173,0.18);
+}
+
+.game-secondary{
+  height:40px;
+  padding:0 14px;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.85);
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+}
+
+.game-hint{
+  margin-top:10px;
+  font-weight:800;
+  font-size:12px;
+  color:rgba(0,0,0,0.48);
+}
+
+.game-topbar{
+  position:absolute;
+  right:20px;
+  top:25px;
+  display:flex;
+  gap:10px;
+  z-index:10;
+}
+.game-pill{
+  height:34px;
+  padding:0 12px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.82);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+}
+
+.game-card{
+  position:absolute;
+  left:50%;
+  top:95px;
+  transform:translateX(-50%);
+  width:760px;
+  height:310px;
+  border-radius:18px;
+  background:rgba(255,255,255,0.86);
+  border:1px solid rgba(0,0,0,0.10);
+  box-shadow:0 14px 28px rgba(0,0,0,0.16);
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.game-actions{
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+}
+
+.game-feedback{
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.55);
+  min-height:16px;
+}
+
+/* Toggles (mode + side) */
+.game-toggle{
+  display:flex;
+  gap:10px;
+}
+.toggle-btn{
+  flex:1;
+  height:40px;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.85);
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.65);
+  touch-action: manipulation;
+}
+.toggle-btn.active{
+  border-color:rgba(99,26,173,0.38);
+  box-shadow:0 10px 18px rgba(99,26,173,0.12);
+}
+
+/* Word Scramble */
+.scramble-word{
+  font-weight:900;
+  font-size:32px;
+  color:rgba(0,0,0,0.72);
+  text-align:center;
+  letter-spacing:6px;
+  margin-top:6px;
+}
+.scramble-hint{
+  font-weight:900;
+  font-size:12px;
+  color:rgba(0,0,0,0.55);
+  text-align:center;
+}
+
+/* Tic Tac Toe */
+.ttt-grid{
+  width:100%;
+  flex:1;
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:10px;
+  margin-top:8px;
+}
+.ttt-cell{
+  height:82px;
+  border-radius:16px;
+  border:1px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.92);
+  font-weight:900;
+  font-size:32px;
+  color:rgba(0,0,0,0.75);
+  touch-action: manipulation;
+}
+.ttt-cell:disabled{
+  opacity:0.65;
+}
+
+/* scale */
+@media (max-width: 900px){
+  .game-panel{ width:92vw; }
+  .game-card{ width:92vw; }
+}
+
+.pin-badge{
+  position:absolute;
+  top:0;
+  left:0;
+  width:35px;          /* ✅ 35x35 */
+  height:35px;         /* ✅ 35x35 */
+  transform: translate(-50%, -50%); /* center ไปทับมุม */
+  pointer-events:none;
+  z-index:5;
+}
+
+
+
+/* =========================
+   FRAME 15: Fruit Slash (Camera Game)
+   ========================= */
+
+.frame-15{
+  position:relative;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#000;
+}
+
+.fruit-container{
+  position:absolute;
+  inset:0;
+}
+
+#fruitVideo{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  transform: scaleX(-1); /* mirror for selfie view */
+}
+
+#fruitCanvas{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  pointer-events:auto;
+}
+
+.fruit-back{
+  position:absolute;
+  top:18px;
+  left:18px;
+  z-index:50;
+  background:transparent;
+  border:none;
+  padding:0;
+  width:56px;
+  height:56px;
+}
+
+.fruit-back img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+
+.fruit-hud{
+  position:absolute;
+  top:18px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:40;
+  display:flex;
+  gap:10px;
+  align-items:center;
+  padding:10px 12px;
+  border-radius:16px;
+  background:rgba(0,0,0,0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color:#fff;
+  font-weight:700;
+}
+
+.fruit-timer{
+  min-width:72px;
+  text-align:center;
+  font-size:18px;
+}
+
+.fruit-score, .fruit-score2, .fruit-best{
+  font-size:14px;
+  white-space:nowrap;
+  opacity:0.95;
+}
+
+.fruit-score2{
+  display:none; /* shown in 2P */
+}
+
+.fruit-overlay, .fruit-end{
+  position:absolute;
+  inset:0;
+  z-index:45;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(0,0,0,0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.fruit-panel{
+  width:min(520px, 92vw);
+  border-radius:26px;
+  padding:18px 16px;
+  background:rgba(255,255,255,0.92);
+  box-shadow: 0 12px 26px rgba(0,0,0,0.22);
+  text-align:center;
+}
+
+.fruit-title{
+  font-size:26px;
+  font-weight:900;
+  color:rgba(99,26,173,0.92);
+  margin-bottom:8px;
+}
+
+.fruit-sub{
+  font-size:14px;
+  font-weight:600;
+  color:rgba(0,0,0,0.68);
+  margin-bottom:14px;
+  line-height:1.25;
+}
+
+.fruit-mode{
+  display:flex;
+  gap:10px;
+  justify-content:center;
+  margin-bottom:12px;
+}
+
+.fruit-mode-btn{
+  flex:1;
+  max-width:160px;
+}
+
+.fruit-mode-btn.active{
+  background:rgba(99,26,173,0.92);
+  color:#fff;
+}
+
+.fruit-hint{
+  margin-top:12px;
+  font-size:12px;
+  font-weight:600;
+  color:rgba(0,0,0,0.55);
+}
+
+.fruit-result, .fruit-bestline{
+  font-size:18px;
+  font-weight:800;
+  margin:10px 0;
+  color:rgba(0,0,0,0.75);
 }
