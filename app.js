@@ -28,6 +28,7 @@ function scheduleSaveAll() {
       currentProfileId: currentProfile?.id || null,
       micLang
     });
+    lsSet(LS_PINS_KEY, pinnedByProfile);
   }, 150);
 }
 
@@ -41,6 +42,19 @@ const bootPercent = document.getElementById('bootPercent');
 
 let bootReady = false;
 
+// ✅ show JS errors on boot screen (helps debugging on iPhone)
+window.addEventListener("error", (e) => {
+  try {
+    if (bootStatus) bootStatus.textContent = "Error: " + (e?.message || "unknown");
+  } catch (_) {}
+});
+window.addEventListener("unhandledrejection", (e) => {
+  try {
+    const msg = e?.reason?.message || String(e?.reason || "unknown");
+    if (bootStatus) bootStatus.textContent = "Error: " + msg;
+  } catch (_) {}
+});
+
 function uniq(arr) { return Array.from(new Set(arr.filter(Boolean))); }
 
 function isIOS() {
@@ -53,28 +67,53 @@ function preloadImage(url) {
     const img = new Image();
     img.decoding = "async";
 
+    // ✅ watchdog: if an asset hangs, don't freeze boot
+    const t = setTimeout(() => resolve({ url, ok: false, timeout: true }), 6500);
+
     img.onload = async () => {
+      clearTimeout(t);
       if (!isIOS()) {
         try { if (img.decode) await img.decode(); } catch (_) {}
       }
       resolve({ url, ok: true });
     };
 
-    img.onerror = () => resolve({ url, ok: false });
+    img.onerror = () => {
+      clearTimeout(t);
+      resolve({ url, ok: false });
+    };
+
     img.src = url;
   });
 }
 
 function preloadVideo(url) {
   return new Promise((resolve) => {
-    fetch(url, { cache: "force-cache" })
-      .then(() => resolve({ url, ok: true }))
-      .catch(() => resolve({ url, ok: false }));
+    // ✅ use <video> preload instead of fetch (Safari/iOS/file:// safer)
+    const v = document.createElement("video");
+    v.preload = "auto";
+    v.muted = true;
+
+    const t = setTimeout(() => {
+      cleanup();
+      resolve({ url, ok: false, timeout: true });
+    }, 8000);
+
+    function cleanup() {
+      clearTimeout(t);
+      v.onloadeddata = null;
+      v.onerror = null;
+      try { v.src = ""; v.load(); } catch (_) {}
+    }
+
+    v.onloadeddata = () => { cleanup(); resolve({ url, ok: true }); };
+    v.onerror = () => { cleanup(); resolve({ url, ok: false }); };
+
+    try { v.src = url; v.load(); } catch (_) { cleanup(); resolve({ url, ok: false }); }
   });
 }
 
 function cssBgUrls() {
-  // ✅ FIX: add Pic18 + Quiz_Background
   return [
     "Pic4.png","Pic5.png","Pic12.png","Pic14.png","Pic15.png","Pic17.png","Pic18.png",
     "Quiz_Background.png"
@@ -102,8 +141,7 @@ function domImgUrls() {
 
 async function preloadAssets() {
   const imgs = uniq([...cssBgUrls(), ...domImgUrls()]);
-  // ✅ FIX: HTML ใช้ Face.mp4 → preload ทั้ง mp4 และ webm เผื่อไว้
-  const vids = ["Face.mp4","Face.webm"];
+  const vids = ["Face.mp4"];
 
   const tasks = [
     ...imgs.map(u => ({ type: "img", url: u })),
@@ -121,6 +159,21 @@ async function preloadAssets() {
   }
 
   updateUI("Starting…");
+
+  // ✅ Hard fallback: if something breaks and progress never moves, skip boot after 8s
+  let bootForced = false;
+  const forceTimer = setTimeout(() => {
+    if (bootReady) return;
+    bootForced = true;
+    if (bootStatus) bootStatus.textContent = "Boot skipped (asset load stalled).";
+    if (bootPercent) bootPercent.textContent = "100%";
+    if (bootBarFill) bootBarFill.style.width = "100%";
+    if (bootLoader) {
+      bootLoader.classList.add('hidden');
+      bootLoader.style.pointerEvents = 'none';
+    }
+    bootReady = true;
+  }, 8000);
 
   const fontsPromise = (document.fonts && document.fonts.ready)
     ? document.fonts.ready.catch(() => null)
@@ -143,6 +196,7 @@ async function preloadAssets() {
     bootLoader.style.pointerEvents = 'none';
   }
 
+  clearTimeout(forceTimer);
   bootReady = true;
 }
 preloadAssets();
@@ -183,6 +237,78 @@ const frame7 = document.getElementById('frame7');
 const frame8 = document.getElementById('frame8');
 const frame9 = document.getElementById('frame9');
 const frame10 = document.getElementById('frame10');
+
+// ✅ game frames (11–14)
+const frame11 = document.getElementById('frame11'); // Scramble setup
+const frame12 = document.getElementById('frame12'); // TicTacToe setup
+const frame13 = document.getElementById('frame13'); // Scramble play
+const frame14 = document.getElementById('frame14'); // TicTacToe play
+// ✅ fruit slash frame (15)
+const frame15 = document.getElementById('frame15');
+
+// ---- Fruit Slash UI ----
+const fruitStageMenu = document.getElementById('fruitStageMenu');
+const fruitStagePlay = document.getElementById('fruitStagePlay');
+
+const fruitBackBtn = document.getElementById('fruitBackBtn');
+const fruitBackHomeBtn = document.getElementById('fruitBackHomeBtn');
+
+const fruitMode1p = document.getElementById('fruitMode1p');
+const fruitMode2p = document.getElementById('fruitMode2p');
+
+const fruitStartBtn = document.getElementById('fruitStartBtn');
+const fruitReplayBtn = document.getElementById('fruitReplayBtn');
+
+const fruitTimerEl = document.getElementById('fruitTimer');
+const fruitScoreEl = document.getElementById('fruitScore');
+const fruitBestEl  = document.getElementById('fruitBest');
+const fruitHintEl  = document.getElementById('fruitHint');
+
+const fruitCanvas = document.getElementById('fruitCanvas');
+const fruitVideo  = document.getElementById('fruitVideo');
+
+
+// ---- Scramble UI ----
+const scrambleStageSetup = document.getElementById('scrambleStageSetup');
+const scrambleStagePlay  = document.getElementById('scrambleStagePlay');
+
+const scrambleBackBtn1 = document.getElementById('scrambleBackBtn1');
+const scrambleBackBtn2 = document.getElementById('scrambleBackBtn2');
+
+const scrambleSetupTitle = document.getElementById('scrambleSetupTitle');
+const scrambleTopicInput = document.getElementById('scrambleTopicInput');
+const scrambleCountSelect = document.getElementById('scrambleCountSelect');
+const scrambleDifficultySelect = document.getElementById('scrambleDifficultySelect');
+const scrambleTimerSelect = document.getElementById('scrambleTimerSelect');
+const scrambleStartBtn = document.getElementById('scrambleStartBtn');
+const scrambleSetupHint = document.getElementById('scrambleSetupHint');
+
+const scrambleProgress = document.getElementById('scrambleProgress');
+const scrambleTimerPill = document.getElementById('scrambleTimerPill');
+const scrambleWordText = document.getElementById('scrambleWordText');
+const scrambleHintText = document.getElementById('scrambleHintText');
+const scrambleGuessInput = document.getElementById('scrambleGuessInput');
+const scrambleCheckBtn = document.getElementById('scrambleCheckBtn');
+const scrambleNextBtn = document.getElementById('scrambleNextBtn');
+const scrambleFeedback = document.getElementById('scrambleFeedback');
+
+// ---- TicTacToe UI ----
+const tttStageSetup = document.getElementById('tttStageSetup');
+const tttStagePlay  = document.getElementById('tttStagePlay');
+
+const tttBackBtn1 = document.getElementById('tttBackBtn1');
+const tttBackBtn2 = document.getElementById('tttBackBtn2');
+
+const tttSetupTitle = document.getElementById('tttSetupTitle');
+const tttModeBtns = Array.from(document.querySelectorAll('[data-ttt-mode]'));
+const tttSideBtns = Array.from(document.querySelectorAll('[data-ttt-side]'));
+const tttDiffSelect = document.getElementById('tttDiffSelect');
+const tttStartBtn = document.getElementById('tttStartBtn');
+const tttSetupHint = document.getElementById('tttSetupHint');
+
+const tttStatus = document.getElementById('tttStatus');
+const tttGrid = document.getElementById('tttGrid');
+const tttRestartBtn = document.getElementById('tttRestartBtn');
 
 const quizStageSetup = document.getElementById('quizStageSetup');
 const quizStagePlay = document.getElementById('quizStagePlay');
@@ -310,6 +436,34 @@ let micLang = (savedState?.micLang === "th-TH") ? "th-TH" : "en-US";
 if (profiles.length > 0) {
   const id = savedState?.currentProfileId;
   currentProfile = profiles.find(p => p?.id === id) || profiles[0];
+}
+
+// =========================================================
+// ✅ PINNED STATE (per profile, per tab)
+// =========================================================
+const LS_PINS_KEY = "fra_pins_v1";
+
+// structure: { [profileId]: { home:[], healthcare:[], sports:[], education:[], community:[] } }
+let pinnedByProfile = lsGet(LS_PINS_KEY, {});
+
+function ensurePinsBucket(profileId) {
+  if (!profileId) return null;
+  if (!pinnedByProfile[profileId]) {
+    pinnedByProfile[profileId] = { home: [], healthcare: [], sports: [], education: [], community: [] };
+  } else {
+    pinnedByProfile[profileId].home ||= [];
+    pinnedByProfile[profileId].healthcare ||= [];
+    pinnedByProfile[profileId].sports ||= [];
+    pinnedByProfile[profileId].education ||= [];
+    pinnedByProfile[profileId].community ||= [];
+  }
+  return pinnedByProfile[profileId];
+}
+
+function getPinsForActiveProfile() {
+  const pid = currentProfile?.id;
+  if (!pid) return { home: [], healthcare: [], sports: [], education: [], community: [] };
+  return ensurePinsBucket(pid);
 }
 
 // =========================================================
@@ -502,13 +656,62 @@ let idleTimer = null;
 let isVideoVisible = false;
 let lastActiveFrame = null;
 
+function cardKeyFromEl(cardEl) {
+  if (!cardEl) return null;
+
+  // chat card
+  const chatType = cardEl.getAttribute("data-card");
+  if (chatType) return `chat:${chatType}`;
+
+  // quiz card
+  const isQuiz = cardEl.getAttribute("data-quiz") === "1";
+  if (isQuiz) {
+    const tab = cardEl.getAttribute("data-for-tab") || "unknown";
+    return `quiz:${tab}`;
+  }
+
+  // game card
+  const game = cardEl.getAttribute("data-game");
+  if (game) {
+    const tab = cardEl.getAttribute("data-for-tab") || "unknown";
+    return `game:${game}:${tab}`;
+  }
+
+  // fallback (ถ้ามี id)
+  if (cardEl.id) return `id:${cardEl.id}`;
+
+  return null;
+}
+
+function isPinned(tabName, cardKey) {
+  const pins = getPinsForActiveProfile();
+  const list = pins?.[tabName] || [];
+  return list.includes(cardKey);
+}
+
+function togglePin(tabName, cardKey) {
+  const pid = currentProfile?.id;
+  if (!pid || !cardKey) return;
+
+  const pins = ensurePinsBucket(pid);
+  const list = pins[tabName] || (pins[tabName] = []);
+
+  const idx = list.indexOf(cardKey);
+  if (idx >= 0) list.splice(idx, 1); // unpin
+  else list.unshift(cardKey);        // pin (ขึ้นหน้าแรก)
+
+  scheduleSaveAll();
+}
+
 // =========================================================
 // ✅ FRAME NAV
 // =========================================================
 function hideAllFrames() {
-  [frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7, frame8, frame9, frame10].forEach(f => {
-    if (f) f.style.display = 'none';
-  });
+  [
+    frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7,
+    frame8, frame9, frame10,
+    frame11, frame12, frame13, frame14, frame15
+  ].forEach(f => { if (f) f.style.display = 'none'; });
 }
 
 function goToFrame1() {
@@ -576,7 +779,8 @@ function goToFrame5Accounts() {
 
 function goToFrame6(preferredTab = null) {
   if (!currentProfile && profiles.length > 0) currentProfile = profiles[0];
-  if (currentProfile?.id) ensureChatBucket(currentProfile.id);
+  if (currentProfile?.id) ensureChatBucket(currentProfile.id); 
+  ensurePinsBucket(currentProfile.id);
 
   hideAllFrames();
   if (frame6) frame6.style.display = 'block';
@@ -606,6 +810,11 @@ function restoreLastFrame() {
     case 'frame8': goToFrame8(currentQuizTab || "healthcare"); break;
     case 'frame9': goToFrame9(); break;
     case 'frame10': goToFrame10(); break;
+    case 'frame11': goToFrame11(currentGameTab || "education"); break;
+    case 'frame12': goToFrame12(currentGameTab || "education"); break;
+    case 'frame13': goToFrame13(); break;
+    case 'frame14': goToFrame14(); break;
+    case 'frame15': goToFrame15(currentGameTab || "community"); break;
     default: goToFrame1(); break;
   }
 }
@@ -646,7 +855,8 @@ function handleUserInteraction(e) {
       '.frame6-profile, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
       '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, ' +
       '.frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang, .mini-btn, .thread-item,' +
-      '.modal, .modal-card, .modal-btn, .quiz-primary, .quiz-secondary, .quiz-input, .quiz-select, .quiz-choice, .quiz-back'
+      '.modal, .modal-card, .modal-btn, .quiz-primary, .quiz-secondary, .quiz-input, .quiz-select, .quiz-choice, .quiz-back,' +
+      '.game-primary, .game-secondary, .toggle-btn, .ttt-cell, .game-back'
     );
     if (block) return;
   }
@@ -977,6 +1187,7 @@ function createProfileFromAgeNumber() {
 
   profiles.push(profile);
   ensureChatBucket(profile.id);
+  ensurePinsBucket(profile.id);
   currentProfile = profile;
   scheduleSaveAll();
 
@@ -1169,6 +1380,7 @@ function attachLongPressDeleteToggle(card, id) {
 //    ✅ Sub-tabs: show 2 cards (chat card + quiz card) in order
 // =========================================================
 function applyFrame6TabView(name) {
+  closeCardMenu();
   if (!homeCardsWrapper || !homeCardsTrack) return;
 
   const cards = Array.from(homeCardsTrack.querySelectorAll('.frame6-card'));
@@ -1177,28 +1389,53 @@ function applyFrame6TabView(name) {
   cards.forEach(c => { c.style.order = ""; });
 
   if (name === "home") {
-    cards.forEach(c => {
-      const isHome = c.getAttribute("data-home") === "1";
-      c.style.display = isHome ? "" : "none";
-    });
-    setHomeIndex(lastHomeIndex || 0, false);
-    return;
-  }
+  const homeCards = [];
+  cards.forEach(c => {
+    const isHome = c.getAttribute("data-home") === "1";
+    c.style.display = isHome ? "" : "none";
+    c.style.order = "";
+    if (isHome) homeCards.push(c);
+  });
 
-  // sub tab => show exactly two: chat + quiz
+  // ✅ pinned first in home
+  const pins = getPinsForActiveProfile();
+  const pinnedKeys = pins?.home || [];
+  homeCards.forEach((c, i) => {
+    const key = cardKeyFromEl(c);
+    const pIndex = key ? pinnedKeys.indexOf(key) : -1;
+    c.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(i + 1);
+    setPinnedBadge(c, pIndex >= 0); // ✅ add marker
+  });
+
+  setHomeIndex(lastHomeIndex || 0, false);
+  return;
+}
+
+  // sub tab => show: chat + quiz + (optional) game
   cards.forEach(c => { c.style.display = "none"; });
 
   const chatCard = cards.find(c => c.getAttribute("data-card") === name);
   const quizCard = cards.find(c => c.getAttribute("data-quiz") === "1" && c.getAttribute("data-for-tab") === name);
 
-  if (chatCard) {
-    chatCard.style.display = "";
-    chatCard.style.order = "1";
-  }
-  if (quizCard) {
-    quizCard.style.display = "";
-    quizCard.style.order = "2";
-  }
+  // ✅ game card: use data-game="scramble" or "ttt" and data-for-tab
+  const gameCard = cards.find(c => c.getAttribute("data-game") && c.getAttribute("data-for-tab") === name);
+
+  const pins = getPinsForActiveProfile();
+const pinnedKeys = pins?.[name] || [];
+
+function applyOne(cardEl, fallbackOrder) {
+  if (!cardEl) return;
+  cardEl.style.display = "";
+  const key = cardKeyFromEl(cardEl);
+  const pIndex = key ? pinnedKeys.indexOf(key) : -1;
+  cardEl.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(fallbackOrder);
+  setPinnedBadge(cardEl, pIndex >= 0); // ✅ add marker
+}
+
+let order = 1;
+applyOne(chatCard, order++);
+applyOne(quizCard, order++);
+applyOne(gameCard, order++);
 
   homeIndex = 0;
   homeCardsTrack.style.transition = "none";
@@ -1384,28 +1621,140 @@ function bindCardTapOnly(cardEl, onTap) {
   });
 }
 
-function attachFrame6CardHandlers() {
-  document.querySelectorAll('.frame6-card').forEach(card => {
-    if (card.dataset.bound === "1") return;
-    card.dataset.bound = "1";
+// =========================================================
+// ✅ CARD MENU (Fix_Menu -> show circle + Pin/Unpin)
+// =========================================================
+let openCardMenuEl = null;
 
-    bindCardTapOnly(card, () => {
-      lastFrame6Tab = currentTabName || "home";
+function closeCardMenu() {
+  if (!openCardMenuEl) return;
+  const pinBtn = openCardMenuEl.querySelector(".frame6-pin-action");
+  if (pinBtn) pinBtn.classList.remove("show");
+  openCardMenuEl.classList.remove("menu-open");
+  openCardMenuEl = null;
+}
 
-      const isQuiz = card.getAttribute("data-quiz") === "1";
-      if (isQuiz) {
-        const tab = card.getAttribute("data-for-tab") || currentTabName || "healthcare";
-        goToFrame8(tab);
-        return;
-      }
+function openCardMenu(cardEl) {
+  if (!cardEl) return;
 
-      let type = card.getAttribute('data-card');
-      if (!type) return;
-      goToFrame7(type);
+  // close other
+  if (openCardMenuEl && openCardMenuEl !== cardEl) closeCardMenu();
+
+  // create pin action if not exist
+  let pinBtn = cardEl.querySelector(".frame6-pin-action");
+  if (!pinBtn) {
+    pinBtn = document.createElement("button");
+    pinBtn.type = "button";
+    pinBtn.className = "frame6-pin-action";
+    pinBtn.innerHTML = `<img src="Pin.png" alt="">`;
+    cardEl.appendChild(pinBtn);
+
+    // click Pin/Unpin => toggle pin then close menu
+    bindTap(pinBtn, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const tabName = currentTabName || "home";
+      const key = cardKeyFromEl(cardEl);
+
+      // ✅ กด Pin.png/Unpin.png ถึงค่อยปัก/ยกเลิก
+      togglePin(tabName, key);
+
+      closeCardMenu();
+      applyFrame6TabView(tabName); // refresh order + badge
+      startIdleTimer();
     });
+  }
+
+  // set icon based on pinned state in current tab
+  const tabName = currentTabName || "home";
+  const key = cardKeyFromEl(cardEl);
+  const pinned = isPinned(tabName, key);
+
+  const img = pinBtn.querySelector("img");
+  if (img) img.src = pinned ? "Unpin.png" : "Pin.png";
+
+  // show circle+icon
+  pinBtn.classList.add("show");
+  cardEl.classList.add("menu-open");
+  openCardMenuEl = cardEl;
+}
+
+// tap outside => close menu (like Google)
+document.addEventListener("click", () => closeCardMenu());
+document.addEventListener("touchstart", () => closeCardMenu(), { passive: true });
+
+function attachFrame6CardHandlers() {
+  if (!homeCardsTrack) return;
+
+  const cards = Array.from(homeCardsTrack.querySelectorAll(".frame6-card"));
+
+  cards.forEach((card) => {
+    // ✅ menu click => show circle + Pin/Unpin (NOT toggle yet)
+    const menuBtn = card.querySelector(".frame6-card-menu");
+    if (menuBtn && menuBtn.dataset.bound !== "1") {
+      menuBtn.dataset.bound = "1";
+
+      bindTap(menuBtn, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startIdleTimer();
+
+        // toggle open/close
+        const pinBtn = card.querySelector(".frame6-pin-action");
+        const isOpen = pinBtn && pinBtn.classList.contains("show");
+
+        if (isOpen) closeCardMenu();
+        else openCardMenu(card);
+      });
+    }
+
+    // ✅ tap-only open card (ignore swipes)
+    if (card.dataset.tapBound !== "1") {
+      card.dataset.tapBound = "1";
+
+      bindCardTapOnly(card, () => {
+        lastFrame6Tab = currentTabName || "home";
+
+        const isQuiz = card.getAttribute("data-quiz") === "1";
+        if (isQuiz) {
+          const tab = card.getAttribute("data-for-tab") || currentTabName || "healthcare";
+          goToFrame8(tab);
+          return;
+        }
+
+        const game = card.getAttribute("data-game");
+        if (game) {
+          const tab = card.getAttribute("data-for-tab") || currentTabName || "education";
+          if (game === "scramble") { goToFrame11(tab); return; }
+          if (game === "ttt")      { goToFrame12(tab); return; }
+          if (game === "fruit")    { goToFrame15(tab); return; }
+          return;
+        }
+
+        const type = card.getAttribute("data-card");
+        if (!type) return;
+        goToFrame7(type);
+      });
+    }
   });
 }
 attachFrame6CardHandlers();
+
+function setPinnedBadge(cardEl, pinned) {
+  if (!cardEl) return;
+
+  let badge = cardEl.querySelector(".pin-badge");
+  if (!badge) {
+    badge = document.createElement("img");
+    badge.className = "pin-badge";
+    badge.src = "Pin_Header.png";
+    badge.alt = "Pinned";
+    cardEl.style.position = cardEl.style.position || "relative";
+    cardEl.appendChild(badge);
+  }
+  badge.style.display = pinned ? "block" : "none";
+}
 
 // =========================================================
 // ✅ FRAME 7 Chatbot
@@ -1433,6 +1782,13 @@ window.addEventListener('resize', () => {
       (frame9 && frame9.style.display === 'block') ||
       (frame10 && frame10.style.display === 'block')) {
     updateQuizScale();
+  }
+  if ((frame11 && frame11.style.display === 'block') ||
+      (frame12 && frame12.style.display === 'block') ||
+      (frame13 && frame13.style.display === 'block') ||
+      (frame14 && frame14.style.display === 'block') ||
+      (frame15 && frame15.style.display === 'block')) {
+    updateGameScale();
   }
 });
 
@@ -1926,13 +2282,25 @@ function updateQuizScale() {
   if (quizStageResult) quizStageResult.style.setProperty('--qs', s.toString());
 }
 
+function updateGameScale() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const baseW = 864;
+  const baseH = 444;
+  const s = Math.min(vw / baseW, vh / baseH);
+
+  if (scrambleStageSetup) scrambleStageSetup.style.setProperty('--gs', s.toString());
+  if (scrambleStagePlay)  scrambleStagePlay.style.setProperty('--gs', s.toString());
+  if (tttStageSetup)      tttStageSetup.style.setProperty('--gs', s.toString());
+  if (tttStagePlay)       tttStagePlay.style.setProperty('--gs', s.toString());
+}
+
 function goToFrame8(tab) {
   currentQuizTab = tab || "healthcare";
   hideAllFrames();
 
   if (frame8) frame8.style.display = "block";
-  // ✅ FIX: quiz background should be Quiz_Background
-  document.body.style.backgroundImage = 'url("Quiz_Background.png")';
+  document.body.style.backgroundImage = 'url("Pic18.png")';
   lastActiveFrame = 'frame8';
 
   updateQuizScale();
@@ -1960,8 +2328,7 @@ function goToFrame8(tab) {
 function goToFrame9() {
   hideAllFrames();
   if (frame9) frame9.style.display = "block";
-  // ✅ FIX
-  document.body.style.backgroundImage = 'url("Quiz_Background.png")';
+  document.body.style.backgroundImage = 'url("Pic18.png")';
   lastActiveFrame = 'frame9';
   updateQuizScale();
   startIdleTimer();
@@ -1970,8 +2337,7 @@ function goToFrame9() {
 function goToFrame10() {
   hideAllFrames();
   if (frame10) frame10.style.display = "block";
-  // ✅ FIX
-  document.body.style.backgroundImage = 'url("Quiz_Background.png")';
+  document.body.style.backgroundImage = 'url("Pic18.png")';
   lastActiveFrame = 'frame10';
   updateQuizScale();
   startIdleTimer();
@@ -2243,6 +2609,52 @@ async function generateQuizFromAI(payload) {
   }
 }
 
+async function generateScrambleFromAI(payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const r = await fetch(`${SERVER_BASE}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        type: "scramble_game",
+        message: JSON.stringify(payload),
+        history: [],
+        profile: currentProfile ? {
+          id: currentProfile.id,
+          name: currentProfile.name,
+          ageNumber: currentProfile.ageNumber,
+          ageKey: currentProfile.ageKey,
+          ageText: currentProfile.ageText
+        } : null
+      })
+    });
+
+    const data = await r.json().catch(() => ({}));
+    const raw = String(data?.reply || "").trim();
+    const obj = extractJSON(raw);
+
+    // ต้องได้ { words: [...] }
+    if (!obj || !Array.isArray(obj.words) || !obj.words.length) return null;
+
+    // clean
+    const clean = obj.words.map(w => ({
+      answer: String(w.answer || "").toUpperCase().replace(/\s+/g, ""),
+      scrambled: String(w.scrambled || "").toUpperCase().replace(/\s+/g, ""),
+      hint: String(w.hint || "").trim()
+    })).filter(w => w.answer && w.scrambled && w.scrambled !== w.answer);
+
+    if (!clean.length) return null;
+    return { words: clean };
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function resetQuizState() {
   quizData = null;
   quizIndex = 0;
@@ -2342,6 +2754,876 @@ if (quizBackBtn3) bindTap(quizBackBtn3, quizBackToHome);
 
 if (quizPlayAgainBtn) bindTap(quizPlayAgainBtn, () => goToFrame8(currentQuizTab));
 if (quizBackHomeBtn) bindTap(quizBackHomeBtn, quizBackToHome);
+
+
+// =========================================================
+// ✅ GAMES SYSTEM (Scramble + TicTacToe)
+// =========================================================
+let currentGameTab = "education";
+
+// ---------- NAV ----------
+function goToFrame11(tab) {
+  currentGameTab = tab || "education";
+  hideAllFrames();
+  if (frame11) frame11.style.display = "block";
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+  lastActiveFrame = 'frame11';
+  updateGameScale();
+  startIdleTimer();
+
+  if (scrambleSetupTitle) scrambleSetupTitle.textContent = "Word Scramble";
+  if (scrambleTopicInput) scrambleTopicInput.value = "";
+  if (scrambleSetupHint) scrambleSetupHint.textContent = "Tip: choose a topic then Start.";
+  if (scrambleStartBtn) { scrambleStartBtn.disabled = false; scrambleStartBtn.textContent = "Start Game"; }
+}
+
+function goToFrame12(tab) {
+  currentGameTab = tab || "education";
+  hideAllFrames();
+  if (frame12) frame12.style.display = "block";
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+  lastActiveFrame = 'frame12';
+  updateGameScale();
+  startIdleTimer();
+
+  if (tttSetupTitle) tttSetupTitle.textContent = "Tic Tac Toe";
+  // defaults
+  setTTTMode("1p");
+  setTTTSide("X");
+  if (tttSetupHint) tttSetupHint.textContent = "Choose mode and press Start.";
+}
+
+function goToFrame13() {
+  hideAllFrames();
+  if (frame13) frame13.style.display = "block";
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+  lastActiveFrame = 'frame13';
+  updateGameScale();
+  startIdleTimer();
+}
+
+function goToFrame14() {
+  hideAllFrames();
+  if (frame14) frame14.style.display = "block";
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+  lastActiveFrame = 'frame14';
+  updateGameScale();
+  startIdleTimer();
+}
+function goToFrame15(tab = "community") {
+  currentGameTab = tab || "community";
+  hideAllFrames();
+  if (frame15) frame15.style.display = "block";
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+  lastActiveFrame = 'frame15';
+  updateGameScale();
+  startIdleTimer();
+
+  enterFruitFrame(); // ✅ reset menu + best score + timer
+}
+
+
+function gameBackToHome() {
+  clearScrambleTimer();
+  goToFrame6(lastFrame6Tab || "home");
+}
+
+if (scrambleBackBtn1) bindTap(scrambleBackBtn1, gameBackToHome);
+if (scrambleBackBtn2) bindTap(scrambleBackBtn2, gameBackToHome);
+if (tttBackBtn1) bindTap(tttBackBtn1, gameBackToHome);
+if (tttBackBtn2) bindTap(tttBackBtn2, gameBackToHome);
+
+// ---------- Scramble ----------
+let scrambleData = null; // { words:[{answer,scrambled,hint}] }
+let scrambleIndex = 0;
+let scrambleScore = 0;
+let scrambleAnswered = false;
+
+let scrambleSecPerWord = 0;
+let scrambleCountdown = 0;
+let scrambleTimerHandle = null;
+
+function clearScrambleTimer() {
+  clearInterval(scrambleTimerHandle);
+  scrambleTimerHandle = null;
+  scrambleCountdown = 0;
+  if (scrambleTimerPill) scrambleTimerPill.textContent = "—";
+}
+function startScrambleTimer(sec) {
+  clearScrambleTimer();
+  if (!sec || sec <= 0) {
+    if (scrambleTimerPill) scrambleTimerPill.textContent = "No timer";
+    return;
+  }
+  scrambleCountdown = sec;
+  if (scrambleTimerPill) scrambleTimerPill.textContent = formatTime(scrambleCountdown);
+  scrambleTimerHandle = setInterval(() => {
+    scrambleCountdown -= 1;
+    if (scrambleTimerPill) scrambleTimerPill.textContent = formatTime(Math.max(0, scrambleCountdown));
+    if (scrambleCountdown <= 0) {
+      clearScrambleTimer();
+      if (!scrambleAnswered) scrambleLockAnswer(true);
+    }
+  }, 1000);
+}
+
+function scrambleShuffleWord(word) {
+  const s = (word || "").toUpperCase().replace(/\s+/g, "");
+  if (s.length <= 2) return s;
+  const arr = s.split("");
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  const out = arr.join("");
+  return (out === s) ? arr.reverse().join("") : out;
+}
+
+// simple local word pools (offline)
+function scramblePoolByTab(tab) {
+  const base = {
+    healthcare: ["HYDRATION","NUTRITION","SLEEP","EXERCISE","VITAMINS","STRETCH","FIRSTAID","HEALTH"],
+    sports: ["ENDURANCE","STAMINA","WARMUP","COOLDOWN","TRAINING","BALANCE","MUSCLE","RECOVERY"],
+    education: ["ALGEBRA","HISTORY","SCIENCE","LANGUAGE","GEOMETRY","ESSAY","READING","HOMEWORK"],
+    community: ["RESPECT","KINDNESS","TEAMWORK","HELPFUL","HONESTY","SAFETY","FRIENDSHIP","COMMUNITY"]
+  };
+  return base[tab] || base.education;
+}
+
+function buildScrambleWords(topic, count, tab, difficulty) {
+  const pool = scramblePoolByTab(tab);
+  const words = [];
+  const used = new Set();
+
+  const wantLen = (difficulty === "Hard") ? 9 : (difficulty === "Easy") ? 5 : 7;
+
+  while (words.length < count) {
+    let w = pool[Math.floor(Math.random() * pool.length)];
+    // mix in topic letters sometimes (just to feel “topic-based” offline)
+    if (topic && Math.random() < 0.25) {
+      const t = topic.toUpperCase().replace(/[^A-Z]/g, "");
+      if (t.length >= 4) w = t.slice(0, Math.min(10, Math.max(4, wantLen)));
+    }
+
+    if (w.length < 4) continue;
+    if (difficulty === "Hard" && w.length < 8) continue;
+    if (difficulty === "Easy" && w.length > 9) continue;
+
+    if (used.has(w)) continue;
+    used.add(w);
+
+    const scrambled = scrambleShuffleWord(w);
+    const hint = `Starts with "${w[0]}" • ${w.length} letters`;
+
+    words.push({ answer: w, scrambled, hint });
+  }
+  return { words };
+}
+
+function renderScramble() {
+  if (!scrambleData || !scrambleData.words?.length) return;
+
+  const total = scrambleData.words.length;
+  const item = scrambleData.words[scrambleIndex];
+
+  scrambleAnswered = false;
+  if (scrambleFeedback) scrambleFeedback.textContent = "";
+  if (scrambleGuessInput) { scrambleGuessInput.value = ""; }
+  if (scrambleWordText) scrambleWordText.textContent = item.scrambled;
+  if (scrambleHintText) scrambleHintText.textContent = `Hint: ${item.hint}`;
+  if (scrambleProgress) scrambleProgress.textContent = `Word ${scrambleIndex + 1} / ${total} • Score ${scrambleScore}`;
+
+  if (scrambleNextBtn) {
+    scrambleNextBtn.disabled = true;
+    scrambleNextBtn.textContent = (scrambleIndex === total - 1) ? "Finish" : "Next";
+  }
+
+  startScrambleTimer(scrambleSecPerWord);
+}
+
+function scrambleLockAnswer(timedOut) {
+  if (!scrambleData) return;
+  const item = scrambleData.words[scrambleIndex];
+  scrambleAnswered = true;
+  clearScrambleTimer();
+
+  const guess = (scrambleGuessInput?.value || "").toUpperCase().replace(/\s+/g, "");
+  const ok = (!timedOut && guess && guess === item.answer);
+
+  if (ok) scrambleScore += 1;
+
+  if (scrambleHintText) scrambleHintText.textContent = `Hint: ${item.hint}`;
+
+  if (scrambleFeedback) {
+    if (timedOut) scrambleFeedback.textContent = `Time’s up! Answer: ${item.answer}`;
+    else if (ok) scrambleFeedback.textContent = `Correct ✅`;
+    else scrambleFeedback.textContent = `Not quite. Answer: ${item.answer}`;
+  }
+
+  if (scrambleNextBtn) scrambleNextBtn.disabled = false;
+}
+
+async function startScrambleFlow() {
+  startIdleTimer();
+
+  const topic = (scrambleTopicInput?.value || "").trim();
+  const count = Number(scrambleCountSelect?.value || 8);
+  const difficulty = String(scrambleDifficultySelect?.value || "Medium");
+  const timer = Number(scrambleTimerSelect?.value || 0);
+
+  if (!topic) {
+    if (scrambleSetupHint) scrambleSetupHint.textContent = "Please enter a topic first.";
+    return;
+  }
+
+  if (scrambleStartBtn) {
+    scrambleStartBtn.disabled = true;
+    scrambleStartBtn.textContent = "Starting…";
+  }
+
+  // ✅ payload สำหรับ AI
+  const payload = {
+    topic,
+    count: Math.max(3, Math.min(15, count)),
+    difficulty
+  };
+
+  // ✅ 1) ลองสร้างจาก AI ก่อน
+  let data = null;
+  try {
+    data = await generateScrambleFromAI(payload); // ต้องมีฟังก์ชันนี้ในไฟล์
+  } catch (_) {
+    data = null;
+  }
+
+  // ✅ 2) ถ้า AI พัง/เน็ตหลุด => ใช้ของเดิมแบบ offline
+  if (!data) {
+    data = buildScrambleWords(topic, payload.count, currentGameTab, difficulty);
+  }
+
+  scrambleData = data;
+  scrambleIndex = 0;
+  scrambleScore = 0;
+  scrambleSecPerWord = timer;
+
+  // ✅ เผื่ออยากให้กด Start ได้อีกตอนกลับไปหน้า setup
+  if (scrambleStartBtn) {
+    scrambleStartBtn.disabled = false;
+    scrambleStartBtn.textContent = "Start Game";
+  }
+
+  goToFrame13();
+  renderScramble();
+}
+
+if (scrambleStartBtn) bindTap(scrambleStartBtn, startScrambleFlow);
+
+if (scrambleCheckBtn) bindTap(scrambleCheckBtn, () => {
+  startIdleTimer();
+  if (scrambleAnswered) return;
+  scrambleLockAnswer(false);
+});
+
+if (scrambleNextBtn) bindTap(scrambleNextBtn, () => {
+  startIdleTimer();
+  if (!scrambleData) return;
+
+  const total = scrambleData.words.length;
+  if (scrambleIndex >= total - 1) {
+    // finish => go back setup with result text
+    goToFrame11(currentGameTab);
+    if (scrambleSetupHint) scrambleSetupHint.textContent = `Finished! Final score: ${scrambleScore} / ${total}`;
+    return;
+  }
+  scrambleIndex += 1;
+  goToFrame13();
+  renderScramble();
+});
+
+// ---------- TicTacToe ----------
+let tttMode = "1p";     // "1p" | "2p"
+let tttHumanSide = "X"; // "X" | "O"
+let tttDifficulty = "Easy";
+
+let tttBoard = Array(9).fill("");
+let tttTurn = "X";
+let tttOver = false;
+
+function setTTTMode(mode) {
+  tttMode = (mode === "2p") ? "2p" : "1p";
+  tttModeBtns.forEach(b => b.classList.toggle("active", b.getAttribute("data-ttt-mode") === tttMode));
+}
+function setTTTSide(side) {
+  tttHumanSide = (side === "O") ? "O" : "X";
+  tttSideBtns.forEach(b => b.classList.toggle("active", b.getAttribute("data-ttt-side") === tttHumanSide));
+}
+
+tttModeBtns.forEach(btn => bindTap(btn, () => { setTTTMode(btn.getAttribute("data-ttt-mode")); startIdleTimer(); }));
+tttSideBtns.forEach(btn => bindTap(btn, () => { setTTTSide(btn.getAttribute("data-ttt-side")); startIdleTimer(); }));
+
+function tttLines() {
+  return [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ];
+}
+function tttWinner(board) {
+  for (const [a,b,c] of tttLines()) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
+  }
+  if (board.every(x => x)) return "draw";
+  return null;
+}
+
+function renderTTT() {
+  if (!tttGrid) return;
+  tttGrid.innerHTML = "";
+
+  tttBoard.forEach((v, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ttt-cell";
+    btn.textContent = v || "";
+    btn.disabled = tttOver || !!v;
+    bindTap(btn, () => onTTTMove(i));
+    tttGrid.appendChild(btn);
+  });
+
+  const w = tttWinner(tttBoard);
+  if (tttStatus) {
+    if (w === "draw") tttStatus.textContent = "Draw 🤝";
+    else if (w) tttStatus.textContent = `${w} wins! 🏆`;
+    else tttStatus.textContent = `Turn: ${tttTurn}`;
+  }
+}
+
+function tttBestMove(board, aiSide) {
+  const human = (aiSide === "X") ? "O" : "X";
+
+  // Easy: random
+  if (tttDifficulty === "Easy") {
+    const empties = board.map((v,i)=>v?null:i).filter(v=>v!==null);
+    return empties[Math.floor(Math.random() * empties.length)];
+  }
+
+  // Medium/Hard: simple win/block + center + corners
+  const empties = board.map((v,i)=>v?null:i).filter(v=>v!==null);
+
+  // win
+  for (const i of empties) {
+    const b = board.slice(); b[i] = aiSide;
+    if (tttWinner(b) === aiSide) return i;
+  }
+  // block
+  for (const i of empties) {
+    const b = board.slice(); b[i] = human;
+    if (tttWinner(b) === human) return i;
+  }
+  // center
+  if (board[4] === "") return 4;
+  // corners
+  const corners = [0,2,6,8].filter(i => board[i] === "");
+  if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
+  // else random
+  return empties[Math.floor(Math.random() * empties.length)];
+}
+
+function maybeAIMove() {
+  if (tttMode !== "1p") return;
+  const aiSide = (tttHumanSide === "X") ? "O" : "X";
+  if (tttTurn !== aiSide) return;
+  if (tttOver) return;
+
+  setTimeout(() => {
+    const idx = tttBestMove(tttBoard, aiSide);
+    if (idx == null) return;
+
+    tttBoard[idx] = aiSide;
+    const w = tttWinner(tttBoard);
+    if (w) tttOver = true;
+    else tttTurn = (aiSide === "X") ? "O" : "X";
+
+    renderTTT();
+  }, 180);
+}
+
+function onTTTMove(i) {
+  startIdleTimer();
+  if (tttOver || tttBoard[i]) return;
+
+  // in 1p: lock human side
+  if (tttMode === "1p" && tttTurn !== tttHumanSide) return;
+
+  tttBoard[i] = tttTurn;
+
+  const w = tttWinner(tttBoard);
+  if (w) {
+    tttOver = true;
+    renderTTT();
+    return;
+  }
+
+  tttTurn = (tttTurn === "X") ? "O" : "X";
+  renderTTT();
+  maybeAIMove();
+}
+
+function startTTTFlow() {
+  startIdleTimer();
+  tttDifficulty = String(tttDiffSelect?.value || "Easy");
+  tttBoard = Array(9).fill("");
+  tttTurn = "X";
+  tttOver = false;
+
+  goToFrame14();
+  renderTTT();
+
+  // if human chose O and mode 1p => AI starts
+  if (tttMode === "1p" && tttHumanSide === "O") {
+    maybeAIMove();
+  }
+}
+
+if (tttStartBtn) bindTap(tttStartBtn, startTTTFlow);
+if (tttRestartBtn) bindTap(tttRestartBtn, () => {
+  startIdleTimer();
+  startTTTFlow();
+});
+
+// =========================================================
+// ✅ FRUIT SLASH GAME (Camera + 1P/2P, 3 min, Best Score)
+// =========================================================
+const LS_FRUIT_BEST_KEY = "fra_fruit_best_v1"; // { [profileId]: { best1p:number, best2p:number } }
+
+let fruitMode = "1p";
+let fruitRunning = false;
+let fruitScore = 0;
+let fruitBest = 0;
+let fruitStartTs = 0;
+let fruitTimerHandle = null;
+
+let fruitObjs = []; // {x,y,r,vy,vx,type:'fruit'|'bomb',sliced:false}
+let fruitSpawnAcc = 0;
+
+let fruitComboHits = []; // timestamps (ms) of recent fruit slices
+
+let fruitRAF = 0;
+let fruitCtx = null;
+
+let swordTracks = new Map(); // id -> {x,y,px,py,ts}
+
+function getFruitBestBucket() {
+  return lsGet(LS_FRUIT_BEST_KEY, {});
+}
+function setFruitBestBucket(obj) {
+  lsSet(LS_FRUIT_BEST_KEY, obj);
+}
+function getBestForProfile(mode) {
+  const pid = currentProfile?.id;
+  if (!pid) return 0;
+  const all = getFruitBestBucket();
+  const b = all[pid] || {};
+  return Number(mode === "2p" ? b.best2p : b.best1p) || 0;
+}
+function setBestForProfile(mode, value) {
+  const pid = currentProfile?.id;
+  if (!pid) return;
+  const all = getFruitBestBucket();
+  all[pid] ||= { best1p: 0, best2p: 0 };
+  if (mode === "2p") all[pid].best2p = Math.max(Number(all[pid].best2p) || 0, Number(value) || 0);
+  else all[pid].best1p = Math.max(Number(all[pid].best1p) || 0, Number(value) || 0);
+  setFruitBestBucket(all);
+}
+
+function setFruitMode(mode) {
+  fruitMode = (mode === "2p") ? "2p" : "1p";
+  if (fruitMode1p) fruitMode1p.classList.toggle("active", fruitMode === "1p");
+  if (fruitMode2p) fruitMode2p.classList.toggle("active", fruitMode === "2p");
+  fruitBest = getBestForProfile(fruitMode);
+  if (fruitBestEl) fruitBestEl.textContent = String(fruitBest);
+}
+
+function showFruitMenu() {
+  fruitRunning = false;
+  cancelAnimationFrame(fruitRAF);
+  fruitRAF = 0;
+  stopFruitTimer();
+
+  if (fruitStageMenu) fruitStageMenu.classList.remove("hidden");
+  if (fruitStagePlay) fruitStagePlay.classList.add("hidden");
+
+  fruitScore = 0;
+  if (fruitScoreEl) fruitScoreEl.textContent = "0";
+  if (fruitTimerEl) fruitTimerEl.textContent = "03:00";
+
+  // default mode + best
+  setFruitMode(fruitMode);
+
+  if (fruitHintEl) {
+    fruitHintEl.textContent =
+      "Swipe to slash fruits. Avoid bombs. Combo: 3 fruits within 2s = +3";
+  }
+}
+
+function showFruitPlay() {
+  if (fruitStageMenu) fruitStageMenu.classList.add("hidden");
+  if (fruitStagePlay) fruitStagePlay.classList.remove("hidden");
+}
+
+function stopFruitTimer() {
+  clearInterval(fruitTimerHandle);
+  fruitTimerHandle = null;
+}
+
+function startFruitTimer() {
+  stopFruitTimer();
+  fruitStartTs = Date.now();
+  fruitTimerHandle = setInterval(() => {
+    const elapsed = Date.now() - fruitStartTs;
+    const leftMs = Math.max(0, 180000 - elapsed);
+    const leftSec = Math.ceil(leftMs / 1000);
+    const mm = String(Math.floor(leftSec / 60)).padStart(2, "0");
+    const ss = String(leftSec % 60).padStart(2, "0");
+    if (fruitTimerEl) fruitTimerEl.textContent = `${mm}:${ss}`;
+    if (leftMs <= 0) endFruitGame(false);
+  }, 250);
+}
+
+function fitFruitCanvas() {
+  if (!fruitCanvas) return;
+  const rect = fruitCanvas.getBoundingClientRect();
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  fruitCanvas.width = Math.floor(rect.width * dpr);
+  fruitCanvas.height = Math.floor(rect.height * dpr);
+  fruitCtx = fruitCanvas.getContext("2d");
+  if (fruitCtx) fruitCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function rand(min, max) { return min + Math.random() * (max - min); }
+
+function spawnFruitOrBomb() {
+  if (!fruitCanvas) return;
+  const w = fruitCanvas.getBoundingClientRect().width;
+  const h = fruitCanvas.getBoundingClientRect().height;
+
+  const isBomb = Math.random() < 0.12; // ~12% bombs
+  const r = isBomb ? rand(18, 26) : rand(18, 30);
+
+  const x = rand(30, w - 30);
+  const y = h + r + rand(10, 40);
+
+  // throw up with some sideways
+  const vy = -rand(380, 620); // px/s
+  const vx = rand(-140, 140);
+
+  fruitObjs.push({ x, y, r, vx, vy, type: isBomb ? "bomb" : "fruit", sliced: false });
+}
+
+function lineIntersectsCircle(x1,y1,x2,y2,cx,cy,cr) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const l2 = dx*dx + dy*dy;
+  if (l2 === 0) {
+    const d2 = (cx-x1)**2 + (cy-y1)**2;
+    return d2 <= cr*cr;
+  }
+  let t = ((cx-x1)*dx + (cy-y1)*dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const px = x1 + t*dx, py = y1 + t*dy;
+  const d2 = (cx-px)**2 + (cy-py)**2;
+  return d2 <= cr*cr;
+}
+
+function recordComboHit() {
+  const now = Date.now();
+  fruitComboHits = fruitComboHits.filter(ts => now - ts <= 2000);
+  fruitComboHits.push(now);
+  if (fruitComboHits.length >= 3) {
+    fruitScore += 3;
+    fruitComboHits = [];
+  }
+}
+
+function onSliceSegment(x1,y1,x2,y2) {
+  if (!fruitRunning) return;
+  let bombHit = false;
+
+  fruitObjs.forEach(o => {
+    if (o.sliced) return;
+    if (lineIntersectsCircle(x1,y1,x2,y2,o.x,o.y,o.r)) {
+      o.sliced = true;
+      if (o.type === "bomb") bombHit = true;
+      else {
+        fruitScore += 1;
+        recordComboHit();
+      }
+    }
+  });
+
+  if (bombHit) endFruitGame(true);
+  if (fruitScoreEl) fruitScoreEl.textContent = String(fruitScore);
+}
+
+function drawObject(ctx, o) {
+  ctx.save();
+  if (o.type === "bomb") {
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(o.x + o.r*0.2, o.y - o.r);
+    ctx.quadraticCurveTo(o.x + o.r*0.9, o.y - o.r*1.4, o.x + o.r*0.6, o.y - o.r*2.0);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.28)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath(); ctx.arc(o.x - o.r*0.25, o.y - o.r*0.25, o.r*0.35, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawSwordTrails(ctx) {
+  ctx.save();
+  ctx.lineCap = "round";
+  swordTracks.forEach(t => {
+    const age = Date.now() - t.ts;
+    const alpha = Math.max(0.05, 1 - age/220);
+    ctx.strokeStyle = `rgba(255,255,255,${0.55*alpha})`;
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.moveTo(t.px, t.py);
+    ctx.lineTo(t.x, t.y);
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function fruitLoop() {
+  if (!fruitRunning || !fruitCanvas || !fruitCtx) return;
+  const ctx = fruitCtx;
+
+  const rect = fruitCanvas.getBoundingClientRect();
+  const w = rect.width, h = rect.height;
+
+  const now = performance.now();
+  fruitLoop._last ||= now;
+  const dt = Math.min(0.033, (now - fruitLoop._last)/1000);
+  fruitLoop._last = now;
+
+  ctx.clearRect(0,0,w,h);
+  if (fruitVideo && fruitVideo.readyState >= 2) {
+    try { ctx.drawImage(fruitVideo, 0, 0, w, h); } catch(_) {}
+    ctx.fillStyle = "rgba(0,0,0,0.10)";
+    ctx.fillRect(0,0,w,h);
+  } else {
+    ctx.fillStyle = "rgba(0,0,0,0.08)";
+    ctx.fillRect(0,0,w,h);
+  }
+
+  fruitSpawnAcc += dt;
+  const spawnEvery = 0.55;
+  while (fruitSpawnAcc >= spawnEvery) {
+    fruitSpawnAcc -= spawnEvery;
+    spawnFruitOrBomb();
+  }
+
+  const g = 980;
+  fruitObjs.forEach(o => {
+    if (o.sliced) return;
+    o.vy += g * dt;
+    o.x += o.vx * dt;
+    o.y += o.vy * dt;
+  });
+
+  fruitObjs = fruitObjs.filter(o => {
+    if (o.sliced) return false;
+    if (o.y - o.r > h + 80) return false;
+    return true;
+  });
+
+  fruitObjs.forEach(o => drawObject(ctx, o));
+  drawSwordTrails(ctx);
+
+  const tnow = Date.now();
+  swordTracks.forEach((t, id) => {
+    if (tnow - t.ts > 240) swordTracks.delete(id);
+  });
+
+  fruitRAF = requestAnimationFrame(fruitLoop);
+}
+
+async function startFruitCamera() {
+  if (!fruitVideo) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: false
+    });
+    fruitVideo.srcObject = stream;
+    await fruitVideo.play().catch(() => null);
+  } catch (_) {
+    // no camera permission => still playable with touch
+  }
+}
+
+function stopFruitCamera() {
+  const v = fruitVideo;
+  const s = v?.srcObject;
+  if (s && typeof s.getTracks === "function") {
+    try { s.getTracks().forEach(t => t.stop()); } catch (_) {}
+  }
+  if (v) v.srcObject = null;
+}
+
+function startFruitGame() {
+  showFruitPlay();
+  fitFruitCanvas();
+
+  fruitObjs = [];
+  fruitSpawnAcc = 0;
+  fruitComboHits = [];
+  swordTracks.clear();
+
+  fruitScore = 0;
+  if (fruitScoreEl) fruitScoreEl.textContent = "0";
+
+  fruitBest = getBestForProfile(fruitMode);
+  if (fruitBestEl) fruitBestEl.textContent = String(fruitBest);
+
+  fruitRunning = true;
+  fruitLoop._last = performance.now();
+
+  startFruitCamera();
+  startFruitTimer();
+
+  cancelAnimationFrame(fruitRAF);
+  fruitRAF = requestAnimationFrame(fruitLoop);
+}
+
+function endFruitGame(byBomb = false) {
+  if (!fruitRunning) return;
+  fruitRunning = false;
+  stopFruitTimer();
+  cancelAnimationFrame(fruitRAF);
+  fruitRAF = 0;
+
+  if (fruitScore > fruitBest) {
+    fruitBest = fruitScore;
+    setBestForProfile(fruitMode, fruitBest);
+  }
+  if (fruitBestEl) fruitBestEl.textContent = String(fruitBest);
+
+  if (fruitHintEl) {
+    fruitHintEl.textContent = byBomb
+      ? `Boom! 💣 Final score: ${fruitScore} (Best: ${fruitBest})`
+      : `Time! Final score: ${fruitScore} (Best: ${fruitBest})`;
+  }
+
+  setTimeout(() => {
+    stopFruitCamera();
+    showFruitMenu();
+  }, 500);
+}
+
+// ---- Fruit input (touch/mouse) ----
+function fruitPointerUpdate(id, x, y) {
+  const prev = swordTracks.get(id);
+  if (prev) {
+    onSliceSegment(prev.x, prev.y, x, y);
+    swordTracks.set(id, { x, y, px: prev.x, py: prev.y, ts: Date.now() });
+  } else {
+    swordTracks.set(id, { x, y, px: x, py: y, ts: Date.now() });
+  }
+}
+
+function attachFruitInput() {
+  if (!fruitCanvas) return;
+
+  fruitCanvas.addEventListener("touchstart", (e) => {
+    if (!fruitRunning) return;
+    const rect = fruitCanvas.getBoundingClientRect();
+    for (const t of Array.from(e.touches || [])) {
+      const id = "t" + t.identifier;
+      fruitPointerUpdate(id, t.clientX - rect.left, t.clientY - rect.top);
+    }
+  }, { passive: true });
+
+  fruitCanvas.addEventListener("touchmove", (e) => {
+    if (!fruitRunning) return;
+    const rect = fruitCanvas.getBoundingClientRect();
+    const touches = Array.from(e.touches || []);
+    const maxTouches = (fruitMode === "2p") ? 2 : 1;
+    touches.slice(0, maxTouches).forEach(t => {
+      const id = "t" + t.identifier;
+      fruitPointerUpdate(id, t.clientX - rect.left, t.clientY - rect.top);
+    });
+  }, { passive: true });
+
+  fruitCanvas.addEventListener("touchend", (e) => {
+    const ended = Array.from(e.changedTouches || []);
+    ended.forEach(t => swordTracks.delete("t" + t.identifier));
+  }, { passive: true });
+
+  fruitCanvas.addEventListener("touchcancel", (e) => {
+    const ended = Array.from(e.changedTouches || []);
+    ended.forEach(t => swordTracks.delete("t" + t.identifier));
+  }, { passive: true });
+
+  // Mouse
+  let mouseDown = false;
+  fruitCanvas.addEventListener("mousedown", (e) => {
+    mouseDown = true;
+    const rect = fruitCanvas.getBoundingClientRect();
+    fruitPointerUpdate("m", e.clientX - rect.left, e.clientY - rect.top);
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!mouseDown || !fruitRunning) return;
+    const rect = fruitCanvas.getBoundingClientRect();
+    fruitPointerUpdate("m", e.clientX - rect.left, e.clientY - rect.top);
+  });
+  window.addEventListener("mouseup", () => {
+    mouseDown = false;
+    swordTracks.delete("m");
+  });
+}
+
+function attachFruitButtons() {
+  if (fruitMode1p) bindTap(fruitMode1p, () => setFruitMode("1p"));
+  if (fruitMode2p) bindTap(fruitMode2p, () => setFruitMode("2p"));
+
+  if (fruitStartBtn) bindTap(fruitStartBtn, () => startFruitGame());
+
+  if (fruitReplayBtn) bindTap(fruitReplayBtn, () => startFruitGame());
+
+  if (fruitBackBtn) bindTap(fruitBackBtn, () => {
+    stopFruitCamera();
+    showFruitMenu();
+    goToFrame6(lastFrame6Tab || "community");
+  });
+
+  if (fruitBackHomeBtn) bindTap(fruitBackHomeBtn, () => {
+    stopFruitCamera();
+    showFruitMenu();
+    goToFrame6(lastFrame6Tab || "community");
+  });
+
+  window.addEventListener("resize", () => {
+    if (frame15 && frame15.style.display === "block") fitFruitCanvas();
+  });
+}
+
+function enterFruitFrame() {
+  showFruitMenu();
+}
+
+// ✅ run once
+attachFruitButtons();
+attachFruitInput();
 
 // =========================================================
 // ✅ Initial screen
