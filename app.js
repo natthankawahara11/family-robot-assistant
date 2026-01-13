@@ -28,7 +28,6 @@ function scheduleSaveAll() {
       currentProfileId: currentProfile?.id || null,
       micLang
     });
-    lsSet(LS_PINS_KEY, pinnedByProfile);
   }, 150);
 }
 
@@ -75,6 +74,7 @@ function preloadVideo(url) {
 }
 
 function cssBgUrls() {
+  // ✅ FIX: add Pic18 + Quiz_Background
   return [
     "Pic4.png","Pic5.png","Pic12.png","Pic14.png","Pic15.png","Pic17.png","Pic18.png",
     "Quiz_Background.png"
@@ -102,7 +102,8 @@ function domImgUrls() {
 
 async function preloadAssets() {
   const imgs = uniq([...cssBgUrls(), ...domImgUrls()]);
-  const vids = ["Face.mp4"];
+  // ✅ FIX: HTML ใช้ Face.mp4 → preload ทั้ง mp4 และ webm เผื่อไว้
+  const vids = ["Face.mp4","Face.webm"];
 
   const tasks = [
     ...imgs.map(u => ({ type: "img", url: u })),
@@ -182,54 +183,6 @@ const frame7 = document.getElementById('frame7');
 const frame8 = document.getElementById('frame8');
 const frame9 = document.getElementById('frame9');
 const frame10 = document.getElementById('frame10');
-
-// ✅ game frames (11–14)
-const frame11 = document.getElementById('frame11'); // Scramble setup
-const frame12 = document.getElementById('frame12'); // TicTacToe setup
-const frame13 = document.getElementById('frame13'); // Scramble play
-const frame14 = document.getElementById('frame14'); // TicTacToe play
-
-// ---- Scramble UI ----
-const scrambleStageSetup = document.getElementById('scrambleStageSetup');
-const scrambleStagePlay  = document.getElementById('scrambleStagePlay');
-
-const scrambleBackBtn1 = document.getElementById('scrambleBackBtn1');
-const scrambleBackBtn2 = document.getElementById('scrambleBackBtn2');
-
-const scrambleSetupTitle = document.getElementById('scrambleSetupTitle');
-const scrambleTopicInput = document.getElementById('scrambleTopicInput');
-const scrambleCountSelect = document.getElementById('scrambleCountSelect');
-const scrambleDifficultySelect = document.getElementById('scrambleDifficultySelect');
-const scrambleTimerSelect = document.getElementById('scrambleTimerSelect');
-const scrambleStartBtn = document.getElementById('scrambleStartBtn');
-const scrambleSetupHint = document.getElementById('scrambleSetupHint');
-
-const scrambleProgress = document.getElementById('scrambleProgress');
-const scrambleTimerPill = document.getElementById('scrambleTimerPill');
-const scrambleWordText = document.getElementById('scrambleWordText');
-const scrambleHintText = document.getElementById('scrambleHintText');
-const scrambleGuessInput = document.getElementById('scrambleGuessInput');
-const scrambleCheckBtn = document.getElementById('scrambleCheckBtn');
-const scrambleNextBtn = document.getElementById('scrambleNextBtn');
-const scrambleFeedback = document.getElementById('scrambleFeedback');
-
-// ---- TicTacToe UI ----
-const tttStageSetup = document.getElementById('tttStageSetup');
-const tttStagePlay  = document.getElementById('tttStagePlay');
-
-const tttBackBtn1 = document.getElementById('tttBackBtn1');
-const tttBackBtn2 = document.getElementById('tttBackBtn2');
-
-const tttSetupTitle = document.getElementById('tttSetupTitle');
-const tttModeBtns = Array.from(document.querySelectorAll('[data-ttt-mode]'));
-const tttSideBtns = Array.from(document.querySelectorAll('[data-ttt-side]'));
-const tttDiffSelect = document.getElementById('tttDiffSelect');
-const tttStartBtn = document.getElementById('tttStartBtn');
-const tttSetupHint = document.getElementById('tttSetupHint');
-
-const tttStatus = document.getElementById('tttStatus');
-const tttGrid = document.getElementById('tttGrid');
-const tttRestartBtn = document.getElementById('tttRestartBtn');
 
 const quizStageSetup = document.getElementById('quizStageSetup');
 const quizStagePlay = document.getElementById('quizStagePlay');
@@ -357,34 +310,6 @@ let micLang = (savedState?.micLang === "th-TH") ? "th-TH" : "en-US";
 if (profiles.length > 0) {
   const id = savedState?.currentProfileId;
   currentProfile = profiles.find(p => p?.id === id) || profiles[0];
-}
-
-// =========================================================
-// ✅ PINNED STATE (per profile, per tab)
-// =========================================================
-const LS_PINS_KEY = "fra_pins_v1";
-
-// structure: { [profileId]: { home:[], healthcare:[], sports:[], education:[], community:[] } }
-let pinnedByProfile = lsGet(LS_PINS_KEY, {});
-
-function ensurePinsBucket(profileId) {
-  if (!profileId) return null;
-  if (!pinnedByProfile[profileId]) {
-    pinnedByProfile[profileId] = { home: [], healthcare: [], sports: [], education: [], community: [] };
-  } else {
-    pinnedByProfile[profileId].home ||= [];
-    pinnedByProfile[profileId].healthcare ||= [];
-    pinnedByProfile[profileId].sports ||= [];
-    pinnedByProfile[profileId].education ||= [];
-    pinnedByProfile[profileId].community ||= [];
-  }
-  return pinnedByProfile[profileId];
-}
-
-function getPinsForActiveProfile() {
-  const pid = currentProfile?.id;
-  if (!pid) return { home: [], healthcare: [], sports: [], education: [], community: [] };
-  return ensurePinsBucket(pid);
 }
 
 // =========================================================
@@ -577,62 +502,13 @@ let idleTimer = null;
 let isVideoVisible = false;
 let lastActiveFrame = null;
 
-function cardKeyFromEl(cardEl) {
-  if (!cardEl) return null;
-
-  // chat card
-  const chatType = cardEl.getAttribute("data-card");
-  if (chatType) return `chat:${chatType}`;
-
-  // quiz card
-  const isQuiz = cardEl.getAttribute("data-quiz") === "1";
-  if (isQuiz) {
-    const tab = cardEl.getAttribute("data-for-tab") || "unknown";
-    return `quiz:${tab}`;
-  }
-
-  // game card
-  const game = cardEl.getAttribute("data-game");
-  if (game) {
-    const tab = cardEl.getAttribute("data-for-tab") || "unknown";
-    return `game:${game}:${tab}`;
-  }
-
-  // fallback (ถ้ามี id)
-  if (cardEl.id) return `id:${cardEl.id}`;
-
-  return null;
-}
-
-function isPinned(tabName, cardKey) {
-  const pins = getPinsForActiveProfile();
-  const list = pins?.[tabName] || [];
-  return list.includes(cardKey);
-}
-
-function togglePin(tabName, cardKey) {
-  const pid = currentProfile?.id;
-  if (!pid || !cardKey) return;
-
-  const pins = ensurePinsBucket(pid);
-  const list = pins[tabName] || (pins[tabName] = []);
-
-  const idx = list.indexOf(cardKey);
-  if (idx >= 0) list.splice(idx, 1); // unpin
-  else list.unshift(cardKey);        // pin (ขึ้นหน้าแรก)
-
-  scheduleSaveAll();
-}
-
 // =========================================================
 // ✅ FRAME NAV
 // =========================================================
 function hideAllFrames() {
-  [
-    frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7,
-    frame8, frame9, frame10,
-    frame11, frame12, frame13, frame14
-  ].forEach(f => { if (f) f.style.display = 'none'; });
+  [frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7, frame8, frame9, frame10].forEach(f => {
+    if (f) f.style.display = 'none';
+  });
 }
 
 function goToFrame1() {
@@ -700,8 +576,7 @@ function goToFrame5Accounts() {
 
 function goToFrame6(preferredTab = null) {
   if (!currentProfile && profiles.length > 0) currentProfile = profiles[0];
-  if (currentProfile?.id) ensureChatBucket(currentProfile.id); 
-  ensurePinsBucket(currentProfile.id);
+  if (currentProfile?.id) ensureChatBucket(currentProfile.id);
 
   hideAllFrames();
   if (frame6) frame6.style.display = 'block';
@@ -731,10 +606,6 @@ function restoreLastFrame() {
     case 'frame8': goToFrame8(currentQuizTab || "healthcare"); break;
     case 'frame9': goToFrame9(); break;
     case 'frame10': goToFrame10(); break;
-    case 'frame11': goToFrame11(currentGameTab || "education"); break;
-    case 'frame12': goToFrame12(currentGameTab || "education"); break;
-    case 'frame13': goToFrame13(); break;
-    case 'frame14': goToFrame14(); break;
     default: goToFrame1(); break;
   }
 }
@@ -775,8 +646,7 @@ function handleUserInteraction(e) {
       '.frame6-profile, .frame6-card, .frame6-card-menu, .frame6-tab, #tabHighlight,' +
       '.chat-icon, .chat-input, .profile-card, .profile-option, .option-card, ' +
       '.frame2-btn-left, .frame2-btn-right, .frame2-close, .mic-lang, .mini-btn, .thread-item,' +
-      '.modal, .modal-card, .modal-btn, .quiz-primary, .quiz-secondary, .quiz-input, .quiz-select, .quiz-choice, .quiz-back,' +
-      '.game-primary, .game-secondary, .toggle-btn, .ttt-cell, .game-back'
+      '.modal, .modal-card, .modal-btn, .quiz-primary, .quiz-secondary, .quiz-input, .quiz-select, .quiz-choice, .quiz-back'
     );
     if (block) return;
   }
@@ -1107,7 +977,6 @@ function createProfileFromAgeNumber() {
 
   profiles.push(profile);
   ensureChatBucket(profile.id);
-  ensurePinsBucket(profile.id);
   currentProfile = profile;
   scheduleSaveAll();
 
@@ -1300,7 +1169,6 @@ function attachLongPressDeleteToggle(card, id) {
 //    ✅ Sub-tabs: show 2 cards (chat card + quiz card) in order
 // =========================================================
 function applyFrame6TabView(name) {
-  closeCardMenu();
   if (!homeCardsWrapper || !homeCardsTrack) return;
 
   const cards = Array.from(homeCardsTrack.querySelectorAll('.frame6-card'));
@@ -1309,53 +1177,28 @@ function applyFrame6TabView(name) {
   cards.forEach(c => { c.style.order = ""; });
 
   if (name === "home") {
-  const homeCards = [];
-  cards.forEach(c => {
-    const isHome = c.getAttribute("data-home") === "1";
-    c.style.display = isHome ? "" : "none";
-    c.style.order = "";
-    if (isHome) homeCards.push(c);
-  });
+    cards.forEach(c => {
+      const isHome = c.getAttribute("data-home") === "1";
+      c.style.display = isHome ? "" : "none";
+    });
+    setHomeIndex(lastHomeIndex || 0, false);
+    return;
+  }
 
-  // ✅ pinned first in home
-  const pins = getPinsForActiveProfile();
-  const pinnedKeys = pins?.home || [];
-  homeCards.forEach((c, i) => {
-    const key = cardKeyFromEl(c);
-    const pIndex = key ? pinnedKeys.indexOf(key) : -1;
-    c.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(i + 1);
-    setPinnedBadge(c, pIndex >= 0); // ✅ add marker
-  });
-
-  setHomeIndex(lastHomeIndex || 0, false);
-  return;
-}
-
-  // sub tab => show: chat + quiz + (optional) game
+  // sub tab => show exactly two: chat + quiz
   cards.forEach(c => { c.style.display = "none"; });
 
   const chatCard = cards.find(c => c.getAttribute("data-card") === name);
   const quizCard = cards.find(c => c.getAttribute("data-quiz") === "1" && c.getAttribute("data-for-tab") === name);
 
-  // ✅ game card: use data-game="scramble" or "ttt" and data-for-tab
-  const gameCard = cards.find(c => c.getAttribute("data-game") && c.getAttribute("data-for-tab") === name);
-
-  const pins = getPinsForActiveProfile();
-const pinnedKeys = pins?.[name] || [];
-
-function applyOne(cardEl, fallbackOrder) {
-  if (!cardEl) return;
-  cardEl.style.display = "";
-  const key = cardKeyFromEl(cardEl);
-  const pIndex = key ? pinnedKeys.indexOf(key) : -1;
-  cardEl.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(fallbackOrder);
-  setPinnedBadge(cardEl, pIndex >= 0); // ✅ add marker
-}
-
-let order = 1;
-applyOne(chatCard, order++);
-applyOne(quizCard, order++);
-applyOne(gameCard, order++);
+  if (chatCard) {
+    chatCard.style.display = "";
+    chatCard.style.order = "1";
+  }
+  if (quizCard) {
+    quizCard.style.display = "";
+    quizCard.style.order = "2";
+  }
 
   homeIndex = 0;
   homeCardsTrack.style.transition = "none";
@@ -1541,139 +1384,28 @@ function bindCardTapOnly(cardEl, onTap) {
   });
 }
 
-// =========================================================
-// ✅ CARD MENU (Fix_Menu -> show circle + Pin/Unpin)
-// =========================================================
-let openCardMenuEl = null;
-
-function closeCardMenu() {
-  if (!openCardMenuEl) return;
-  const pinBtn = openCardMenuEl.querySelector(".frame6-pin-action");
-  if (pinBtn) pinBtn.classList.remove("show");
-  openCardMenuEl.classList.remove("menu-open");
-  openCardMenuEl = null;
-}
-
-function openCardMenu(cardEl) {
-  if (!cardEl) return;
-
-  // close other
-  if (openCardMenuEl && openCardMenuEl !== cardEl) closeCardMenu();
-
-  // create pin action if not exist
-  let pinBtn = cardEl.querySelector(".frame6-pin-action");
-  if (!pinBtn) {
-    pinBtn = document.createElement("button");
-    pinBtn.type = "button";
-    pinBtn.className = "frame6-pin-action";
-    pinBtn.innerHTML = `<img src="Pin.png" alt="">`;
-    cardEl.appendChild(pinBtn);
-
-    // click Pin/Unpin => toggle pin then close menu
-    bindTap(pinBtn, (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const tabName = currentTabName || "home";
-      const key = cardKeyFromEl(cardEl);
-
-      // ✅ กด Pin.png/Unpin.png ถึงค่อยปัก/ยกเลิก
-      togglePin(tabName, key);
-
-      closeCardMenu();
-      applyFrame6TabView(tabName); // refresh order + badge
-      startIdleTimer();
-    });
-  }
-
-  // set icon based on pinned state in current tab
-  const tabName = currentTabName || "home";
-  const key = cardKeyFromEl(cardEl);
-  const pinned = isPinned(tabName, key);
-
-  const img = pinBtn.querySelector("img");
-  if (img) img.src = pinned ? "Unpin.png" : "Pin.png";
-
-  // show circle+icon
-  pinBtn.classList.add("show");
-  cardEl.classList.add("menu-open");
-  openCardMenuEl = cardEl;
-}
-
-// tap outside => close menu (like Google)
-document.addEventListener("click", () => closeCardMenu());
-document.addEventListener("touchstart", () => closeCardMenu(), { passive: true });
-
 function attachFrame6CardHandlers() {
-  if (!homeCardsTrack) return;
+  document.querySelectorAll('.frame6-card').forEach(card => {
+    if (card.dataset.bound === "1") return;
+    card.dataset.bound = "1";
 
-  const cards = Array.from(homeCardsTrack.querySelectorAll(".frame6-card"));
+    bindCardTapOnly(card, () => {
+      lastFrame6Tab = currentTabName || "home";
 
-  cards.forEach((card) => {
-    // ✅ menu click => show circle + Pin/Unpin (NOT toggle yet)
-    const menuBtn = card.querySelector(".frame6-card-menu");
-    if (menuBtn && menuBtn.dataset.bound !== "1") {
-      menuBtn.dataset.bound = "1";
+      const isQuiz = card.getAttribute("data-quiz") === "1";
+      if (isQuiz) {
+        const tab = card.getAttribute("data-for-tab") || currentTabName || "healthcare";
+        goToFrame8(tab);
+        return;
+      }
 
-      bindTap(menuBtn, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        startIdleTimer();
-
-        // toggle open/close
-        const pinBtn = card.querySelector(".frame6-pin-action");
-        const isOpen = pinBtn && pinBtn.classList.contains("show");
-
-        if (isOpen) closeCardMenu();
-        else openCardMenu(card);
-      });
-    }
-
-    // ✅ tap-only open card (ignore swipes)
-    if (card.dataset.tapBound !== "1") {
-      card.dataset.tapBound = "1";
-
-      bindCardTapOnly(card, () => {
-        lastFrame6Tab = currentTabName || "home";
-
-        const isQuiz = card.getAttribute("data-quiz") === "1";
-        if (isQuiz) {
-          const tab = card.getAttribute("data-for-tab") || currentTabName || "healthcare";
-          goToFrame8(tab);
-          return;
-        }
-
-        const game = card.getAttribute("data-game");
-        if (game) {
-          const tab = card.getAttribute("data-for-tab") || currentTabName || "education";
-          if (game === "scramble") { goToFrame11(tab); return; }
-          if (game === "ttt")      { goToFrame12(tab); return; }
-          return;
-        }
-
-        const type = card.getAttribute("data-card");
-        if (!type) return;
-        goToFrame7(type);
-      });
-    }
+      let type = card.getAttribute('data-card');
+      if (!type) return;
+      goToFrame7(type);
+    });
   });
 }
 attachFrame6CardHandlers();
-
-function setPinnedBadge(cardEl, pinned) {
-  if (!cardEl) return;
-
-  let badge = cardEl.querySelector(".pin-badge");
-  if (!badge) {
-    badge = document.createElement("img");
-    badge.className = "pin-badge";
-    badge.src = "Pin_Header.png";
-    badge.alt = "Pinned";
-    cardEl.style.position = cardEl.style.position || "relative";
-    cardEl.appendChild(badge);
-  }
-  badge.style.display = pinned ? "block" : "none";
-}
 
 // =========================================================
 // ✅ FRAME 7 Chatbot
@@ -1701,12 +1433,6 @@ window.addEventListener('resize', () => {
       (frame9 && frame9.style.display === 'block') ||
       (frame10 && frame10.style.display === 'block')) {
     updateQuizScale();
-  }
-  if ((frame11 && frame11.style.display === 'block') ||
-      (frame12 && frame12.style.display === 'block') ||
-      (frame13 && frame13.style.display === 'block') ||
-      (frame14 && frame14.style.display === 'block')) {
-    updateGameScale();
   }
 });
 
@@ -2200,25 +1926,13 @@ function updateQuizScale() {
   if (quizStageResult) quizStageResult.style.setProperty('--qs', s.toString());
 }
 
-function updateGameScale() {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const baseW = 864;
-  const baseH = 444;
-  const s = Math.min(vw / baseW, vh / baseH);
-
-  if (scrambleStageSetup) scrambleStageSetup.style.setProperty('--gs', s.toString());
-  if (scrambleStagePlay)  scrambleStagePlay.style.setProperty('--gs', s.toString());
-  if (tttStageSetup)      tttStageSetup.style.setProperty('--gs', s.toString());
-  if (tttStagePlay)       tttStagePlay.style.setProperty('--gs', s.toString());
-}
-
 function goToFrame8(tab) {
   currentQuizTab = tab || "healthcare";
   hideAllFrames();
 
   if (frame8) frame8.style.display = "block";
-  document.body.style.backgroundImage = 'url("Pic18.png")';
+  // ✅ FIX: quiz background should be Quiz_Background
+  document.body.style.backgroundImage = 'url("Quiz_Background.png")';
   lastActiveFrame = 'frame8';
 
   updateQuizScale();
@@ -2246,7 +1960,8 @@ function goToFrame8(tab) {
 function goToFrame9() {
   hideAllFrames();
   if (frame9) frame9.style.display = "block";
-  document.body.style.backgroundImage = 'url("Pic18.png")';
+  // ✅ FIX
+  document.body.style.backgroundImage = 'url("Quiz_Background.png")';
   lastActiveFrame = 'frame9';
   updateQuizScale();
   startIdleTimer();
@@ -2255,7 +1970,8 @@ function goToFrame9() {
 function goToFrame10() {
   hideAllFrames();
   if (frame10) frame10.style.display = "block";
-  document.body.style.backgroundImage = 'url("Pic18.png")';
+  // ✅ FIX
+  document.body.style.backgroundImage = 'url("Quiz_Background.png")';
   lastActiveFrame = 'frame10';
   updateQuizScale();
   startIdleTimer();
@@ -2527,52 +2243,6 @@ async function generateQuizFromAI(payload) {
   }
 }
 
-async function generateScrambleFromAI(payload) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
-
-  try {
-    const r = await fetch(`${SERVER_BASE}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        type: "scramble_game",
-        message: JSON.stringify(payload),
-        history: [],
-        profile: currentProfile ? {
-          id: currentProfile.id,
-          name: currentProfile.name,
-          ageNumber: currentProfile.ageNumber,
-          ageKey: currentProfile.ageKey,
-          ageText: currentProfile.ageText
-        } : null
-      })
-    });
-
-    const data = await r.json().catch(() => ({}));
-    const raw = String(data?.reply || "").trim();
-    const obj = extractJSON(raw);
-
-    // ต้องได้ { words: [...] }
-    if (!obj || !Array.isArray(obj.words) || !obj.words.length) return null;
-
-    // clean
-    const clean = obj.words.map(w => ({
-      answer: String(w.answer || "").toUpperCase().replace(/\s+/g, ""),
-      scrambled: String(w.scrambled || "").toUpperCase().replace(/\s+/g, ""),
-      hint: String(w.hint || "").trim()
-    })).filter(w => w.answer && w.scrambled && w.scrambled !== w.answer);
-
-    if (!clean.length) return null;
-    return { words: clean };
-  } catch (_) {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 function resetQuizState() {
   quizData = null;
   quizIndex = 0;
@@ -2673,438 +2343,7 @@ if (quizBackBtn3) bindTap(quizBackBtn3, quizBackToHome);
 if (quizPlayAgainBtn) bindTap(quizPlayAgainBtn, () => goToFrame8(currentQuizTab));
 if (quizBackHomeBtn) bindTap(quizBackHomeBtn, quizBackToHome);
 
-
-// =========================================================
-// ✅ GAMES SYSTEM (Scramble + TicTacToe)
-// =========================================================
-let currentGameTab = "education";
-
-// ---------- NAV ----------
-function goToFrame11(tab) {
-  currentGameTab = tab || "education";
-  hideAllFrames();
-  if (frame11) frame11.style.display = "block";
-  document.body.style.backgroundImage = 'url("Pic18.png")';
-  lastActiveFrame = 'frame11';
-  updateGameScale();
-  startIdleTimer();
-
-  if (scrambleSetupTitle) scrambleSetupTitle.textContent = "Word Scramble";
-  if (scrambleTopicInput) scrambleTopicInput.value = "";
-  if (scrambleSetupHint) scrambleSetupHint.textContent = "Tip: choose a topic then Start.";
-  if (scrambleStartBtn) { scrambleStartBtn.disabled = false; scrambleStartBtn.textContent = "Start Game"; }
-}
-
-function goToFrame12(tab) {
-  currentGameTab = tab || "education";
-  hideAllFrames();
-  if (frame12) frame12.style.display = "block";
-  document.body.style.backgroundImage = 'url("Pic18.png")';
-  lastActiveFrame = 'frame12';
-  updateGameScale();
-  startIdleTimer();
-
-  if (tttSetupTitle) tttSetupTitle.textContent = "Tic Tac Toe";
-  // defaults
-  setTTTMode("1p");
-  setTTTSide("X");
-  if (tttSetupHint) tttSetupHint.textContent = "Choose mode and press Start.";
-}
-
-function goToFrame13() {
-  hideAllFrames();
-  if (frame13) frame13.style.display = "block";
-  document.body.style.backgroundImage = 'url("Pic18.png")';
-  lastActiveFrame = 'frame13';
-  updateGameScale();
-  startIdleTimer();
-}
-
-function goToFrame14() {
-  hideAllFrames();
-  if (frame14) frame14.style.display = "block";
-  document.body.style.backgroundImage = 'url("Pic18.png")';
-  lastActiveFrame = 'frame14';
-  updateGameScale();
-  startIdleTimer();
-}
-
-function gameBackToHome() {
-  clearScrambleTimer();
-  goToFrame6(lastFrame6Tab || "home");
-}
-
-if (scrambleBackBtn1) bindTap(scrambleBackBtn1, gameBackToHome);
-if (scrambleBackBtn2) bindTap(scrambleBackBtn2, gameBackToHome);
-if (tttBackBtn1) bindTap(tttBackBtn1, gameBackToHome);
-if (tttBackBtn2) bindTap(tttBackBtn2, gameBackToHome);
-
-// ---------- Scramble ----------
-let scrambleData = null; // { words:[{answer,scrambled,hint}] }
-let scrambleIndex = 0;
-let scrambleScore = 0;
-let scrambleAnswered = false;
-
-let scrambleSecPerWord = 0;
-let scrambleCountdown = 0;
-let scrambleTimerHandle = null;
-
-function clearScrambleTimer() {
-  clearInterval(scrambleTimerHandle);
-  scrambleTimerHandle = null;
-  scrambleCountdown = 0;
-  if (scrambleTimerPill) scrambleTimerPill.textContent = "—";
-}
-function startScrambleTimer(sec) {
-  clearScrambleTimer();
-  if (!sec || sec <= 0) {
-    if (scrambleTimerPill) scrambleTimerPill.textContent = "No timer";
-    return;
-  }
-  scrambleCountdown = sec;
-  if (scrambleTimerPill) scrambleTimerPill.textContent = formatTime(scrambleCountdown);
-  scrambleTimerHandle = setInterval(() => {
-    scrambleCountdown -= 1;
-    if (scrambleTimerPill) scrambleTimerPill.textContent = formatTime(Math.max(0, scrambleCountdown));
-    if (scrambleCountdown <= 0) {
-      clearScrambleTimer();
-      if (!scrambleAnswered) scrambleLockAnswer(true);
-    }
-  }, 1000);
-}
-
-function scrambleShuffleWord(word) {
-  const s = (word || "").toUpperCase().replace(/\s+/g, "");
-  if (s.length <= 2) return s;
-  const arr = s.split("");
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  const out = arr.join("");
-  return (out === s) ? arr.reverse().join("") : out;
-}
-
-// simple local word pools (offline)
-function scramblePoolByTab(tab) {
-  const base = {
-    healthcare: ["HYDRATION","NUTRITION","SLEEP","EXERCISE","VITAMINS","STRETCH","FIRSTAID","HEALTH"],
-    sports: ["ENDURANCE","STAMINA","WARMUP","COOLDOWN","TRAINING","BALANCE","MUSCLE","RECOVERY"],
-    education: ["ALGEBRA","HISTORY","SCIENCE","LANGUAGE","GEOMETRY","ESSAY","READING","HOMEWORK"],
-    community: ["RESPECT","KINDNESS","TEAMWORK","HELPFUL","HONESTY","SAFETY","FRIENDSHIP","COMMUNITY"]
-  };
-  return base[tab] || base.education;
-}
-
-function buildScrambleWords(topic, count, tab, difficulty) {
-  const pool = scramblePoolByTab(tab);
-  const words = [];
-  const used = new Set();
-
-  const wantLen = (difficulty === "Hard") ? 9 : (difficulty === "Easy") ? 5 : 7;
-
-  while (words.length < count) {
-    let w = pool[Math.floor(Math.random() * pool.length)];
-    // mix in topic letters sometimes (just to feel “topic-based” offline)
-    if (topic && Math.random() < 0.25) {
-      const t = topic.toUpperCase().replace(/[^A-Z]/g, "");
-      if (t.length >= 4) w = t.slice(0, Math.min(10, Math.max(4, wantLen)));
-    }
-
-    if (w.length < 4) continue;
-    if (difficulty === "Hard" && w.length < 8) continue;
-    if (difficulty === "Easy" && w.length > 9) continue;
-
-    if (used.has(w)) continue;
-    used.add(w);
-
-    const scrambled = scrambleShuffleWord(w);
-    const hint = `Starts with "${w[0]}" • ${w.length} letters`;
-
-    words.push({ answer: w, scrambled, hint });
-  }
-  return { words };
-}
-
-function renderScramble() {
-  if (!scrambleData || !scrambleData.words?.length) return;
-
-  const total = scrambleData.words.length;
-  const item = scrambleData.words[scrambleIndex];
-
-  scrambleAnswered = false;
-  if (scrambleFeedback) scrambleFeedback.textContent = "";
-  if (scrambleGuessInput) { scrambleGuessInput.value = ""; }
-  if (scrambleWordText) scrambleWordText.textContent = item.scrambled;
-  if (scrambleHintText) scrambleHintText.textContent = `Hint: ${item.hint}`;
-  if (scrambleProgress) scrambleProgress.textContent = `Word ${scrambleIndex + 1} / ${total} • Score ${scrambleScore}`;
-
-  if (scrambleNextBtn) {
-    scrambleNextBtn.disabled = true;
-    scrambleNextBtn.textContent = (scrambleIndex === total - 1) ? "Finish" : "Next";
-  }
-
-  startScrambleTimer(scrambleSecPerWord);
-}
-
-function scrambleLockAnswer(timedOut) {
-  if (!scrambleData) return;
-  const item = scrambleData.words[scrambleIndex];
-  scrambleAnswered = true;
-  clearScrambleTimer();
-
-  const guess = (scrambleGuessInput?.value || "").toUpperCase().replace(/\s+/g, "");
-  const ok = (!timedOut && guess && guess === item.answer);
-
-  if (ok) scrambleScore += 1;
-
-  if (scrambleHintText) scrambleHintText.textContent = `Hint: ${item.hint}`;
-
-  if (scrambleFeedback) {
-    if (timedOut) scrambleFeedback.textContent = `Time’s up! Answer: ${item.answer}`;
-    else if (ok) scrambleFeedback.textContent = `Correct ✅`;
-    else scrambleFeedback.textContent = `Not quite. Answer: ${item.answer}`;
-  }
-
-  if (scrambleNextBtn) scrambleNextBtn.disabled = false;
-}
-
-async function startScrambleFlow() {
-  startIdleTimer();
-
-  const topic = (scrambleTopicInput?.value || "").trim();
-  const count = Number(scrambleCountSelect?.value || 8);
-  const difficulty = String(scrambleDifficultySelect?.value || "Medium");
-  const timer = Number(scrambleTimerSelect?.value || 0);
-
-  if (!topic) {
-    if (scrambleSetupHint) scrambleSetupHint.textContent = "Please enter a topic first.";
-    return;
-  }
-
-  if (scrambleStartBtn) {
-    scrambleStartBtn.disabled = true;
-    scrambleStartBtn.textContent = "Starting…";
-  }
-
-  // ✅ payload สำหรับ AI
-  const payload = {
-    topic,
-    count: Math.max(3, Math.min(15, count)),
-    difficulty
-  };
-
-  // ✅ 1) ลองสร้างจาก AI ก่อน
-  let data = null;
-  try {
-    data = await generateScrambleFromAI(payload); // ต้องมีฟังก์ชันนี้ในไฟล์
-  } catch (_) {
-    data = null;
-  }
-
-  // ✅ 2) ถ้า AI พัง/เน็ตหลุด => ใช้ของเดิมแบบ offline
-  if (!data) {
-    data = buildScrambleWords(topic, payload.count, currentGameTab, difficulty);
-  }
-
-  scrambleData = data;
-  scrambleIndex = 0;
-  scrambleScore = 0;
-  scrambleSecPerWord = timer;
-
-  // ✅ เผื่ออยากให้กด Start ได้อีกตอนกลับไปหน้า setup
-  if (scrambleStartBtn) {
-    scrambleStartBtn.disabled = false;
-    scrambleStartBtn.textContent = "Start Game";
-  }
-
-  goToFrame13();
-  renderScramble();
-}
-
-if (scrambleStartBtn) bindTap(scrambleStartBtn, startScrambleFlow);
-
-if (scrambleCheckBtn) bindTap(scrambleCheckBtn, () => {
-  startIdleTimer();
-  if (scrambleAnswered) return;
-  scrambleLockAnswer(false);
-});
-
-if (scrambleNextBtn) bindTap(scrambleNextBtn, () => {
-  startIdleTimer();
-  if (!scrambleData) return;
-
-  const total = scrambleData.words.length;
-  if (scrambleIndex >= total - 1) {
-    // finish => go back setup with result text
-    goToFrame11(currentGameTab);
-    if (scrambleSetupHint) scrambleSetupHint.textContent = `Finished! Final score: ${scrambleScore} / ${total}`;
-    return;
-  }
-  scrambleIndex += 1;
-  goToFrame13();
-  renderScramble();
-});
-
-// ---------- TicTacToe ----------
-let tttMode = "1p";     // "1p" | "2p"
-let tttHumanSide = "X"; // "X" | "O"
-let tttDifficulty = "Easy";
-
-let tttBoard = Array(9).fill("");
-let tttTurn = "X";
-let tttOver = false;
-
-function setTTTMode(mode) {
-  tttMode = (mode === "2p") ? "2p" : "1p";
-  tttModeBtns.forEach(b => b.classList.toggle("active", b.getAttribute("data-ttt-mode") === tttMode));
-}
-function setTTTSide(side) {
-  tttHumanSide = (side === "O") ? "O" : "X";
-  tttSideBtns.forEach(b => b.classList.toggle("active", b.getAttribute("data-ttt-side") === tttHumanSide));
-}
-
-tttModeBtns.forEach(btn => bindTap(btn, () => { setTTTMode(btn.getAttribute("data-ttt-mode")); startIdleTimer(); }));
-tttSideBtns.forEach(btn => bindTap(btn, () => { setTTTSide(btn.getAttribute("data-ttt-side")); startIdleTimer(); }));
-
-function tttLines() {
-  return [
-    [0,1,2],[3,4,5],[6,7,8],
-    [0,3,6],[1,4,7],[2,5,8],
-    [0,4,8],[2,4,6]
-  ];
-}
-function tttWinner(board) {
-  for (const [a,b,c] of tttLines()) {
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
-  }
-  if (board.every(x => x)) return "draw";
-  return null;
-}
-
-function renderTTT() {
-  if (!tttGrid) return;
-  tttGrid.innerHTML = "";
-
-  tttBoard.forEach((v, i) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "ttt-cell";
-    btn.textContent = v || "";
-    btn.disabled = tttOver || !!v;
-    bindTap(btn, () => onTTTMove(i));
-    tttGrid.appendChild(btn);
-  });
-
-  const w = tttWinner(tttBoard);
-  if (tttStatus) {
-    if (w === "draw") tttStatus.textContent = "Draw 🤝";
-    else if (w) tttStatus.textContent = `${w} wins! 🏆`;
-    else tttStatus.textContent = `Turn: ${tttTurn}`;
-  }
-}
-
-function tttBestMove(board, aiSide) {
-  const human = (aiSide === "X") ? "O" : "X";
-
-  // Easy: random
-  if (tttDifficulty === "Easy") {
-    const empties = board.map((v,i)=>v?null:i).filter(v=>v!==null);
-    return empties[Math.floor(Math.random() * empties.length)];
-  }
-
-  // Medium/Hard: simple win/block + center + corners
-  const empties = board.map((v,i)=>v?null:i).filter(v=>v!==null);
-
-  // win
-  for (const i of empties) {
-    const b = board.slice(); b[i] = aiSide;
-    if (tttWinner(b) === aiSide) return i;
-  }
-  // block
-  for (const i of empties) {
-    const b = board.slice(); b[i] = human;
-    if (tttWinner(b) === human) return i;
-  }
-  // center
-  if (board[4] === "") return 4;
-  // corners
-  const corners = [0,2,6,8].filter(i => board[i] === "");
-  if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
-  // else random
-  return empties[Math.floor(Math.random() * empties.length)];
-}
-
-function maybeAIMove() {
-  if (tttMode !== "1p") return;
-  const aiSide = (tttHumanSide === "X") ? "O" : "X";
-  if (tttTurn !== aiSide) return;
-  if (tttOver) return;
-
-  setTimeout(() => {
-    const idx = tttBestMove(tttBoard, aiSide);
-    if (idx == null) return;
-
-    tttBoard[idx] = aiSide;
-    const w = tttWinner(tttBoard);
-    if (w) tttOver = true;
-    else tttTurn = (aiSide === "X") ? "O" : "X";
-
-    renderTTT();
-  }, 180);
-}
-
-function onTTTMove(i) {
-  startIdleTimer();
-  if (tttOver || tttBoard[i]) return;
-
-  // in 1p: lock human side
-  if (tttMode === "1p" && tttTurn !== tttHumanSide) return;
-
-  tttBoard[i] = tttTurn;
-
-  const w = tttWinner(tttBoard);
-  if (w) {
-    tttOver = true;
-    renderTTT();
-    return;
-  }
-
-  tttTurn = (tttTurn === "X") ? "O" : "X";
-  renderTTT();
-  maybeAIMove();
-}
-
-function startTTTFlow() {
-  startIdleTimer();
-  tttDifficulty = String(tttDiffSelect?.value || "Easy");
-  tttBoard = Array(9).fill("");
-  tttTurn = "X";
-  tttOver = false;
-
-  goToFrame14();
-  renderTTT();
-
-  // if human chose O and mode 1p => AI starts
-  if (tttMode === "1p" && tttHumanSide === "O") {
-    maybeAIMove();
-  }
-}
-
-if (tttStartBtn) bindTap(tttStartBtn, startTTTFlow);
-if (tttRestartBtn) bindTap(tttRestartBtn, () => {
-  startIdleTimer();
-  startTTTFlow();
-});
-
 // =========================================================
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
-
-
-
-
-
-
-
