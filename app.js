@@ -1,5 +1,3 @@
-app.js
-
 // ✅ same-origin เสมอ
 const SERVER_BASE = window.location.origin;
 
@@ -3103,6 +3101,7 @@ if (tttRestartBtn) bindTap(tttRestartBtn, () => {
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
 
 
 
