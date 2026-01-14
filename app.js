@@ -1389,53 +1389,51 @@ function applyFrame6TabView(name) {
   cards.forEach(c => { c.style.order = ""; });
 
   if (name === "home") {
-  const homeCards = [];
-  cards.forEach(c => {
-    const isHome = c.getAttribute("data-home") === "1";
-    c.style.display = isHome ? "" : "none";
-    c.style.order = "";
-    if (isHome) homeCards.push(c);
-  });
+    // Home-only cards should be displayed here
+    const homeCards = [];
+    cards.forEach(c => {
+      const isHome = c.getAttribute("data-home") === "1";
+      c.style.display = isHome ? "" : "none";
+      c.style.order = "";
+      if (isHome) homeCards.push(c);
+    });
+    // pinned cards in home
+    const pins = getPinsForActiveProfile();
+    const pinnedKeys = pins?.home || [];
+    homeCards.forEach((c, i) => {
+      const key = cardKeyFromEl(c);
+      const pIndex = key ? pinnedKeys.indexOf(key) : -1;
+      c.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(i + 1);
+      setPinnedBadge(c, pIndex >= 0); // add marker
+    });
+    setHomeIndex(lastHomeIndex || 0, false);
+    return;
+  }
 
-  // ✅ pinned first in home
-  const pins = getPinsForActiveProfile();
-  const pinnedKeys = pins?.home || [];
-  homeCards.forEach((c, i) => {
-    const key = cardKeyFromEl(c);
-    const pIndex = key ? pinnedKeys.indexOf(key) : -1;
-    c.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(i + 1);
-    setPinnedBadge(c, pIndex >= 0); // ✅ add marker
-  });
-
-  setHomeIndex(lastHomeIndex || 0, false);
-  return;
-}
-
-  // sub tab => show: chat + quiz + (optional) game
+  // Show cards for selected sub-tab (e.g., "community", "healthcare", etc.)
   cards.forEach(c => { c.style.display = "none"; });
 
+  // Show the card for the correct tab
   const chatCard = cards.find(c => c.getAttribute("data-card") === name);
   const quizCard = cards.find(c => c.getAttribute("data-quiz") === "1" && c.getAttribute("data-for-tab") === name);
-
-  // ✅ game card: use data-game="scramble" or "ttt" and data-for-tab
   const gameCard = cards.find(c => c.getAttribute("data-game") && c.getAttribute("data-for-tab") === name);
 
   const pins = getPinsForActiveProfile();
-const pinnedKeys = pins?.[name] || [];
+  const pinnedKeys = pins?.[name] || [];
 
-function applyOne(cardEl, fallbackOrder) {
-  if (!cardEl) return;
-  cardEl.style.display = "";
-  const key = cardKeyFromEl(cardEl);
-  const pIndex = key ? pinnedKeys.indexOf(key) : -1;
-  cardEl.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(fallbackOrder);
-  setPinnedBadge(cardEl, pIndex >= 0); // ✅ add marker
-}
+  function applyOne(cardEl, fallbackOrder) {
+    if (!cardEl) return;
+    cardEl.style.display = "";
+    const key = cardKeyFromEl(cardEl);
+    const pIndex = key ? pinnedKeys.indexOf(key) : -1;
+    cardEl.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(fallbackOrder);
+    setPinnedBadge(cardEl, pIndex >= 0); // add marker
+  }
 
-let order = 1;
-applyOne(chatCard, order++);
-applyOne(quizCard, order++);
-applyOne(gameCard, order++);
+  let order = 1;
+  applyOne(chatCard, order++);
+  applyOne(quizCard, order++);
+  applyOne(gameCard, order++);
 
   homeIndex = 0;
   homeCardsTrack.style.transition = "none";
@@ -3629,3 +3627,4 @@ attachFruitInput();
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
