@@ -809,11 +809,6 @@ body{
    Paste this at the VERY END of styles.css
    ========================================================= */
 
-/* =========================================================
-   ✅ FRAME 6 — PIN/UNPIN SYSTEM (MATCH app.js)
-   Paste this at the VERY END of styles.css
-   ========================================================= */
-
 /* card sizing (ตามที่คุณตั้งไว้) */
 .frame6-card{
   flex:0 0 340px;
@@ -1962,3 +1957,4 @@ body{
   margin:10px 0;
   color:rgba(0,0,0,0.75);
 }
+
