@@ -1410,34 +1410,35 @@ function applyFrame6TabView(name) {
     return;
   }
 
-  // Show cards for selected sub-tab (e.g., "community", "healthcare", etc.)
-  cards.forEach(c => { c.style.display = "none"; });
+  // sub tab => show: chat + quiz + (optional) game(s)
+cards.forEach(c => { c.style.display = "none"; });
 
-  // Show the card for the correct tab
-  const chatCard = cards.find(c => c.getAttribute("data-card") === name);
-  const quizCard = cards.find(c => c.getAttribute("data-quiz") === "1" && c.getAttribute("data-for-tab") === name);
-  const gameCard = cards.find(c => c.getAttribute("data-game") && c.getAttribute("data-for-tab") === name);
+const chatCard = cards.find(c => c.getAttribute("data-card") === name);
+const quizCard = cards.find(c => c.getAttribute("data-quiz") === "1" && c.getAttribute("data-for-tab") === name);
 
-  const pins = getPinsForActiveProfile();
-  const pinnedKeys = pins?.[name] || [];
+const gameCards = cards.filter(c => c.getAttribute("data-game") && c.getAttribute("data-for-tab") === name);
 
-  function applyOne(cardEl, fallbackOrder) {
-    if (!cardEl) return;
-    cardEl.style.display = "";
-    const key = cardKeyFromEl(cardEl);
-    const pIndex = key ? pinnedKeys.indexOf(key) : -1;
-    cardEl.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(fallbackOrder);
-    setPinnedBadge(cardEl, pIndex >= 0); // add marker
-  }
+const pins = getPinsForActiveProfile();
+const pinnedKeys = pins?.[name] || [];
 
-  let order = 1;
-  applyOne(chatCard, order++);
-  applyOne(quizCard, order++);
-  applyOne(gameCard, order++);
+function applyOne(cardEl, fallbackOrder) {
+  if (!cardEl) return;
+  cardEl.style.display = "";
+  const key = cardKeyFromEl(cardEl);
+  const pIndex = key ? pinnedKeys.indexOf(key) : -1;
+  cardEl.style.order = (pIndex >= 0) ? String(-1000 + pIndex) : String(fallbackOrder);
+  setPinnedBadge(cardEl, pIndex >= 0);
+}
 
-  homeIndex = 0;
-  homeCardsTrack.style.transition = "none";
-  homeCardsTrack.style.transform = "translateX(0px)";
+let order = 1;
+applyOne(chatCard, order++);
+applyOne(quizCard, order++);
+
+gameCards.forEach(gc => applyOne(gc, order++));
+
+homeIndex = 0;
+homeCardsTrack.style.transition = "none";
+homeCardsTrack.style.transform = "translateX(0px)";
 }
 
 function setActiveTab(name) {
@@ -3627,4 +3628,5 @@ attachFruitInput();
 // ✅ Initial screen
 // =========================================================
 goToFrame1();
+
 
