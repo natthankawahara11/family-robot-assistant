@@ -246,7 +246,27 @@ const frame14 = document.getElementById('frame14'); // TicTacToe play
 // ✅ fruit slash frame (15)
 const frame15 = document.getElementById('frame15');
 
-// (FruitSlash v2 mounted via React inside #fruitSlashRoot)
+// ---- Fruit Slash UI ----
+const fruitStageMenu = document.getElementById('fruitStageMenu');
+const fruitStagePlay = document.getElementById('fruitStagePlay');
+
+const fruitBackBtn = document.getElementById('fruitBackBtn');
+const fruitBackHomeBtn = document.getElementById('fruitBackHomeBtn');
+
+const fruitMode1p = document.getElementById('fruitMode1p');
+const fruitMode2p = document.getElementById('fruitMode2p');
+
+const fruitStartBtn = document.getElementById('fruitStartBtn');
+const fruitReplayBtn = document.getElementById('fruitReplayBtn');
+
+const fruitTimerEl = document.getElementById('fruitTimer');
+const fruitScoreEl = document.getElementById('fruitScore');
+const fruitBestEl  = document.getElementById('fruitBest');
+const fruitHintEl  = document.getElementById('fruitHint');
+
+const fruitCanvas = document.getElementById('fruitCanvas');
+const fruitVideo  = document.getElementById('fruitVideo');
+
 
 // ---- Scramble UI ----
 const scrambleStageSetup = document.getElementById('scrambleStageSetup');
@@ -683,10 +703,19 @@ function togglePin(tabName, cardKey) {
   scheduleSaveAll();
 }
 
+// ✅ Bridge for Frame15 (Fruit Slash) back button
+window.__fruitBackToCommunity = function(){
+  try { if (typeof hideVideoOverlay === 'function') hideVideoOverlay(); } catch (_) {}
+  goToFrame6('community');
+};
+
+
 // =========================================================
 // ✅ FRAME NAV
 // =========================================================
 function hideAllFrames() {
+  // ✅ Ensure Face.mp4 overlay never leaks into other frames
+  try { if (typeof hideVideoOverlay === 'function') hideVideoOverlay(); } catch (_) {}
   [
     frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7,
     frame8, frame9, frame10,
@@ -802,8 +831,16 @@ function restoreLastFrame() {
 // =========================================================
 // ✅ VIDEO OVERLAY
 // =========================================================
+function faceVideoAllowedFrame() {
+  // Only allow Face.mp4 in Frame1–Frame5 (and avatar step in-between).
+  return (lastActiveFrame === 'frame1' || lastActiveFrame === 'frame2' || lastActiveFrame === 'frame3' ||
+          lastActiveFrame === 'frame4' || lastActiveFrame === 'frame5' || lastActiveFrame === 'frameAvatar');
+}
+
 function showVideoOverlay() {
   if (!frameVideo) return;
+  // ✅ Only show Face.mp4 inside Frame1–Frame5 flow
+  if (!faceVideoAllowedFrame()) return;
   frameVideo.style.display = 'flex';
   frameVideo.style.pointerEvents = 'auto';
   isVideoVisible = true;
@@ -823,7 +860,7 @@ function startIdleTimer() {
   if (startupMode) return;
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    if (!startupMode && !isVideoVisible) showVideoOverlay();
+    if (!startupMode && !isVideoVisible && faceVideoAllowedFrame()) showVideoOverlay();
   }, 20000);
 }
 
@@ -2798,9 +2835,8 @@ function goToFrame15(tab = "community") {
   updateGameScale();
   startIdleTimer();
 
-  if (window.FruitSlashFrame15 && typeof window.FruitSlashFrame15.enter === 'function') {
-    window.FruitSlashFrame15.enter();
-  }
+  // ✅ Reset the new (web2) Fruit Slash React app whenever entering Frame15
+  try { window.dispatchEvent(new Event('fruit_reset')); } catch (_) {}
 }
 
 
@@ -3173,25 +3209,449 @@ if (tttRestartBtn) bindTap(tttRestartBtn, () => {
 });
 
 // =========================================================
-// ✅ FRUIT SLASH GAME (Frame15) — mounted from inline module in index.html
+// ✅ FRUIT SLASH GAME (Camera + 1P/2P, 3 min, Best Score)
 // =========================================================
-// Expose a back helper for the React FruitSlash UI
-window.__fruitSlashBackToHome = function(){
-  try { gameBackToHome(); } catch(e) {
-    try { goToFrame6(lastFrame6Tab || 'community'); } catch(_) {}
-  }
-};
+const LS_FRUIT_BEST_KEY = "fra_fruit_best_v1"; // { [profileId]: { best1p:number, best2p:number } }
 
-// Also provide a safe resize hook to keep the React canvas crisp if needed
-window.__fruitSlashOnResize = function(){
-  if (window.FruitSlashFrame15 && typeof window.FruitSlashFrame15.onResize === 'function') {
-    window.FruitSlashFrame15.onResize();
-  }
-};
-window.addEventListener('resize', () => {
-  if (frame15 && frame15.style.display === 'block') window.__fruitSlashOnResize();
-});
+let fruitMode = "1p";
+let fruitRunning = false;
+let fruitScore = 0;
+let fruitBest = 0;
+let fruitStartTs = 0;
+let fruitTimerHandle = null;
 
+let fruitObjs = []; // {x,y,r,vy,vx,type:'fruit'|'bomb',sliced:false}
+let fruitSpawnAcc = 0;
+
+let fruitComboHits = []; // timestamps (ms) of recent fruit slices
+
+let fruitRAF = 0;
+let fruitCtx = null;
+
+let swordTracks = new Map(); // id -> {x,y,px,py,ts}
+
+function getFruitBestBucket() {
+  return lsGet(LS_FRUIT_BEST_KEY, {});
+}
+function setFruitBestBucket(obj) {
+  lsSet(LS_FRUIT_BEST_KEY, obj);
+}
+function getBestForProfile(mode) {
+  const pid = currentProfile?.id;
+  if (!pid) return 0;
+  const all = getFruitBestBucket();
+  const b = all[pid] || {};
+  return Number(mode === "2p" ? b.best2p : b.best1p) || 0;
+}
+function setBestForProfile(mode, value) {
+  const pid = currentProfile?.id;
+  if (!pid) return;
+  const all = getFruitBestBucket();
+  all[pid] ||= { best1p: 0, best2p: 0 };
+  if (mode === "2p") all[pid].best2p = Math.max(Number(all[pid].best2p) || 0, Number(value) || 0);
+  else all[pid].best1p = Math.max(Number(all[pid].best1p) || 0, Number(value) || 0);
+  setFruitBestBucket(all);
+}
+
+function setFruitMode(mode) {
+  fruitMode = (mode === "2p") ? "2p" : "1p";
+  if (fruitMode1p) fruitMode1p.classList.toggle("active", fruitMode === "1p");
+  if (fruitMode2p) fruitMode2p.classList.toggle("active", fruitMode === "2p");
+  fruitBest = getBestForProfile(fruitMode);
+  if (fruitBestEl) fruitBestEl.textContent = String(fruitBest);
+}
+
+function showFruitMenu() {
+  fruitRunning = false;
+  cancelAnimationFrame(fruitRAF);
+  fruitRAF = 0;
+  stopFruitTimer();
+
+  if (fruitStageMenu) fruitStageMenu.classList.remove("hidden");
+  if (fruitStagePlay) fruitStagePlay.classList.add("hidden");
+
+  fruitScore = 0;
+  if (fruitScoreEl) fruitScoreEl.textContent = "0";
+  if (fruitTimerEl) fruitTimerEl.textContent = "03:00";
+
+  // default mode + best
+  setFruitMode(fruitMode);
+
+  if (fruitHintEl) {
+    fruitHintEl.textContent =
+      "Swipe to slash fruits. Avoid bombs. Combo: 3 fruits within 2s = +3";
+  }
+}
+
+function showFruitPlay() {
+  if (fruitStageMenu) fruitStageMenu.classList.add("hidden");
+  if (fruitStagePlay) fruitStagePlay.classList.remove("hidden");
+}
+
+function stopFruitTimer() {
+  clearInterval(fruitTimerHandle);
+  fruitTimerHandle = null;
+}
+
+function startFruitTimer() {
+  stopFruitTimer();
+  fruitStartTs = Date.now();
+  fruitTimerHandle = setInterval(() => {
+    const elapsed = Date.now() - fruitStartTs;
+    const leftMs = Math.max(0, 180000 - elapsed);
+    const leftSec = Math.ceil(leftMs / 1000);
+    const mm = String(Math.floor(leftSec / 60)).padStart(2, "0");
+    const ss = String(leftSec % 60).padStart(2, "0");
+    if (fruitTimerEl) fruitTimerEl.textContent = `${mm}:${ss}`;
+    if (leftMs <= 0) endFruitGame(false);
+  }, 250);
+}
+
+function fitFruitCanvas() {
+  if (!fruitCanvas) return;
+  const rect = fruitCanvas.getBoundingClientRect();
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  fruitCanvas.width = Math.floor(rect.width * dpr);
+  fruitCanvas.height = Math.floor(rect.height * dpr);
+  fruitCtx = fruitCanvas.getContext("2d");
+  if (fruitCtx) fruitCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function rand(min, max) { return min + Math.random() * (max - min); }
+
+function spawnFruitOrBomb() {
+  if (!fruitCanvas) return;
+  const w = fruitCanvas.getBoundingClientRect().width;
+  const h = fruitCanvas.getBoundingClientRect().height;
+
+  const isBomb = Math.random() < 0.12; // ~12% bombs
+  const r = isBomb ? rand(18, 26) : rand(18, 30);
+
+  const x = rand(30, w - 30);
+  const y = h + r + rand(10, 40);
+
+  // throw up with some sideways
+  const vy = -rand(380, 620); // px/s
+  const vx = rand(-140, 140);
+
+  fruitObjs.push({ x, y, r, vx, vy, type: isBomb ? "bomb" : "fruit", sliced: false });
+}
+
+function lineIntersectsCircle(x1,y1,x2,y2,cx,cy,cr) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const l2 = dx*dx + dy*dy;
+  if (l2 === 0) {
+    const d2 = (cx-x1)**2 + (cy-y1)**2;
+    return d2 <= cr*cr;
+  }
+  let t = ((cx-x1)*dx + (cy-y1)*dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const px = x1 + t*dx, py = y1 + t*dy;
+  const d2 = (cx-px)**2 + (cy-py)**2;
+  return d2 <= cr*cr;
+}
+
+function recordComboHit() {
+  const now = Date.now();
+  fruitComboHits = fruitComboHits.filter(ts => now - ts <= 2000);
+  fruitComboHits.push(now);
+  if (fruitComboHits.length >= 3) {
+    fruitScore += 3;
+    fruitComboHits = [];
+  }
+}
+
+function onSliceSegment(x1,y1,x2,y2) {
+  if (!fruitRunning) return;
+  let bombHit = false;
+
+  fruitObjs.forEach(o => {
+    if (o.sliced) return;
+    if (lineIntersectsCircle(x1,y1,x2,y2,o.x,o.y,o.r)) {
+      o.sliced = true;
+      if (o.type === "bomb") bombHit = true;
+      else {
+        fruitScore += 1;
+        recordComboHit();
+      }
+    }
+  });
+
+  if (bombHit) endFruitGame(true);
+  if (fruitScoreEl) fruitScoreEl.textContent = String(fruitScore);
+}
+
+function drawObject(ctx, o) {
+  ctx.save();
+  if (o.type === "bomb") {
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(o.x + o.r*0.2, o.y - o.r);
+    ctx.quadraticCurveTo(o.x + o.r*0.9, o.y - o.r*1.4, o.x + o.r*0.6, o.y - o.r*2.0);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.28)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath(); ctx.arc(o.x - o.r*0.25, o.y - o.r*0.25, o.r*0.35, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawSwordTrails(ctx) {
+  ctx.save();
+  ctx.lineCap = "round";
+  swordTracks.forEach(t => {
+    const age = Date.now() - t.ts;
+    const alpha = Math.max(0.05, 1 - age/220);
+    ctx.strokeStyle = `rgba(255,255,255,${0.55*alpha})`;
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.moveTo(t.px, t.py);
+    ctx.lineTo(t.x, t.y);
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function fruitLoop() {
+  if (!fruitRunning || !fruitCanvas || !fruitCtx) return;
+  const ctx = fruitCtx;
+
+  const rect = fruitCanvas.getBoundingClientRect();
+  const w = rect.width, h = rect.height;
+
+  const now = performance.now();
+  fruitLoop._last ||= now;
+  const dt = Math.min(0.033, (now - fruitLoop._last)/1000);
+  fruitLoop._last = now;
+
+  ctx.clearRect(0,0,w,h);
+  if (fruitVideo && fruitVideo.readyState >= 2) {
+    try { ctx.drawImage(fruitVideo, 0, 0, w, h); } catch(_) {}
+    ctx.fillStyle = "rgba(0,0,0,0.10)";
+    ctx.fillRect(0,0,w,h);
+  } else {
+    ctx.fillStyle = "rgba(0,0,0,0.08)";
+    ctx.fillRect(0,0,w,h);
+  }
+
+  fruitSpawnAcc += dt;
+  const spawnEvery = 0.55;
+  while (fruitSpawnAcc >= spawnEvery) {
+    fruitSpawnAcc -= spawnEvery;
+    spawnFruitOrBomb();
+  }
+
+  const g = 980;
+  fruitObjs.forEach(o => {
+    if (o.sliced) return;
+    o.vy += g * dt;
+    o.x += o.vx * dt;
+    o.y += o.vy * dt;
+  });
+
+  fruitObjs = fruitObjs.filter(o => {
+    if (o.sliced) return false;
+    if (o.y - o.r > h + 80) return false;
+    return true;
+  });
+
+  fruitObjs.forEach(o => drawObject(ctx, o));
+  drawSwordTrails(ctx);
+
+  const tnow = Date.now();
+  swordTracks.forEach((t, id) => {
+    if (tnow - t.ts > 240) swordTracks.delete(id);
+  });
+
+  fruitRAF = requestAnimationFrame(fruitLoop);
+}
+
+async function startFruitCamera() {
+  if (!fruitVideo) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: false
+    });
+    fruitVideo.srcObject = stream;
+    await fruitVideo.play().catch(() => null);
+  } catch (_) {
+    // no camera permission => still playable with touch
+  }
+}
+
+function stopFruitCamera() {
+  const v = fruitVideo;
+  const s = v?.srcObject;
+  if (s && typeof s.getTracks === "function") {
+    try { s.getTracks().forEach(t => t.stop()); } catch (_) {}
+  }
+  if (v) v.srcObject = null;
+}
+
+function startFruitGame() {
+  showFruitPlay();
+  fitFruitCanvas();
+
+  fruitObjs = [];
+  fruitSpawnAcc = 0;
+  fruitComboHits = [];
+  swordTracks.clear();
+
+  fruitScore = 0;
+  if (fruitScoreEl) fruitScoreEl.textContent = "0";
+
+  fruitBest = getBestForProfile(fruitMode);
+  if (fruitBestEl) fruitBestEl.textContent = String(fruitBest);
+
+  fruitRunning = true;
+  fruitLoop._last = performance.now();
+
+  startFruitCamera();
+  startFruitTimer();
+
+  cancelAnimationFrame(fruitRAF);
+  fruitRAF = requestAnimationFrame(fruitLoop);
+}
+
+function endFruitGame(byBomb = false) {
+  if (!fruitRunning) return;
+  fruitRunning = false;
+  stopFruitTimer();
+  cancelAnimationFrame(fruitRAF);
+  fruitRAF = 0;
+
+  if (fruitScore > fruitBest) {
+    fruitBest = fruitScore;
+    setBestForProfile(fruitMode, fruitBest);
+  }
+  if (fruitBestEl) fruitBestEl.textContent = String(fruitBest);
+
+  if (fruitHintEl) {
+    fruitHintEl.textContent = byBomb
+      ? `Boom! 💣 Final score: ${fruitScore} (Best: ${fruitBest})`
+      : `Time! Final score: ${fruitScore} (Best: ${fruitBest})`;
+  }
+
+  setTimeout(() => {
+    stopFruitCamera();
+    showFruitMenu();
+  }, 500);
+}
+
+// ---- Fruit input (touch/mouse) ----
+function fruitPointerUpdate(id, x, y) {
+  const prev = swordTracks.get(id);
+  if (prev) {
+    onSliceSegment(prev.x, prev.y, x, y);
+    swordTracks.set(id, { x, y, px: prev.x, py: prev.y, ts: Date.now() });
+  } else {
+    swordTracks.set(id, { x, y, px: x, py: y, ts: Date.now() });
+  }
+}
+
+function attachFruitInput() {
+  if (!fruitCanvas) return;
+
+  fruitCanvas.addEventListener("touchstart", (e) => {
+    if (!fruitRunning) return;
+    const rect = fruitCanvas.getBoundingClientRect();
+    for (const t of Array.from(e.touches || [])) {
+      const id = "t" + t.identifier;
+      fruitPointerUpdate(id, t.clientX - rect.left, t.clientY - rect.top);
+    }
+  }, { passive: true });
+
+  fruitCanvas.addEventListener("touchmove", (e) => {
+    if (!fruitRunning) return;
+    const rect = fruitCanvas.getBoundingClientRect();
+    const touches = Array.from(e.touches || []);
+    const maxTouches = (fruitMode === "2p") ? 2 : 1;
+    touches.slice(0, maxTouches).forEach(t => {
+      const id = "t" + t.identifier;
+      fruitPointerUpdate(id, t.clientX - rect.left, t.clientY - rect.top);
+    });
+  }, { passive: true });
+
+  fruitCanvas.addEventListener("touchend", (e) => {
+    const ended = Array.from(e.changedTouches || []);
+    ended.forEach(t => swordTracks.delete("t" + t.identifier));
+  }, { passive: true });
+
+  fruitCanvas.addEventListener("touchcancel", (e) => {
+    const ended = Array.from(e.changedTouches || []);
+    ended.forEach(t => swordTracks.delete("t" + t.identifier));
+  }, { passive: true });
+
+  // Mouse
+  let mouseDown = false;
+  fruitCanvas.addEventListener("mousedown", (e) => {
+    mouseDown = true;
+    const rect = fruitCanvas.getBoundingClientRect();
+    fruitPointerUpdate("m", e.clientX - rect.left, e.clientY - rect.top);
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!mouseDown || !fruitRunning) return;
+    const rect = fruitCanvas.getBoundingClientRect();
+    fruitPointerUpdate("m", e.clientX - rect.left, e.clientY - rect.top);
+  });
+  window.addEventListener("mouseup", () => {
+    mouseDown = false;
+    swordTracks.delete("m");
+  });
+}
+
+function attachFruitButtons() {
+  if (fruitMode1p) bindTap(fruitMode1p, () => setFruitMode("1p"));
+  if (fruitMode2p) bindTap(fruitMode2p, () => setFruitMode("2p"));
+
+  if (fruitStartBtn) bindTap(fruitStartBtn, () => startFruitGame());
+
+  if (fruitReplayBtn) bindTap(fruitReplayBtn, () => startFruitGame());
+
+  if (fruitBackBtn) bindTap(fruitBackBtn, () => {
+    stopFruitCamera();
+    showFruitMenu();
+    goToFrame6(lastFrame6Tab || "community");
+  });
+
+  if (fruitBackHomeBtn) bindTap(fruitBackHomeBtn, () => {
+    stopFruitCamera();
+    showFruitMenu();
+    goToFrame6(lastFrame6Tab || "community");
+  });
+
+  window.addEventListener("resize", () => {
+    if (frame15 && frame15.style.display === "block") fitFruitCanvas();
+  });
+}
+
+function enterFruitFrame() {
+  showFruitMenu();
+}
+
+// ✅ run once
+attachFruitButtons();
+attachFruitInput();
+
+
+// =========================================================
+// ✅ Frame15 (Fruit Slash) bridge helpers
+// =========================================================
+window.__goToFrame6Community = function() {
+  try {
+    // Always return to Community tab as requested
+    goToFrame6('community');
+  } catch (_) {}
+};
 // =========================================================
 // ✅ Initial screen
 // =========================================================
