@@ -715,72 +715,11 @@
 
 
   <!-- =========================
-       FRAME 15: Fruit Slash (Camera Game)
+       FRAME 15: Embedded Web2
        ========================= -->
   <div class="frame-15" id="frame15" style="display:none;">
-  <button class="game-back fruit-back" id="fruitBackBtn" aria-label="Back">
-    <img src="ChatBot_GoBack.png" alt="Back" />
-  </button>
-
-  <div class="fruit2" id="fruit2">
-    <!-- MENU / LOADING / WAITING -->
-    <div class="fruit2-menu" id="fruitStageMenu">
-      <div class="fruit2-card">
-        <div class="fruit2-title">Fruit Slash</div>
-        <div class="fruit2-sub" id="fruitHint">Allow camera permission. Use good lighting. (Touch also works)</div>
-
-        <div class="fruit2-row">
-          <div class="fruit2-label">Mode</div>
-          <div class="fruit2-seg">
-            <button class="fruit2-seg-btn active" id="fruitMode1p" type="button">1 Player</button>
-            <button class="fruit2-seg-btn" id="fruitMode2p" type="button">2 Players</button>
-          </div>
-        </div>
-
-        <div class="fruit2-row">
-          <div class="fruit2-label">Difficulty</div>
-          <div class="fruit2-seg">
-            <button class="fruit2-seg-btn" id="fruitDiffEasy" type="button">Easy</button>
-            <button class="fruit2-seg-btn active" id="fruitDiffMedium" type="button">Medium</button>
-            <button class="fruit2-seg-btn" id="fruitDiffHard" type="button">Hard</button>
-          </div>
-        </div>
-
-        <div class="fruit2-row fruit2-row-tight">
-          <button class="fruit2-primary" id="fruitStartBtn" type="button">Start</button>
-          <button class="fruit2-ghost" id="fruitMuteBtn" type="button" aria-pressed="false">Sound: ON</button>
-        </div>
-
-        <div class="fruit2-error" id="fruitError" style="display:none;"></div>
-        <div class="fruit2-tip">Tip: Use your index finger to slice. Bomb ends the game.</div>
-      </div>
-    </div>
-
-    <!-- PLAY -->
-    <div class="fruit2-play hidden" id="fruitStagePlay">
-      <video id="fruitVideo" autoplay playsinline muted></video>
-      <canvas id="fruitCanvas"></canvas>
-
-      <div class="fruit-hud" id="fruitHud">
-        <div class="fruit-timer" id="fruitTimer">01:00</div>
-        <div class="fruit-score" id="fruitScore">0</div>
-        <div class="fruit-score2" id="fruitScore2">P2: 0</div>
-        <div class="fruit-best" id="fruitBest">Best: 0</div>
-      </div>
-
-      <div class="fruit-end" id="fruitEnd" style="display:none;">
-        <div class="fruit-panel">
-          <div class="fruit-title">Time!</div>
-          <div class="fruit-result" id="fruitEndResult">Score: 0</div>
-          <div class="fruit-bestline" id="fruitEndBest">Best: 0</div>
-          <button class="game-primary" id="fruitReplayBtn" type="button">Play Again</button>
-          <button class="game-secondary" id="fruitBackHomeBtn" type="button">Back Home</button>
-        </div>
-      </div>
-
-    </div>
+    <iframe id="frame15Iframe" title="Frame15" allow="camera; microphone; fullscreen" allowfullscreen></iframe>
   </div>
-</div>
 
 </body>
 </html>
