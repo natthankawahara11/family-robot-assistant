@@ -869,7 +869,11 @@ var FruitSlash = ({ onBack, bestScore, onUpdateBest }) => {
       handsToProcess.forEach((landmarks, index) => {
         const tip = landmarks[8];
         const x = (1 - tip.y) * APP_WIDTH;
-        const y = tip.x * APP_HEIGHT;
+        const yRaw = tip.x * APP_HEIGHT;
+
+        // ✅ flip y to match vertical flip
+        const y = APP_HEIGHT - yRaw;
+        
         const existing = swordsRef.current.get(index);
         if (existing) {
           if (gameStateRef.current === "playing") checkCollision(existing.x, existing.y, x, y);
@@ -1253,6 +1257,7 @@ window.__FRA_UNMOUNT_FRUIT__ = function () {
   </script>
 </body>
 </html>
+
 
 
 
