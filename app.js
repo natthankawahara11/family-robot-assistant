@@ -246,26 +246,8 @@ const frame14 = document.getElementById('frame14'); // TicTacToe play
 // ✅ fruit slash frame (15)
 const frame15 = document.getElementById('frame15');
 
-// ---- Fruit Slash UI ----
-const fruitStageMenu = document.getElementById('fruitStageMenu');
-const fruitStagePlay = document.getElementById('fruitStagePlay');
-
-const fruitBackBtn = document.getElementById('fruitBackBtn');
-const fruitBackHomeBtn = document.getElementById('fruitBackHomeBtn');
-
-const fruitMode1p = document.getElementById('fruitMode1p');
-const fruitMode2p = document.getElementById('fruitMode2p');
-
-const fruitStartBtn = document.getElementById('fruitStartBtn');
-const fruitReplayBtn = document.getElementById('fruitReplayBtn');
-
-const fruitTimerEl = document.getElementById('fruitTimer');
-const fruitScoreEl = document.getElementById('fruitScore');
-const fruitBestEl  = document.getElementById('fruitBest');
-const fruitHintEl  = document.getElementById('fruitHint');
-
-const fruitCanvas = document.getElementById('fruitCanvas');
-const fruitVideo  = document.getElementById('fruitVideo');
+// ---- Frame 15 (Embedded Web2) ----
+const frame15Iframe = document.getElementById('frame15Iframe');
 
 
 // ---- Scramble UI ----
@@ -2809,6 +2791,32 @@ function goToFrame14() {
   updateGameScale();
   startIdleTimer();
 }
+
+// =========================================================
+// ✅ FRAME 15: Embed Web2 inside an iframe (isolates Tailwind/React)
+// =========================================================
+let frame15Loaded = false;
+
+function buildFrame15Srcdoc(){
+  return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover\" />\n  <title>Gemini AI Buddy</title>\n  <script src=\"https://cdn.tailwindcss.com\"></script>\n  <link href=\"https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap\" rel=\"stylesheet\">\n  <script src=\"https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js\" crossorigin=\"anonymous\"></script>\n  <script src=\"https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js\" crossorigin=\"anonymous\"></script>\n  <script src=\"https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js\" crossorigin=\"anonymous\"></script>\n  <style>\n    body { font-family: 'Poppins', sans-serif; margin:0; padding:0; overflow:hidden; background-color:#ffffff; height:100vh; width:100vw; -webkit-user-select:none; user-select:none; }\n    #root { width:100%; height:100%; }\n    canvas { touch-action:none; }\n    ::-webkit-scrollbar { display:none; }\n    .no-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }\n  </style>\n  <script type=\"importmap\">{\n    \"imports\": {\n      \"react\": \"https://esm.sh/react@^19.2.3\",\n      \"react/\": \"https://esm.sh/react@^19.2.3/\",\n      \"react-dom/\": \"https://esm.sh/react-dom@^19.2.3/\"\n    }\n  }</script>\n  <script src=\"https://unpkg.com/@babel/standalone/babel.min.js\"></script>\n</head>\n<body>\n  <div id=\"root\"></div>\n  <script type=\"text/babel\" data-type=\"module\" data-presets=\"typescript,react\">import React, { useState, useEffect, useRef, useCallback } from 'react';\nimport ReactDOM from 'react-dom/client';\nconst { StrictMode } = React;\n\n\ndeclare global {\n  interface Window {\n    Hands: any;\n    Camera: any;\n    drawConnectors: any;\n    drawLandmarks: any;\n    HAND_CONNECTIONS: any;\n  }\n}\n\ninterface FruitSlashProps {\n  onBack: () => void;\n  bestScore: number;\n  onUpdateBest: (score: number) => void;\n}\n\ntype Difficulty = 'easy' | 'medium' | 'hard';\n\nconst DIFFICULTY_CONFIG: Record<Difficulty, {\n  time: number,\n  speedMult: number,\n  bombProb: number,\n  spawnInterval: number,\n  label: string,\n  color: string\n}> = {\n  easy: { time: 90, speedMult: 0.7, bombProb: 0.05, spawnInterval: 1.1, label: 'EASY', color: 'bg-emerald-500' },\n  medium: { time: 60, speedMult: 1.0, bombProb: 0.15, spawnInterval: 0.7, label: 'MEDIUM', color: 'bg-amber-500' },\n  hard: { time: 45, speedMult: 1.4, bombProb: 0.30, spawnInterval: 0.5, label: 'HARD', color: 'bg-rose-500' }\n};\n\ntype ObjectType = 'apple' | 'banana' | 'orange' | 'watermelon' | 'pineapple' | 'bomb';\n\ninterface GameObject {\n  id: number;\n  x: number;\n  y: number;\n  vx: number;\n  vy: number;\n  radius: number;\n  type: ObjectType;\n  isSliced: boolean;\n  angle: number;\n  rotationSpeed: number;\n  sliceAngle?: number;\n  sliceTime?: number;\n}\n\ninterface Particle {\n  x: number;\n  y: number;\n  vx: number;\n  vy: number;\n  color: string;\n  life: number;\n  size: number;\n}\n\nconst FRUIT_EMOJIS: Record<ObjectType, string> = {\n  apple: '\ud83c\udf4e',\n  banana: '\ud83c\udf4c',\n  orange: '\ud83c\udf4a',\n  watermelon: '\ud83c\udf49',\n  pineapple: '\ud83c\udf4d',\n  bomb: '\ud83d\udca3'\n};\n\nconst FRUIT_COLORS: Record<ObjectType, string> = {\n  apple: '#FF3B30',\n  banana: '#FFD60A',\n  orange: '#FF9500',\n  watermelon: '#FF2D55',\n  pineapple: '#FFCC00',\n  bomb: '#1A1A1A'\n};\n\nconst SOUND_URLS = {\n  slice: 'https://assets.mixkit.co/active_storage/sfx/2112/2112-preview.mp3', \n  bomb: 'https://assets.mixkit.co/active_storage/sfx/1004/1004-preview.mp3', \n  end: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3'\n};\n\nconst APP_WIDTH = 912;\nconst APP_HEIGHT = 422;\n\nconst FruitSlash: React.FC<FruitSlashProps> = ({ onBack, bestScore, onUpdateBest }) => {\n  const [gameState, setGameState] = useState<'menu' | 'loading' | 'waiting' | 'countdown' | 'playing' | 'ended'>('menu');\n  const gameStateRef = useRef(gameState);\n  \n  const [score, setScore] = useState(0);\n  const [comboStreak, setComboStreak] = useState(0);\n  const [timeLeft, setTimeLeft] = useState(60);\n  const [countdown, setCountdown] = useState(3);\n  const [is2Player, setIs2Player] = useState(false);\n  const [difficulty, setDifficulty] = useState<Difficulty>('medium');\n  const [isMuted, setIsMuted] = useState(() => localStorage.getItem('fruit_mute') === 'true');\n  const [error, setError] = useState<string | null>(null);\n\n  const videoRef = useRef<HTMLVideoElement>(null);\n  const canvasRef = useRef<HTMLCanvasElement>(null);\n  const handsRef = useRef<any>(null);\n  const cameraRef = useRef<any>(null);\n  const objectsRef = useRef<GameObject[]>([]);\n  const particlesRef = useRef<Particle[]>([]);\n  const lastTimeRef = useRef<number>(0);\n  const spawnTimerRef = useRef<number>(0);\n  const handResultsRef = useRef<any>(null);\n  \n  const swordsRef = useRef<Map<number, { x: number, y: number, px: number, py: number }>>(new Map());\n\n  const currentConfig = DIFFICULTY_CONFIG[difficulty];\n\n  const playSound = (type: keyof typeof SOUND_URLS) => {\n    if (isMuted) return;\n    const audio = new Audio(SOUND_URLS[type]);\n    audio.volume = 0.6; // Reduced slightly for better mix\n    audio.play().catch(() => {});\n  };\n\n  useEffect(() => {\n    gameStateRef.current = gameState;\n  }, [gameState]);\n\n  useEffect(() => {\n    localStorage.setItem('fruit_mute', isMuted.toString());\n  }, [isMuted]);\n\n  const initCamera = async () => {\n    setGameState('loading');\n    setError(null);\n    await new Promise(resolve => setTimeout(resolve, 100));\n\n    try {\n      if (!handsRef.current) {\n        const hands = new window.Hands({\n          locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`\n        });\n\n        hands.setOptions({\n          maxNumHands: is2Player ? 2 : 1,\n          modelComplexity: 0, // IMPORTANT: Use 0 for mobile devices (iPhone 14)\n          minDetectionConfidence: 0.5, // Slightly lower for better speed\n          minTrackingConfidence: 0.5\n        });\n\n        hands.onResults((results: any) => {\n          handResultsRef.current = results;\n          onHandProcessing(results);\n        });\n        handsRef.current = hands;\n      }\n\n      if (videoRef.current) {\n        cameraRef.current = new window.Camera(videoRef.current, {\n          onFrame: async () => {\n            if (handsRef.current && videoRef.current) {\n              await handsRef.current.send({ image: videoRef.current });\n            }\n          },\n          width: 640, // Optimize camera resolution for processing\n          height: 360\n        });\n        await cameraRef.current.start();\n      }\n      setGameState('waiting');\n    } catch (err: any) {\n      console.error(err);\n      setError(\"CAMERA ERROR: PLEASE CHECK PERMISSIONS.\");\n      setGameState('menu');\n    }\n  };\n\n  const onHandProcessing = (results: any) => {\n    const activeIndices = new Set<number>();\n    \n    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {\n      if (gameStateRef.current === 'waiting') {\n        setGameState('countdown');\n        setCountdown(3);\n      }\n\n      const handsToProcess = is2Player ? results.multiHandLandmarks.slice(0, 2) : results.multiHandLandmarks.slice(0, 1);\n      \n      handsToProcess.forEach((landmarks: any, index: number) => {\n        const tip = landmarks[8]; \n        const x = (1 - tip.x) * APP_WIDTH; \n        const y = tip.y * APP_HEIGHT;\n\n        const existing = swordsRef.current.get(index);\n        if (existing) {\n          if (gameStateRef.current === 'playing') checkCollision(existing.x, existing.y, x, y);\n          swordsRef.current.set(index, { x, y, px: existing.x, py: existing.y });\n        } else {\n          swordsRef.current.set(index, { x, y, px: x, py: y });\n        }\n        activeIndices.add(index);\n      });\n    }\n\n    for (const key of swordsRef.current.keys()) {\n      if (!activeIndices.has(key)) swordsRef.current.delete(key);\n    }\n  };\n\n  const checkCollision = (x1: number, y1: number, x2: number, y2: number) => {\n    objectsRef.current.forEach(obj => {\n      if (obj.isSliced) return;\n      \n      const dx = x2 - x1;\n      const dy = y2 - y1;\n      const lenSq = dx * dx + dy * dy;\n      if (lenSq === 0) return;\n\n      let t = ((obj.x - x1) * dx + (obj.y - y1) * dy) / lenSq;\n      t = Math.max(0, Math.min(1, t));\n      const distSq = (obj.x - (x1 + t * dx)) ** 2 + (obj.y - (y1 + t * dy)) ** 2;\n\n      if (distSq < (obj.radius + 15) ** 2) {\n        obj.isSliced = true;\n        obj.sliceAngle = Math.atan2(dy, dx);\n        obj.sliceTime = Date.now();\n        \n        if (obj.type === 'bomb') {\n          playSound('bomb');\n          stopGame();\n        } else {\n          playSound('slice');\n          setScore(s => s + (1 * Math.min(10, 1 + Math.floor(comboStreak / 5))));\n          setComboStreak(prev => prev + 1);\n          spawnParticles(obj.x, obj.y, FRUIT_COLORS[obj.type]);\n        }\n      }\n    });\n  };\n\n  const spawnParticles = (x: number, y: number, color: string) => {\n    // Limit particles for performance\n    const count = 8; \n    for (let i = 0; i < count; i++) {\n      particlesRef.current.push({\n        x,\n        y,\n        vx: (Math.random() - 0.5) * 500,\n        vy: (Math.random() - 0.5) * 500,\n        color,\n        life: 0.8,\n        size: Math.random() * 6 + 2\n      });\n    }\n  };\n\n  const stopGame = useCallback(() => {\n    if (cameraRef.current) cameraRef.current.stop();\n    if (score > bestScore) onUpdateBest(score);\n    playSound('end'); \n    setGameState('ended');\n  }, [score, bestScore, onUpdateBest]);\n\n  useEffect(() => {\n    if (gameState === 'countdown') {\n      const timer = setInterval(() => {\n        setCountdown(prev => {\n          if (prev <= 1) {\n            clearInterval(timer);\n            setGameState('playing');\n            setScore(0);\n            setComboStreak(0);\n            setTimeLeft(DIFFICULTY_CONFIG[difficulty].time);\n            objectsRef.current = [];\n            particlesRef.current = [];\n            return 0;\n          }\n          return prev - 1;\n        });\n      }, 1000);\n      return () => clearInterval(timer);\n    }\n  }, [gameState, difficulty]);\n\n  useEffect(() => {\n    let timer: any;\n    if (gameState === 'playing') {\n      timer = setInterval(() => setTimeLeft(prev => {\n        if (prev <= 1) stopGame();\n        return prev - 1;\n      }), 1000);\n    }\n    return () => clearInterval(timer);\n  }, [gameState, stopGame]);\n\n  const gameLoop = useCallback((time: number) => {\n    if (!canvasRef.current || !videoRef.current) return;\n    const ctx = canvasRef.current.getContext('2d', { alpha: false }); // Optimization\n    if (!ctx) return;\n\n    const dt = lastTimeRef.current ? Math.min(0.05, (time - lastTimeRef.current) / 1000) : 0;\n    lastTimeRef.current = time;\n\n    // Drawing Video\n    ctx.save();\n    ctx.translate(APP_WIDTH, 0);\n    ctx.scale(-1, 1);\n    ctx.drawImage(videoRef.current, 0, 0, APP_WIDTH, APP_HEIGHT);\n    ctx.restore();\n\n    // Drawing Skeleton (Optimized: No shadows)\n    if (handResultsRef.current?.multiHandLandmarks) {\n      ctx.save();\n      ctx.translate(APP_WIDTH, 0);\n      ctx.scale(-1, 1);\n      handResultsRef.current.multiHandLandmarks.forEach((landmarks: any) => {\n        window.drawConnectors(ctx, landmarks, window.HAND_CONNECTIONS, { \n          color: '#00FFCC', \n          lineWidth: 3 \n        });\n        window.drawLandmarks(ctx, landmarks, { \n          color: '#FFFFFF', \n          lineWidth: 1, \n          radius: 3 \n        });\n      });\n      ctx.restore();\n    }\n\n    if (gameStateRef.current === 'playing') {\n      spawnTimerRef.current += dt;\n      if (spawnTimerRef.current > currentConfig.spawnInterval) {\n        spawnTimerRef.current = 0;\n        const isBomb = Math.random() < currentConfig.bombProb;\n        const types: ObjectType[] = ['apple', 'banana', 'orange', 'watermelon', 'pineapple'];\n        objectsRef.current.push({\n          id: Math.random(),\n          x: Math.random() * (APP_WIDTH - 160) + 80,\n          y: APP_HEIGHT + 60,\n          vx: (Math.random() - 0.5) * 400 * currentConfig.speedMult,\n          vy: -(Math.random() * 200 + 600) * currentConfig.speedMult,\n          radius: 40,\n          type: isBomb ? 'bomb' : types[Math.floor(Math.random() * types.length)],\n          isSliced: false,\n          angle: Math.random() * Math.PI * 2,\n          rotationSpeed: (Math.random() - 0.5) * 8 * currentConfig.speedMult\n        });\n      }\n    }\n\n    // Process Particles\n    particlesRef.current.forEach(p => {\n      p.x += p.vx * dt;\n      p.y += p.vy * dt;\n      p.vy += 800 * dt;\n      p.life -= dt * 2;\n    });\n    particlesRef.current = particlesRef.current.filter(p => p.life > 0);\n\n    // Process & Draw Objects (Optimized: No filters/shadows)\n    const gravity = 700;\n    objectsRef.current.forEach(obj => {\n      obj.vy += gravity * dt;\n      obj.x += obj.vx * dt;\n      obj.y += obj.vy * dt;\n      obj.angle += obj.rotationSpeed * dt;\n\n      if (gameStateRef.current === 'playing' && obj.y > APP_HEIGHT + 50 && !obj.isSliced && obj.type !== 'bomb') {\n        setComboStreak(0);\n      }\n\n      ctx.save();\n      ctx.translate(obj.x, obj.y);\n      ctx.rotate(obj.angle);\n      ctx.font = '80px Arial'; // Slightly smaller for performance\n      ctx.textAlign = 'center';\n      ctx.textBaseline = 'middle';\n\n      if (obj.isSliced) {\n        const t = (Date.now() - (obj.sliceTime || 0)) / 1000;\n        ctx.globalAlpha = Math.max(0, 1 - t * 3);\n        ctx.save();\n        ctx.rotate(obj.sliceAngle || 0);\n        ctx.fillText(FRUIT_EMOJIS[obj.type], -t * 120, -5);\n        ctx.fillText(FRUIT_EMOJIS[obj.type], t * 120, 5);\n        ctx.restore();\n      } else {\n        ctx.fillText(FRUIT_EMOJIS[obj.type], 0, 0);\n      }\n      ctx.restore();\n    });\n    objectsRef.current = objectsRef.current.filter(o => o.y < APP_HEIGHT + 150);\n\n    // Draw Particles\n    ctx.save();\n    particlesRef.current.forEach(p => {\n      ctx.globalAlpha = p.life;\n      ctx.fillStyle = p.color;\n      ctx.beginPath();\n      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);\n      ctx.fill();\n    });\n    ctx.restore();\n\n    // Drawing Swords (Optimized)\n    swordsRef.current.forEach((pos) => {\n      ctx.save();\n      ctx.beginPath();\n      ctx.moveTo(pos.px, pos.py);\n      ctx.lineTo(pos.x, pos.y);\n      ctx.strokeStyle = '#FFFFFF';\n      ctx.lineWidth = 14;\n      ctx.lineCap = 'round';\n      ctx.stroke();\n      \n      // Secondary simple stroke for \"glow\" look instead of expensive shadowBlur\n      ctx.lineWidth = 6;\n      ctx.strokeStyle = '#00F3FF';\n      ctx.stroke();\n      \n      ctx.beginPath();\n      ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);\n      ctx.fillStyle = '#FFFFFF';\n      ctx.fill();\n      ctx.restore();\n    });\n\n    requestAnimationFrame(gameLoop);\n  }, [stopGame, isMuted, comboStreak, currentConfig]);\n\n  useEffect(() => {\n    const frame = requestAnimationFrame(gameLoop);\n    return () => cancelAnimationFrame(frame);\n  }, [gameLoop]);\n\n  const isPlayView = gameState === 'playing' || gameState === 'waiting' || gameState === 'countdown';\n\n  return (\n    <div className=\"relative w-full h-full bg-black overflow-hidden select-none flex flex-col items-center justify-center\">\n      <video ref={videoRef} className=\"hidden\" playsInline muted />\n      \n      {/* Sound Toggle */}\n      <button \n        onClick={() => setIsMuted(!isMuted)}\n        className=\"absolute top-4 right-4 z-[70] p-3 bg-white/20 backdrop-blur rounded-full hover:bg-white/40 transition-all active:scale-95\"\n      >\n        {isMuted ? (\n          <svg className=\"w-5 h-5 text-red-400\" fill=\"currentColor\" viewBox=\"0 0 24 24\"><path d=\"M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z\"/></svg>\n        ) : (\n          <svg className=\"w-5 h-5 text-white\" fill=\"currentColor\" viewBox=\"0 0 24 24\"><path d=\"M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z\"/></svg>\n        )}\n      </button>\n\n      {/* Game Content Layer */}\n      <div className={`absolute inset-0 transition-opacity duration-700 ${isPlayView ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>\n         <canvas ref={canvasRef} className=\"w-full h-full block object-cover\" width={APP_WIDTH} height={APP_HEIGHT} />\n      </div>\n\n      {/* Playing HUD */}\n      {gameState === 'playing' && (\n        <div className=\"absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 px-5 py-2 bg-black/40 backdrop-blur-xl rounded-full text-white border border-white/10 z-[60] shadow-xl\">\n          <div className=\"flex flex-col items-center\">\n            <div className=\"text-xl font-black text-yellow-400 tabular-nums italic leading-none\">\n              {timeLeft}s\n            </div>\n            <div className={`text-[7px] font-black px-1.5 rounded-full ${currentConfig.color} uppercase tracking-widest`}>{difficulty}</div>\n          </div>\n          <div className=\"h-4 w-px bg-white/20\" />\n          <div className=\"flex flex-col items-center\">\n            <div className=\"text-lg font-black italic tracking-tighter leading-none\">SCORE: <span className=\"text-green-400\">{score}</span></div>\n            {comboStreak > 5 && (\n              <div className=\"text-[8px] font-black text-yellow-300 italic animate-pulse\">\n                COMBO X{Math.min(10, 1 + Math.floor(comboStreak / 5))}\n              </div>\n            )}\n          </div>\n        </div>\n      )}\n\n      {/* START MENU */}\n      {gameState === 'menu' && (\n        <div className=\"absolute inset-0 z-50 flex flex-col items-center justify-center bg-white p-6\">\n           <button \n              onClick={onBack}\n              className=\"absolute top-6 left-6 p-4 bg-gray-50 hover:bg-gray-100 rounded-full transition-all\"\n            >\n              <svg className=\"w-6 h-6 text-gray-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\">\n                <path strokeLinecap=\"round\" strokeLinejoin=\"round\" strokeWidth={3} d=\"M10 19l-7-7m0 0l7-7m-7 7h18\" />\n              </svg>\n            </button>\n\n           <div className=\"flex flex-col items-center max-w-sm w-full\">\n              <div className=\"text-6xl mb-4\">\ud83c\udf4e</div>\n              <h2 className=\"text-5xl font-black text-purple-900 italic uppercase tracking-tighter leading-none mb-8 text-center\">\n                FRUIT<br/>SLASH\n              </h2>\n\n              <div className=\"w-full space-y-6\">\n                 <div className=\"flex gap-2 p-1 bg-gray-100 rounded-2xl\">\n                    <button onClick={() => setIs2Player(false)} className={`flex-1 py-3 rounded-xl font-black text-xs ${!is2Player ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-400'}`}>1 PLAYER</button>\n                    <button onClick={() => setIs2Player(true)} className={`flex-1 py-3 rounded-xl font-black text-xs ${is2Player ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-400'}`}>2 PLAYERS</button>\n                 </div>\n\n                 <div className=\"flex gap-2 p-1 bg-gray-100 rounded-2xl\">\n                    {(['easy', 'medium', 'hard'] as Difficulty[]).map((level) => (\n                      <button\n                        key={level}\n                        onClick={() => setDifficulty(level)}\n                        className={`flex-1 py-2 rounded-xl font-black text-[9px] uppercase italic ${difficulty === level ? `${DIFFICULTY_CONFIG[level].color} text-white` : 'text-gray-400'}`}\n                      >\n                        {level}\n                      </button>\n                    ))}\n                 </div>\n\n                 <button onClick={initCamera} className=\"w-full py-5 bg-purple-600 text-white text-2xl font-black rounded-3xl shadow-[0_4px_0_rgb(88,28,135)] active:translate-y-1 active:shadow-none transition-all uppercase italic\">\n                   START GAME\n                 </button>\n              </div>\n           </div>\n           {error && <p className=\"mt-4 text-red-500 font-bold text-xs\">{error}</p>}\n        </div>\n      )}\n\n      {/* LOADING OVERLAY */}\n      {gameState === 'loading' && (\n        <div className=\"absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90\">\n           <div className=\"w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin\"></div>\n           <p className=\"mt-4 text-purple-900 font-black uppercase text-xs tracking-widest\">Optimizing Vision...</p>\n        </div>\n      )}\n\n      {/* WAITING */}\n      {gameState === 'waiting' && (\n        <div className=\"absolute inset-0 z-[65] flex items-center justify-center bg-black/40 backdrop-blur-sm\">\n           <div className=\"text-center p-10 bg-white rounded-[32px] shadow-2xl\">\n              <div className=\"text-6xl mb-4 animate-bounce\">\ud83d\udd90\ufe0f</div>\n              <h2 className=\"text-3xl font-black text-purple-900 mb-1 uppercase italic\">Wave to Start</h2>\n              <p className=\"text-purple-600 font-bold text-[10px] uppercase opacity-60\">Hand tracking active</p>\n           </div>\n        </div>\n      )}\n\n      {/* COUNTDOWN */}\n      {gameState === 'countdown' && (\n        <div className=\"absolute inset-0 z-[66] flex items-center justify-center pointer-events-none\">\n          <div className=\"text-[120px] font-black text-white italic animate-ping\">\n            {countdown > 0 ? countdown : 'GO!'}\n          </div>\n        </div>\n      )}\n\n      {/* ENDED */}\n      {gameState === 'ended' && (\n        <div className=\"absolute inset-0 z-50 flex flex-col items-center justify-center bg-white\">\n           <h3 className=\"text-purple-300 font-black text-xs tracking-widest mb-4\">GAME OVER</h3>\n           <div className=\"text-[120px] font-black text-purple-900 leading-none italic mb-8\">{score}</div>\n           <div className=\"w-full max-w-[280px] space-y-3\">\n              <button onClick={initCamera} className=\"w-full py-5 bg-purple-600 text-white text-xl font-black rounded-3xl uppercase italic shadow-[0_4px_0_rgb(88,28,135)]\">TRY AGAIN</button>\n              <button onClick={() => setGameState('menu')} className=\"w-full py-3 text-gray-400 font-black uppercase text-[10px]\">BACK TO MENU</button>\n           </div>\n        </div>\n      )}\n    </div>\n  );\n};\n\n\n\n\n\nconst App: React.FC = () => {\n  const [bestScore, setBestScore] = useState(0);\n\n  useEffect(() => {\n    const savedBest = localStorage.getItem('fruit_best');\n    if (savedBest) setBestScore(parseInt(savedBest, 10) || 0);\n  }, []);\n\n  const updateBestScore = (s: number) => {\n    if (s > bestScore) {\n      setBestScore(s);\n      localStorage.setItem('fruit_best', s.toString());\n    }\n  };\n\n  return (\n    <div className=\"w-full h-full select-none overflow-hidden bg-white\">\n      <FruitSlash \n        onBack={() => { window.parent.postMessage({type: 'FRAME15_BACK'}, '*'); }} \n        bestScore={bestScore} \n        onUpdateBest={updateBestScore} \n      />\n    </div>\n  );\n};\n\n\n\nconst rootElement = document.getElementById('root');\nconst root = ReactDOM.createRoot(rootElement);\nroot.render(React.createElement(StrictMode, null, React.createElement(App)));\n</script>\n</body>\n</html>";
+}
+
+function enterFrame15Web2(){
+  if (!frame15Iframe) return;
+  if (!frame15Loaded){
+    // Inline the original FruitSlash.tsx source verbatim (minus imports/types stripped by Babel TS preset).
+    frame15Iframe.srcdoc = buildFrame15Srcdoc();
+    frame15Loaded = true;
+  }
+}
+
+// Listen for Back from iframe
+window.addEventListener('message', (ev) => {
+  if (ev && ev.data && ev.data.type === 'FRAME15_BACK') {
+    gameBackToHome();
+  }
+});
+
 function goToFrame15(tab = "community") {
   currentGameTab = tab || "community";
   hideAllFrames();
@@ -2818,7 +2826,7 @@ function goToFrame15(tab = "community") {
   updateGameScale();
   startIdleTimer();
 
-  enterFruitFrame(); // ✅ reset menu + best score + timer
+  enterFrame15Web2();
 }
 
 
@@ -3191,385 +3199,208 @@ if (tttRestartBtn) bindTap(tttRestartBtn, () => {
 });
 
 // =========================================================
-// ✅ FRUIT SLASH GAME (Web 2 → Frame 15, Vanilla JS + MediaPipe)
+// ✅ FRUIT SLASH GAME (Camera + 1P/2P, 3 min, Best Score)
 // =========================================================
 const LS_FRUIT_BEST_KEY = "fra_fruit_best_v1"; // { [profileId]: { best1p:number, best2p:number } }
-const LS_FRUIT_MUTE_KEY = "fra_fruit_mute_v1"; // "true" | "false"
 
-const FRUIT2_CFG = {
-  easy:   { time: 90, speedMult: 0.7, bombProb: 0.05, spawnInterval: 1.10 },
-  medium: { time: 60, speedMult: 1.0, bombProb: 0.15, spawnInterval: 0.70 },
-  hard:   { time: 45, speedMult: 1.4, bombProb: 0.30, spawnInterval: 0.50 },
-};
+let fruitMode = "1p";
+let fruitRunning = false;
+let fruitScore = 0;
+let fruitBest = 0;
+let fruitStartTs = 0;
+let fruitTimerHandle = null;
 
-const FRUIT2_EMOJI = {
-  apple: "🍎",
-  banana: "🍌",
-  orange: "🍊",
-  watermelon: "🍉",
-  pineapple: "🍍",
-  bomb: "💣",
-};
+let fruitObjs = []; // {x,y,r,vy,vx,type:'fruit'|'bomb',sliced:false}
+let fruitSpawnAcc = 0;
 
-const FRUIT2_SFX = {
-  slice: "https://assets.mixkit.co/active_storage/sfx/2112/2112-preview.mp3",
-  bomb:  "https://assets.mixkit.co/active_storage/sfx/1004/1004-preview.mp3",
-  end:   "https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3",
-};
+let fruitComboHits = []; // timestamps (ms) of recent fruit slices
 
-// ---- Extra Fruit UI ----
-const fruitDiffEasy = document.getElementById('fruitDiffEasy');
-const fruitDiffMedium = document.getElementById('fruitDiffMedium');
-const fruitDiffHard = document.getElementById('fruitDiffHard');
-const fruitMuteBtn = document.getElementById('fruitMuteBtn');
-const fruitErrorEl = document.getElementById('fruitError');
-const fruitEndEl = document.getElementById('fruitEnd');
-const fruitEndResult = document.getElementById('fruitEndResult');
-const fruitEndBest = document.getElementById('fruitEndBest');
+let fruitRAF = 0;
+let fruitCtx = null;
 
-// ---- Internal state ----
-let fruit2Mode = '1p';          // '1p' | '2p'
-let fruit2Difficulty = 'medium';// easy | medium | hard
-let fruit2Muted = lsGet(LS_FRUIT_MUTE_KEY, false) === true || lsGet(LS_FRUIT_MUTE_KEY, "false") === "true";
+let swordTracks = new Map(); // id -> {x,y,px,py,ts}
 
-let fruit2State = 'menu'; // menu | playing | ended
-let fruit2Score = 0;
-let fruit2Best = 0;
-let fruit2TimeLeft = 60;
-let fruit2Timer = null;
-
-let fruit2Running = false;
-let fruit2RAF = 0;
-let fruit2Ctx = null;
-let fruit2SpawnAcc = 0;
-let fruit2LastNow = 0;
-
-let fruit2Objects = []; // {id,x,y,vx,vy,r,type,isSliced,angle,rot,rotSpd,sliceAngle,sliceTime}
-let fruit2Particles = []; // {x,y,vx,vy,life,size}
-let fruit2NextId = 1;
-
-let fruit2Combo = 0;
-let fruit2LastSliceTs = 0;
-
-// MediaPipe
-let fruit2Hands = null;
-let fruit2Camera = null;
-let fruit2HandResults = null;
-let fruit2Swords = new Map(); // index -> {x,y,px,py,ts}
-
-function fruit2PlaySound(kind) {
-  if (fruit2Muted) return;
-  const url = FRUIT2_SFX[kind];
-  if (!url) return;
-  try {
-    const a = new Audio(url);
-    a.volume = 0.6;
-    a.play().catch(() => {});
-  } catch (_) {}
-}
-
-function fruit2Err(msg) {
-  if (!fruitErrorEl) return;
-  if (!msg) {
-    fruitErrorEl.style.display = 'none';
-    fruitErrorEl.textContent = '';
-  } else {
-    fruitErrorEl.style.display = 'block';
-    fruitErrorEl.textContent = msg;
-  }
-}
-
-function fruit2GetBestBucket() {
+function getFruitBestBucket() {
   return lsGet(LS_FRUIT_BEST_KEY, {});
 }
-function fruit2SetBestBucket(obj) {
+function setFruitBestBucket(obj) {
   lsSet(LS_FRUIT_BEST_KEY, obj);
 }
-function fruit2GetBestForProfile(mode) {
+function getBestForProfile(mode) {
   const pid = currentProfile?.id;
   if (!pid) return 0;
-  const all = fruit2GetBestBucket();
+  const all = getFruitBestBucket();
   const b = all[pid] || {};
-  return Number(mode === '2p' ? b.best2p : b.best1p) || 0;
+  return Number(mode === "2p" ? b.best2p : b.best1p) || 0;
 }
-function fruit2SetBestForProfile(mode, value) {
+function setBestForProfile(mode, value) {
   const pid = currentProfile?.id;
   if (!pid) return;
-  const all = fruit2GetBestBucket();
+  const all = getFruitBestBucket();
   all[pid] ||= { best1p: 0, best2p: 0 };
-  if (mode === '2p') all[pid].best2p = Math.max(Number(all[pid].best2p) || 0, Number(value) || 0);
+  if (mode === "2p") all[pid].best2p = Math.max(Number(all[pid].best2p) || 0, Number(value) || 0);
   else all[pid].best1p = Math.max(Number(all[pid].best1p) || 0, Number(value) || 0);
-  fruit2SetBestBucket(all);
+  setFruitBestBucket(all);
 }
 
-function fruit2SetMode(mode) {
-  fruit2Mode = (mode === '2p') ? '2p' : '1p';
-  if (fruitMode1p) fruitMode1p.classList.toggle('active', fruit2Mode === '1p');
-  if (fruitMode2p) fruitMode2p.classList.toggle('active', fruit2Mode === '2p');
-  fruit2Best = fruit2GetBestForProfile(fruit2Mode);
-  if (fruitBestEl) fruitBestEl.textContent = `Best: ${fruit2Best}`;
+function setFruitMode(mode) {
+  fruitMode = (mode === "2p") ? "2p" : "1p";
+  if (fruitMode1p) fruitMode1p.classList.toggle("active", fruitMode === "1p");
+  if (fruitMode2p) fruitMode2p.classList.toggle("active", fruitMode === "2p");
+  fruitBest = getBestForProfile(fruitMode);
+  if (fruitBestEl) fruitBestEl.textContent = String(fruitBest);
 }
 
-function fruit2SetDifficulty(diff) {
-  fruit2Difficulty = (diff === 'easy' || diff === 'hard') ? diff : 'medium';
-  if (fruitDiffEasy) fruitDiffEasy.classList.toggle('active', fruit2Difficulty === 'easy');
-  if (fruitDiffMedium) fruitDiffMedium.classList.toggle('active', fruit2Difficulty === 'medium');
-  if (fruitDiffHard) fruitDiffHard.classList.toggle('active', fruit2Difficulty === 'hard');
-}
+function showFruitMenu() {
+  fruitRunning = false;
+  cancelAnimationFrame(fruitRAF);
+  fruitRAF = 0;
+  stopFruitTimer();
 
-function fruit2SetMuted(m) {
-  fruit2Muted = !!m;
-  lsSet(LS_FRUIT_MUTE_KEY, fruit2Muted);
-  if (fruitMuteBtn) {
-    fruitMuteBtn.setAttribute('aria-pressed', fruit2Muted ? 'true' : 'false');
-    fruitMuteBtn.textContent = fruit2Muted ? 'Sound: OFF' : 'Sound: ON';
-  }
-}
+  if (fruitStageMenu) fruitStageMenu.classList.remove("hidden");
+  if (fruitStagePlay) fruitStagePlay.classList.add("hidden");
 
-function fruit2ShowMenu() {
-  fruit2State = 'menu';
-  fruit2Running = false;
-  cancelAnimationFrame(fruit2RAF);
-  fruit2RAF = 0;
-  fruit2StopTimer();
-  fruit2StopCamera();
+  fruitScore = 0;
+  if (fruitScoreEl) fruitScoreEl.textContent = "0";
+  if (fruitTimerEl) fruitTimerEl.textContent = "03:00";
 
-  if (fruitEndEl) fruitEndEl.style.display = 'none';
-
-  if (fruitStageMenu) fruitStageMenu.classList.remove('hidden');
-  if (fruitStagePlay) fruitStagePlay.classList.add('hidden');
-
-  fruit2Score = 0;
-  fruit2Combo = 0;
-  fruit2LastSliceTs = 0;
-  fruit2Swords.clear();
-
-  fruit2Best = fruit2GetBestForProfile(fruit2Mode);
-  if (fruitScoreEl) fruitScoreEl.textContent = '0';
-  if (fruitTimerEl) fruitTimerEl.textContent = '01:00';
-  if (fruitBestEl) fruitBestEl.textContent = `Best: ${fruit2Best}`;
-
-  fruit2Err('');
+  // default mode + best
+  setFruitMode(fruitMode);
 
   if (fruitHintEl) {
-    fruitHintEl.textContent = 'Allow camera permission. Use good lighting. (Touch also works)';
+    fruitHintEl.textContent =
+      "Swipe to slash fruits. Avoid bombs. Combo: 3 fruits within 2s = +3";
   }
 }
 
-function fruit2ShowPlay() {
-  fruit2State = 'playing';
-  if (fruitStageMenu) fruitStageMenu.classList.add('hidden');
-  if (fruitStagePlay) fruitStagePlay.classList.remove('hidden');
-  if (fruitEndEl) fruitEndEl.style.display = 'none';
+function showFruitPlay() {
+  if (fruitStageMenu) fruitStageMenu.classList.add("hidden");
+  if (fruitStagePlay) fruitStagePlay.classList.remove("hidden");
 }
 
-function fruit2FitCanvas() {
+function stopFruitTimer() {
+  clearInterval(fruitTimerHandle);
+  fruitTimerHandle = null;
+}
+
+function startFruitTimer() {
+  stopFruitTimer();
+  fruitStartTs = Date.now();
+  fruitTimerHandle = setInterval(() => {
+    const elapsed = Date.now() - fruitStartTs;
+    const leftMs = Math.max(0, 180000 - elapsed);
+    const leftSec = Math.ceil(leftMs / 1000);
+    const mm = String(Math.floor(leftSec / 60)).padStart(2, "0");
+    const ss = String(leftSec % 60).padStart(2, "0");
+    if (fruitTimerEl) fruitTimerEl.textContent = `${mm}:${ss}`;
+    if (leftMs <= 0) endFruitGame(false);
+  }, 250);
+}
+
+function fitFruitCanvas() {
   if (!fruitCanvas) return;
   const rect = fruitCanvas.getBoundingClientRect();
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   fruitCanvas.width = Math.floor(rect.width * dpr);
   fruitCanvas.height = Math.floor(rect.height * dpr);
-  fruit2Ctx = fruitCanvas.getContext('2d');
-  if (fruit2Ctx) fruit2Ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  fruitCtx = fruitCanvas.getContext("2d");
+  if (fruitCtx) fruitCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-function fruit2Rand(min, max) { return min + Math.random() * (max - min); }
+function rand(min, max) { return min + Math.random() * (max - min); }
 
-function fruit2Spawn() {
+function spawnFruitOrBomb() {
   if (!fruitCanvas) return;
-  const rect = fruitCanvas.getBoundingClientRect();
-  const w = rect.width;
-  const h = rect.height;
+  const w = fruitCanvas.getBoundingClientRect().width;
+  const h = fruitCanvas.getBoundingClientRect().height;
 
-  const cfg = FRUIT2_CFG[fruit2Difficulty] || FRUIT2_CFG.medium;
-  const isBomb = Math.random() < cfg.bombProb;
+  const isBomb = Math.random() < 0.12; // ~12% bombs
+  const r = isBomb ? rand(18, 26) : rand(18, 30);
 
-  const fruits = ['apple','banana','orange','watermelon','pineapple'];
-  const type = isBomb ? 'bomb' : fruits[Math.floor(Math.random()*fruits.length)];
+  const x = rand(30, w - 30);
+  const y = h + r + rand(10, 40);
 
-  const r = isBomb ? fruit2Rand(18, 26) : fruit2Rand(18, 30);
-  const x = fruit2Rand(40, Math.max(60, w - 40));
-  const y = h + r + fruit2Rand(10, 40);
+  // throw up with some sideways
+  const vy = -rand(380, 620); // px/s
+  const vx = rand(-140, 140);
 
-  const speed = cfg.speedMult;
-  const vy = -fruit2Rand(380, 620) * speed;
-  const vx = fruit2Rand(-140, 140) * speed;
-
-  fruit2Objects.push({
-    id: fruit2NextId++,
-    x, y, vx, vy,
-    r,
-    type,
-    isSliced: false,
-    angle: fruit2Rand(0, Math.PI*2),
-    rotSpd: fruit2Rand(-3.2, 3.2) * speed,
-    sliceAngle: 0,
-    sliceTime: 0,
-  });
+  fruitObjs.push({ x, y, r, vx, vy, type: isBomb ? "bomb" : "fruit", sliced: false });
 }
 
-function fruit2LineHitsCircle(x1,y1,x2,y2,cx,cy,cr) {
+function lineIntersectsCircle(x1,y1,x2,y2,cx,cy,cr) {
   const dx = x2 - x1, dy = y2 - y1;
   const l2 = dx*dx + dy*dy;
-  if (l2 === 0) return ((cx-x1)**2 + (cy-y1)**2) <= cr*cr;
+  if (l2 === 0) {
+    const d2 = (cx-x1)**2 + (cy-y1)**2;
+    return d2 <= cr*cr;
+  }
   let t = ((cx-x1)*dx + (cy-y1)*dy) / l2;
   t = Math.max(0, Math.min(1, t));
   const px = x1 + t*dx, py = y1 + t*dy;
-  return ((cx-px)**2 + (cy-py)**2) <= cr*cr;
+  const d2 = (cx-px)**2 + (cy-py)**2;
+  return d2 <= cr*cr;
 }
 
-function fruit2SpawnParticles(x, y) {
-  // very light particles (performance-friendly)
-  for (let i=0;i<10;i++) {
-    fruit2Particles.push({
-      x, y,
-      vx: fruit2Rand(-180, 180),
-      vy: fruit2Rand(-220, 50),
-      life: fruit2Rand(0.35, 0.75),
-      size: fruit2Rand(2, 5),
-    });
-  }
-}
-
-function fruit2SliceAward() {
+function recordComboHit() {
   const now = Date.now();
-  if (now - fruit2LastSliceTs > 900) fruit2Combo = 0;
-  fruit2Combo += 1;
-  fruit2LastSliceTs = now;
-
-  // multiplier ramps slowly
-  const mult = Math.min(10, 1 + Math.floor(fruit2Combo / 5));
-  fruit2Score += 1 * mult;
+  fruitComboHits = fruitComboHits.filter(ts => now - ts <= 2000);
+  fruitComboHits.push(now);
+  if (fruitComboHits.length >= 3) {
+    fruitScore += 3;
+    fruitComboHits = [];
+  }
 }
 
-function fruit2OnSliceSegment(x1,y1,x2,y2) {
-  if (!fruit2Running) return;
-  let hitBomb = false;
+function onSliceSegment(x1,y1,x2,y2) {
+  if (!fruitRunning) return;
+  let bombHit = false;
 
-  for (const o of fruit2Objects) {
-    if (o.isSliced) continue;
-    if (!fruit2LineHitsCircle(x1,y1,x2,y2,o.x,o.y,o.r + 14)) continue;
-
-    o.isSliced = true;
-    o.sliceAngle = Math.atan2(y2-y1, x2-x1);
-    o.sliceTime = Date.now();
-
-    if (o.type === 'bomb') {
-      hitBomb = true;
-      break;
-    } else {
-      fruit2PlaySound('slice');
-      fruit2SliceAward();
-      fruit2SpawnParticles(o.x, o.y);
+  fruitObjs.forEach(o => {
+    if (o.sliced) return;
+    if (lineIntersectsCircle(x1,y1,x2,y2,o.x,o.y,o.r)) {
+      o.sliced = true;
+      if (o.type === "bomb") bombHit = true;
+      else {
+        fruitScore += 1;
+        recordComboHit();
+      }
     }
-  }
-
-  if (hitBomb) {
-    fruit2PlaySound('bomb');
-    fruit2End(true);
-    return;
-  }
-
-  if (fruitScoreEl) fruitScoreEl.textContent = String(fruit2Score);
-}
-
-function fruit2Draw(ctx, w, h, dt) {
-  // background video mirror already in CSS; draw video mirrored into canvas for alignment
-  ctx.clearRect(0,0,w,h);
-  if (fruitVideo && fruitVideo.readyState >= 2) {
-    try {
-      ctx.save();
-      ctx.scale(-1, 1);
-      ctx.drawImage(fruitVideo, -w, 0, w, h);
-      ctx.restore();
-      ctx.fillStyle = 'rgba(0,0,0,0.10)';
-      ctx.fillRect(0,0,w,h);
-    } catch(_) {
-      ctx.fillStyle = 'rgba(0,0,0,0.08)';
-      ctx.fillRect(0,0,w,h);
-    }
-  } else {
-    ctx.fillStyle = 'rgba(0,0,0,0.06)';
-    ctx.fillRect(0,0,w,h);
-  }
-
-  // physics
-  const g = 980;
-  for (const o of fruit2Objects) {
-    if (o.isSliced) continue;
-    o.vy += g * dt;
-    o.x += o.vx * dt;
-    o.y += o.vy * dt;
-    o.angle += o.rotSpd * dt;
-  }
-
-  // remove offscreen / sliced old
-  const nowTs = Date.now();
-  fruit2Objects = fruit2Objects.filter(o => {
-    if (o.isSliced) return (nowTs - (o.sliceTime||nowTs)) < 260; // small linger
-    if (o.y - o.r > h + 90) return false;
-    return true;
   });
 
-  // draw objects
+  if (bombHit) endFruitGame(true);
+  if (fruitScoreEl) fruitScoreEl.textContent = String(fruitScore);
+}
+
+function drawObject(ctx, o) {
   ctx.save();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  for (const o of fruit2Objects) {
-    ctx.save();
-    ctx.translate(o.x, o.y);
-    ctx.rotate(o.angle);
-
-    const isBomb = o.type === 'bomb';
-    // subtle bubble
-    ctx.globalAlpha = 0.9;
+  if (o.type === "bomb") {
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(0,0,o.r,0,Math.PI*2);
-    ctx.fillStyle = isBomb ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.22)';
-    ctx.fill();
-
-    ctx.globalAlpha = 1;
-    const emoji = FRUIT2_EMOJI[o.type] || '🍎';
-    ctx.font = `${Math.floor(o.r*1.35)}px system-ui, Apple Color Emoji, Segoe UI Emoji`;
-    ctx.fillText(emoji, 0, 1);
-
-    if (o.isSliced && !isBomb) {
-      // slice line
-      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(-o.r, 0);
-      ctx.lineTo(o.r, 0);
-      ctx.stroke();
-    }
-
-    ctx.restore();
+    ctx.moveTo(o.x + o.r*0.2, o.y - o.r);
+    ctx.quadraticCurveTo(o.x + o.r*0.9, o.y - o.r*1.4, o.x + o.r*0.6, o.y - o.r*2.0);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.28)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath(); ctx.arc(o.x - o.r*0.25, o.y - o.r*0.25, o.r*0.35, 0, Math.PI*2); ctx.fill();
   }
   ctx.restore();
+}
 
-  // particles
-  fruit2Particles = fruit2Particles.filter(p => p.life > 0);
+function drawSwordTrails(ctx) {
   ctx.save();
-  for (const p of fruit2Particles) {
-    p.life -= dt;
-    p.vy += 820 * dt;
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    ctx.globalAlpha = Math.max(0, Math.min(1, p.life / 0.75));
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fill();
-  }
-  ctx.restore();
-
-  // sword trails (from hand/touch)
-  ctx.save();
-  ctx.lineCap = 'round';
-  fruit2Swords.forEach(t => {
+  ctx.lineCap = "round";
+  swordTracks.forEach(t => {
     const age = Date.now() - t.ts;
-    const a = Math.max(0.08, 1 - age/220);
-    ctx.strokeStyle = `rgba(255,255,255,${0.55*a})`;
+    const alpha = Math.max(0.05, 1 - age/220);
+    ctx.strokeStyle = `rgba(255,255,255,${0.55*alpha})`;
     ctx.lineWidth = 10;
     ctx.beginPath();
     ctx.moveTo(t.px, t.py);
@@ -3579,332 +3410,228 @@ function fruit2Draw(ctx, w, h, dt) {
   ctx.restore();
 }
 
-function fruit2Loop(now) {
-  if (!fruit2Running || !fruitCanvas || !fruit2Ctx) return;
+function fruitLoop() {
+  if (!fruitRunning || !fruitCanvas || !fruitCtx) return;
+  const ctx = fruitCtx;
+
   const rect = fruitCanvas.getBoundingClientRect();
   const w = rect.width, h = rect.height;
 
-  if (!fruit2LastNow) fruit2LastNow = now;
-  const dt = Math.min(0.033, (now - fruit2LastNow) / 1000);
-  fruit2LastNow = now;
+  const now = performance.now();
+  fruitLoop._last ||= now;
+  const dt = Math.min(0.033, (now - fruitLoop._last)/1000);
+  fruitLoop._last = now;
 
-  const cfg = FRUIT2_CFG[fruit2Difficulty] || FRUIT2_CFG.medium;
-  fruit2SpawnAcc += dt;
-  while (fruit2SpawnAcc >= cfg.spawnInterval) {
-    fruit2SpawnAcc -= cfg.spawnInterval;
-    fruit2Spawn();
-  }
-
-  // trail timeout
-  const tnow = Date.now();
-  for (const [k, t] of fruit2Swords.entries()) {
-    if (tnow - t.ts > 240) fruit2Swords.delete(k);
-  }
-
-  fruit2Draw(fruit2Ctx, w, h, dt);
-  fruit2RAF = requestAnimationFrame(fruit2Loop);
-}
-
-async function fruit2InitHandsIfNeeded() {
-  // MediaPipe Hands must be available (loaded via index.html)
-  if (!window.Hands || !window.Camera) return false;
-
-  if (!fruit2Hands) {
-    try {
-      fruit2Hands = new window.Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-      });
-
-      fruit2Hands.setOptions({
-        maxNumHands: (fruit2Mode === '2p') ? 2 : 1,
-        modelComplexity: 0,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      });
-
-      fruit2Hands.onResults((results) => {
-        fruit2HandResults = results;
-        fruit2OnHandResults(results);
-      });
-    } catch (e) {
-      fruit2Hands = null;
-      return false;
-    }
+  ctx.clearRect(0,0,w,h);
+  if (fruitVideo && fruitVideo.readyState >= 2) {
+    try { ctx.drawImage(fruitVideo, 0, 0, w, h); } catch(_) {}
+    ctx.fillStyle = "rgba(0,0,0,0.10)";
+    ctx.fillRect(0,0,w,h);
   } else {
-    try {
-      fruit2Hands.setOptions({ maxNumHands: (fruit2Mode === '2p') ? 2 : 1 });
-    } catch(_) {}
+    ctx.fillStyle = "rgba(0,0,0,0.08)";
+    ctx.fillRect(0,0,w,h);
   }
 
-  return true;
-}
-
-function fruit2OnHandResults(results) {
-  const active = new Set();
-  if (!results || !results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-    // clear if no hands
-    for (const k of fruit2Swords.keys()) fruit2Swords.delete(k);
-    return;
+  fruitSpawnAcc += dt;
+  const spawnEvery = 0.55;
+  while (fruitSpawnAcc >= spawnEvery) {
+    fruitSpawnAcc -= spawnEvery;
+    spawnFruitOrBomb();
   }
 
-  const rect = fruitCanvas?.getBoundingClientRect();
-  if (!rect) return;
-  const w = rect.width, h = rect.height;
-
-  const hands = (fruit2Mode === '2p') ? results.multiHandLandmarks.slice(0,2) : results.multiHandLandmarks.slice(0,1);
-
-  hands.forEach((lm, idx) => {
-    const tip = lm[8];
-    if (!tip) return;
-    const x = (1 - tip.x) * w;
-    const y = tip.y * h;
-
-    const prev = fruit2Swords.get(idx);
-    if (prev) {
-      if (fruit2Running) fruit2OnSliceSegment(prev.x, prev.y, x, y);
-      fruit2Swords.set(idx, { x, y, px: prev.x, py: prev.y, ts: Date.now() });
-    } else {
-      fruit2Swords.set(idx, { x, y, px: x, py: y, ts: Date.now() });
-    }
-    active.add(idx);
+  const g = 980;
+  fruitObjs.forEach(o => {
+    if (o.sliced) return;
+    o.vy += g * dt;
+    o.x += o.vx * dt;
+    o.y += o.vy * dt;
   });
 
-  for (const k of Array.from(fruit2Swords.keys())) {
-    if (!active.has(k)) fruit2Swords.delete(k);
-  }
+  fruitObjs = fruitObjs.filter(o => {
+    if (o.sliced) return false;
+    if (o.y - o.r > h + 80) return false;
+    return true;
+  });
+
+  fruitObjs.forEach(o => drawObject(ctx, o));
+  drawSwordTrails(ctx);
+
+  const tnow = Date.now();
+  swordTracks.forEach((t, id) => {
+    if (tnow - t.ts > 240) swordTracks.delete(id);
+  });
+
+  fruitRAF = requestAnimationFrame(fruitLoop);
 }
 
-async function fruit2StartCamera() {
+async function startFruitCamera() {
   if (!fruitVideo) return;
-
-  // Prefer MediaPipe Camera when available
-  const handsOk = await fruit2InitHandsIfNeeded();
-  if (!handsOk) {
-    // Fallback: still try plain camera
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-      fruitVideo.srcObject = stream;
-      await fruitVideo.play().catch(() => null);
-      fruit2Err('');
-      return;
-    } catch (e) {
-      fruit2Err('CAMERA ERROR: Please allow camera permission. (Touch still works)');
-      return;
-    }
-  }
-
   try {
-    fruit2Camera = new window.Camera(fruitVideo, {
-      onFrame: async () => {
-        if (!fruit2Hands || !fruitVideo) return;
-        await fruit2Hands.send({ image: fruitVideo });
-      },
-      width: 640,
-      height: 360,
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: false
     });
-
-    await fruit2Camera.start();
-    fruit2Err('');
-  } catch (e) {
-    // Fallback
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-      fruitVideo.srcObject = stream;
-      await fruitVideo.play().catch(() => null);
-      fruit2Err('CAMERA ERROR: MediaPipe unavailable. Touch still works.');
-    } catch (err) {
-      fruit2Err('CAMERA ERROR: Please allow camera permission. (Touch still works)');
-    }
+    fruitVideo.srcObject = stream;
+    await fruitVideo.play().catch(() => null);
+  } catch (_) {
+    // no camera permission => still playable with touch
   }
 }
 
-function fruit2StopCamera() {
-  try {
-    if (fruit2Camera && typeof fruit2Camera.stop === 'function') fruit2Camera.stop();
-  } catch(_) {}
-  fruit2Camera = null;
-
+function stopFruitCamera() {
   const v = fruitVideo;
   const s = v?.srcObject;
-  if (s && typeof s.getTracks === 'function') {
-    try { s.getTracks().forEach(t => t.stop()); } catch(_) {}
+  if (s && typeof s.getTracks === "function") {
+    try { s.getTracks().forEach(t => t.stop()); } catch (_) {}
   }
   if (v) v.srcObject = null;
 }
 
-function fruit2StopTimer() {
-  clearInterval(fruit2Timer);
-  fruit2Timer = null;
+function startFruitGame() {
+  showFruitPlay();
+  fitFruitCanvas();
+
+  fruitObjs = [];
+  fruitSpawnAcc = 0;
+  fruitComboHits = [];
+  swordTracks.clear();
+
+  fruitScore = 0;
+  if (fruitScoreEl) fruitScoreEl.textContent = "0";
+
+  fruitBest = getBestForProfile(fruitMode);
+  if (fruitBestEl) fruitBestEl.textContent = String(fruitBest);
+
+  fruitRunning = true;
+  fruitLoop._last = performance.now();
+
+  startFruitCamera();
+  startFruitTimer();
+
+  cancelAnimationFrame(fruitRAF);
+  fruitRAF = requestAnimationFrame(fruitLoop);
 }
 
-function fruit2StartTimer() {
-  fruit2StopTimer();
-  const cfg = FRUIT2_CFG[fruit2Difficulty] || FRUIT2_CFG.medium;
-  fruit2TimeLeft = cfg.time;
-  fruit2RenderTime();
+function endFruitGame(byBomb = false) {
+  if (!fruitRunning) return;
+  fruitRunning = false;
+  stopFruitTimer();
+  cancelAnimationFrame(fruitRAF);
+  fruitRAF = 0;
 
-  fruit2Timer = setInterval(() => {
-    if (!fruit2Running) return;
-    fruit2TimeLeft -= 1;
-    fruit2RenderTime();
-    if (fruit2TimeLeft <= 0) fruit2End(false);
-  }, 1000);
-}
+  if (fruitScore > fruitBest) {
+    fruitBest = fruitScore;
+    setBestForProfile(fruitMode, fruitBest);
+  }
+  if (fruitBestEl) fruitBestEl.textContent = String(fruitBest);
 
-function fruit2RenderTime() {
-  const t = Math.max(0, fruit2TimeLeft|0);
-  const mm = String(Math.floor(t / 60)).padStart(2,'0');
-  const ss = String(t % 60).padStart(2,'0');
-  if (fruitTimerEl) fruitTimerEl.textContent = `${mm}:${ss}`;
-}
-
-async function fruit2Start() {
-  // reset
-  fruit2Score = 0;
-  fruit2Combo = 0;
-  fruit2LastSliceTs = 0;
-  fruit2Objects = [];
-  fruit2Particles = [];
-  fruit2SpawnAcc = 0;
-  fruit2LastNow = 0;
-  fruit2Swords.clear();
-
-  fruit2Best = fruit2GetBestForProfile(fruit2Mode);
-  if (fruitBestEl) fruitBestEl.textContent = `Best: ${fruit2Best}`;
-  if (fruitScoreEl) fruitScoreEl.textContent = '0';
-
-  fruit2ShowPlay();
-  fruit2FitCanvas();
-
-  await fruit2StartCamera();
-
-  fruit2Running = true;
-  fruit2StartTimer();
-
-  cancelAnimationFrame(fruit2RAF);
-  fruit2RAF = requestAnimationFrame(fruit2Loop);
-}
-
-function fruit2End(byBomb) {
-  if (!fruit2Running) return;
-  fruit2Running = false;
-  fruit2StopTimer();
-  cancelAnimationFrame(fruit2RAF);
-  fruit2RAF = 0;
-
-  fruit2PlaySound('end');
-
-  if (fruit2Score > fruit2Best) {
-    fruit2Best = fruit2Score;
-    fruit2SetBestForProfile(fruit2Mode, fruit2Best);
+  if (fruitHintEl) {
+    fruitHintEl.textContent = byBomb
+      ? `Boom! 💣 Final score: ${fruitScore} (Best: ${fruitBest})`
+      : `Time! Final score: ${fruitScore} (Best: ${fruitBest})`;
   }
 
-  if (fruitEndEl) fruitEndEl.style.display = 'block';
-  if (fruitEndResult) fruitEndResult.textContent = `Score: ${fruit2Score}${byBomb ? ' (Bomb!)' : ''}`;
-  if (fruitEndBest) fruitEndBest.textContent = `Best: ${fruit2Best}`;
-
-  if (fruitBestEl) fruitBestEl.textContent = `Best: ${fruit2Best}`;
+  setTimeout(() => {
+    stopFruitCamera();
+    showFruitMenu();
+  }, 500);
 }
 
-// ---- Touch/mouse fallback (and also works alongside hands) ----
-function fruit2PointerUpdate(id, x, y) {
-  const prev = fruit2Swords.get(id);
+// ---- Fruit input (touch/mouse) ----
+function fruitPointerUpdate(id, x, y) {
+  const prev = swordTracks.get(id);
   if (prev) {
-    fruit2OnSliceSegment(prev.x, prev.y, x, y);
-    fruit2Swords.set(id, { x, y, px: prev.x, py: prev.y, ts: Date.now() });
+    onSliceSegment(prev.x, prev.y, x, y);
+    swordTracks.set(id, { x, y, px: prev.x, py: prev.y, ts: Date.now() });
   } else {
-    fruit2Swords.set(id, { x, y, px: x, py: y, ts: Date.now() });
+    swordTracks.set(id, { x, y, px: x, py: y, ts: Date.now() });
   }
 }
 
-function fruit2AttachInput() {
+function attachFruitInput() {
   if (!fruitCanvas) return;
 
-  fruitCanvas.addEventListener('touchstart', (e) => {
-    if (!fruit2Running) return;
+  fruitCanvas.addEventListener("touchstart", (e) => {
+    if (!fruitRunning) return;
     const rect = fruitCanvas.getBoundingClientRect();
     for (const t of Array.from(e.touches || [])) {
-      const id = 't' + t.identifier;
-      fruit2PointerUpdate(id, t.clientX - rect.left, t.clientY - rect.top);
+      const id = "t" + t.identifier;
+      fruitPointerUpdate(id, t.clientX - rect.left, t.clientY - rect.top);
     }
   }, { passive: true });
 
-  fruitCanvas.addEventListener('touchmove', (e) => {
-    if (!fruit2Running) return;
+  fruitCanvas.addEventListener("touchmove", (e) => {
+    if (!fruitRunning) return;
     const rect = fruitCanvas.getBoundingClientRect();
     const touches = Array.from(e.touches || []);
-    const maxTouches = (fruit2Mode === '2p') ? 2 : 1;
+    const maxTouches = (fruitMode === "2p") ? 2 : 1;
     touches.slice(0, maxTouches).forEach(t => {
-      const id = 't' + t.identifier;
-      fruit2PointerUpdate(id, t.clientX - rect.left, t.clientY - rect.top);
+      const id = "t" + t.identifier;
+      fruitPointerUpdate(id, t.clientX - rect.left, t.clientY - rect.top);
     });
   }, { passive: true });
 
-  fruitCanvas.addEventListener('touchend', (e) => {
-    for (const t of Array.from(e.changedTouches || [])) fruit2Swords.delete('t' + t.identifier);
+  fruitCanvas.addEventListener("touchend", (e) => {
+    const ended = Array.from(e.changedTouches || []);
+    ended.forEach(t => swordTracks.delete("t" + t.identifier));
   }, { passive: true });
 
-  fruitCanvas.addEventListener('touchcancel', (e) => {
-    for (const t of Array.from(e.changedTouches || [])) fruit2Swords.delete('t' + t.identifier);
+  fruitCanvas.addEventListener("touchcancel", (e) => {
+    const ended = Array.from(e.changedTouches || []);
+    ended.forEach(t => swordTracks.delete("t" + t.identifier));
   }, { passive: true });
 
+  // Mouse
   let mouseDown = false;
-  fruitCanvas.addEventListener('mousedown', (e) => {
+  fruitCanvas.addEventListener("mousedown", (e) => {
     mouseDown = true;
     const rect = fruitCanvas.getBoundingClientRect();
-    fruit2PointerUpdate('m', e.clientX - rect.left, e.clientY - rect.top);
+    fruitPointerUpdate("m", e.clientX - rect.left, e.clientY - rect.top);
   });
-  window.addEventListener('mousemove', (e) => {
-    if (!mouseDown || !fruit2Running) return;
+  window.addEventListener("mousemove", (e) => {
+    if (!mouseDown || !fruitRunning) return;
     const rect = fruitCanvas.getBoundingClientRect();
-    fruit2PointerUpdate('m', e.clientX - rect.left, e.clientY - rect.top);
+    fruitPointerUpdate("m", e.clientX - rect.left, e.clientY - rect.top);
   });
-  window.addEventListener('mouseup', () => {
+  window.addEventListener("mouseup", () => {
     mouseDown = false;
-    fruit2Swords.delete('m');
+    swordTracks.delete("m");
   });
 }
 
-function fruit2AttachButtons() {
-  if (fruitMode1p) bindTap(fruitMode1p, () => fruit2SetMode('1p'));
-  if (fruitMode2p) bindTap(fruitMode2p, () => fruit2SetMode('2p'));
+function attachFruitButtons() {
+  if (fruitMode1p) bindTap(fruitMode1p, () => setFruitMode("1p"));
+  if (fruitMode2p) bindTap(fruitMode2p, () => setFruitMode("2p"));
 
-  if (fruitDiffEasy) bindTap(fruitDiffEasy, () => fruit2SetDifficulty('easy'));
-  if (fruitDiffMedium) bindTap(fruitDiffMedium, () => fruit2SetDifficulty('medium'));
-  if (fruitDiffHard) bindTap(fruitDiffHard, () => fruit2SetDifficulty('hard'));
+  if (fruitStartBtn) bindTap(fruitStartBtn, () => startFruitGame());
 
-  if (fruitMuteBtn) bindTap(fruitMuteBtn, () => fruit2SetMuted(!fruit2Muted));
-
-  if (fruitStartBtn) bindTap(fruitStartBtn, () => fruit2Start());
-  if (fruitReplayBtn) bindTap(fruitReplayBtn, () => fruit2Start());
+  if (fruitReplayBtn) bindTap(fruitReplayBtn, () => startFruitGame());
 
   if (fruitBackBtn) bindTap(fruitBackBtn, () => {
-    fruit2StopCamera();
-    fruit2ShowMenu();
-    goToFrame6(lastFrame6Tab || 'community');
+    stopFruitCamera();
+    showFruitMenu();
+    goToFrame6(lastFrame6Tab || "community");
   });
 
   if (fruitBackHomeBtn) bindTap(fruitBackHomeBtn, () => {
-    fruit2StopCamera();
-    fruit2ShowMenu();
-    goToFrame6(lastFrame6Tab || 'community');
+    stopFruitCamera();
+    showFruitMenu();
+    goToFrame6(lastFrame6Tab || "community");
   });
 
-  window.addEventListener('resize', () => {
-    if (frame15 && frame15.style.display === 'block') fruit2FitCanvas();
+  window.addEventListener("resize", () => {
+    if (frame15 && frame15.style.display === "block") fitFruitCanvas();
   });
 }
 
 function enterFruitFrame() {
-  fruit2SetMode(fruit2Mode);
-  fruit2SetDifficulty(fruit2Difficulty);
-  fruit2SetMuted(fruit2Muted);
-  fruit2ShowMenu();
+  showFruitMenu();
 }
 
 // ✅ run once
-fruit2AttachButtons();
-fruit2AttachInput();
+attachFruitButtons();
+attachFruitInput();
+
 // =========================================================
 // ✅ Initial screen
 // =========================================================
