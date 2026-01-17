@@ -17,6 +17,23 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" defer></script>
   <script src="app.js" defer></script>
+  <!-- ✅ Tailwind (for Frame15 only). Preflight disabled to avoid breaking other frames -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = { corePlugins: { preflight: false } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- ✅ React ESM (for Frame15 only) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@^19.2.3",
+      "react/": "https://esm.sh/react@^19.2.3/",
+      "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    }
+  }
+  </script>
 </head>
 
 <body>
@@ -713,13 +730,590 @@
     </div>
   </div>
 
-
   <!-- =========================
-       FRAME 15: Embedded Web2
+       FRAME 15: Fruit Slash (Web2 exact)
        ========================= -->
   <div class="frame-15" id="frame15" style="display:none;">
-    <iframe id="frame15Iframe" title="Frame15" allow="camera; microphone; fullscreen" allowfullscreen></iframe>
+    <div id="fruitSlashRoot" style="width:100%;height:100%;"></div>
   </div>
+
+
+  <!-- ✅ Frame15 implementation copied from Web2 (React + MediaPipe Hands) -->
+  <script type="module">
+    import React, { useState, useRef, useEffect, useCallback } from 'react';
+    import ReactDOM from 'react-dom/client';
+
+    const DIFFICULTY_CONFIG = {
+      easy: { time: 90, speedMult: 0.7, bombProb: 0.05, spawnInterval: 1.1, label: 'EASY', color: 'bg-emerald-500' },
+      medium: { time: 60, speedMult: 1.0, bombProb: 0.15, spawnInterval: 0.7, label: 'MEDIUM', color: 'bg-amber-500' },
+      hard: { time: 45, speedMult: 1.4, bombProb: 0.30, spawnInterval: 0.5, label: 'HARD', color: 'bg-rose-500' }
+    };
+
+    const FRUIT_EMOJIS = {
+      apple: '🍎',
+      banana: '🍌',
+      orange: '🍊',
+      watermelon: '🍉',
+      pineapple: '🍍',
+      bomb: '💣'
+    };
+
+    const FRUIT_COLORS = {
+      apple: '#FF3B30',
+      banana: '#FFD60A',
+      orange: '#FF9500',
+      watermelon: '#FF2D55',
+      pineapple: '#FFCC00',
+      bomb: '#1A1A1A'
+    };
+
+    const SOUND_URLS = {
+      slice: 'https://assets.mixkit.co/active_storage/sfx/2112/2112-preview.mp3',
+      bomb: 'https://assets.mixkit.co/active_storage/sfx/1004/1004-preview.mp3',
+      end:  'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3'
+    };
+
+    const APP_WIDTH = 912;
+    const APP_HEIGHT = 422;
+
+    function FruitSlash({ onBack, bestScore, onUpdateBest }) {
+      const [gameState, setGameState] = useState('menu');
+      const gameStateRef = useRef(gameState);
+
+      const [score, setScore] = useState(0);
+      const [comboStreak, setComboStreak] = useState(0);
+      const [timeLeft, setTimeLeft] = useState(60);
+      const [countdown, setCountdown] = useState(3);
+      const [is2Player, setIs2Player] = useState(false);
+      const [difficulty, setDifficulty] = useState('medium');
+      const [isMuted, setIsMuted] = useState(() => localStorage.getItem('fruit_mute') === 'true');
+      const [error, setError] = useState(null);
+
+      const videoRef = useRef(null);
+      const canvasRef = useRef(null);
+      const handsRef = useRef(null);
+      const cameraRef = useRef(null);
+      const objectsRef = useRef([]);
+      const particlesRef = useRef([]);
+      const lastTimeRef = useRef(0);
+      const spawnTimerRef = useRef(0);
+      const handResultsRef = useRef(null);
+
+      const swordsRef = useRef(new Map());
+
+      const currentConfig = DIFFICULTY_CONFIG[difficulty];
+
+      const playSound = (type) => {
+        if (isMuted) return;
+        const audio = new Audio(SOUND_URLS[type]);
+        audio.volume = 0.6;
+        audio.play().catch(() => {});
+      };
+
+      useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+      useEffect(() => { localStorage.setItem('fruit_mute', String(isMuted)); }, [isMuted]);
+
+      const spawnParticles = (x, y, color) => {
+        const count = 8;
+        for (let i = 0; i < count; i++) {
+          particlesRef.current.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 500,
+            vy: (Math.random() - 0.5) * 500,
+            color,
+            life: 0.8,
+            size: Math.random() * 6 + 2
+          });
+        }
+      };
+
+      const stopGame = useCallback(() => {
+        try { if (cameraRef.current) cameraRef.current.stop(); } catch (_) {}
+        if (score > bestScore) onUpdateBest(score);
+        playSound('end');
+        setGameState('ended');
+      }, [score, bestScore, onUpdateBest]);
+
+      const checkCollision = (x1, y1, x2, y2) => {
+        objectsRef.current.forEach((obj) => {
+          if (obj.isSliced) return;
+
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+          const lenSq = dx * dx + dy * dy;
+          if (lenSq === 0) return;
+
+          let t = ((obj.x - x1) * dx + (obj.y - y1) * dy) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+          const distSq = (obj.x - (x1 + t * dx)) ** 2 + (obj.y - (y1 + t * dy)) ** 2;
+
+          if (distSq < (obj.radius + 15) ** 2) {
+            obj.isSliced = true;
+            obj.sliceAngle = Math.atan2(dy, dx);
+            obj.sliceTime = Date.now();
+
+            if (obj.type === 'bomb') {
+              playSound('bomb');
+              stopGame();
+            } else {
+              playSound('slice');
+              setScore((s) => s + (1 * Math.min(10, 1 + Math.floor(comboStreak / 5))));
+              setComboStreak((prev) => prev + 1);
+              spawnParticles(obj.x, obj.y, FRUIT_COLORS[obj.type]);
+            }
+          }
+        });
+      };
+
+      const onHandProcessing = (results) => {
+        const activeIndices = new Set();
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          if (gameStateRef.current === 'waiting') {
+            setGameState('countdown');
+            setCountdown(3);
+          }
+
+          const handsToProcess = is2Player ? results.multiHandLandmarks.slice(0, 2) : results.multiHandLandmarks.slice(0, 1);
+
+          handsToProcess.forEach((landmarks, index) => {
+            const tip = landmarks[8];
+            const x = (1 - tip.x) * APP_WIDTH;
+            const y = tip.y * APP_HEIGHT;
+
+            const existing = swordsRef.current.get(index);
+            if (existing) {
+              if (gameStateRef.current === 'playing') checkCollision(existing.x, existing.y, x, y);
+              swordsRef.current.set(index, { x, y, px: existing.x, py: existing.y });
+            } else {
+              swordsRef.current.set(index, { x, y, px: x, py: y });
+            }
+            activeIndices.add(index);
+          });
+        }
+
+        for (const key of swordsRef.current.keys()) {
+          if (!activeIndices.has(key)) swordsRef.current.delete(key);
+        }
+      };
+
+      const initCamera = async () => {
+        setGameState('loading');
+        setError(null);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        try {
+          // Wait for MediaPipe globals if they are still loading
+          const waitForGlobals = async () => {
+            const t0 = Date.now();
+            while ((!window.Hands || !window.Camera) && Date.now() - t0 < 4000) {
+              await new Promise(r => setTimeout(r, 50));
+            }
+          };
+          await waitForGlobals();
+
+          if (!window.Hands || !window.Camera) {
+            throw new Error('MediaPipe not loaded');
+          }
+
+          if (!handsRef.current) {
+            const hands = new window.Hands({
+              locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            hands.setOptions({
+              maxNumHands: is2Player ? 2 : 1,
+              modelComplexity: 0,
+              minDetectionConfidence: 0.5,
+              minTrackingConfidence: 0.5
+            });
+
+            hands.onResults((results) => {
+              handResultsRef.current = results;
+              onHandProcessing(results);
+            });
+            handsRef.current = hands;
+          } else {
+            try {
+              handsRef.current.setOptions({ maxNumHands: is2Player ? 2 : 1 });
+            } catch (_) {}
+          }
+
+          if (videoRef.current) {
+            cameraRef.current = new window.Camera(videoRef.current, {
+              onFrame: async () => {
+                if (handsRef.current && videoRef.current) {
+                  await handsRef.current.send({ image: videoRef.current });
+                }
+              },
+              width: 640,
+              height: 360
+            });
+            await cameraRef.current.start();
+          }
+
+          setGameState('waiting');
+        } catch (err) {
+          console.error(err);
+          setError('CAMERA ERROR: PLEASE CHECK PERMISSIONS.');
+          setGameState('menu');
+        }
+      };
+
+      useEffect(() => {
+        if (gameState === 'countdown') {
+          const timer = setInterval(() => {
+            setCountdown((prev) => {
+              if (prev <= 1) {
+                clearInterval(timer);
+                setGameState('playing');
+                setScore(0);
+                setComboStreak(0);
+                setTimeLeft(DIFFICULTY_CONFIG[difficulty].time);
+                objectsRef.current = [];
+                particlesRef.current = [];
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+          return () => clearInterval(timer);
+        }
+      }, [gameState, difficulty]);
+
+      useEffect(() => {
+        let timer;
+        if (gameState === 'playing') {
+          timer = setInterval(() => setTimeLeft((prev) => {
+            if (prev <= 1) stopGame();
+            return prev - 1;
+          }), 1000);
+        }
+        return () => { if (timer) clearInterval(timer); };
+      }, [gameState, stopGame]);
+
+      const gameLoop = useCallback((time) => {
+        if (!canvasRef.current || !videoRef.current) return;
+        const ctx = canvasRef.current.getContext('2d', { alpha: false });
+        if (!ctx) return;
+
+        const dt = lastTimeRef.current ? Math.min(0.05, (time - lastTimeRef.current) / 1000) : 0;
+        lastTimeRef.current = time;
+
+        // draw mirrored video
+        ctx.save();
+        ctx.translate(APP_WIDTH, 0);
+        ctx.scale(-1, 1);
+        try { ctx.drawImage(videoRef.current, 0, 0, APP_WIDTH, APP_HEIGHT); } catch (_) {}
+        ctx.restore();
+
+        // draw skeleton
+        if (handResultsRef.current && handResultsRef.current.multiHandLandmarks) {
+          ctx.save();
+          ctx.translate(APP_WIDTH, 0);
+          ctx.scale(-1, 1);
+          handResultsRef.current.multiHandLandmarks.forEach((landmarks) => {
+            if (window.drawConnectors && window.HAND_CONNECTIONS) {
+              window.drawConnectors(ctx, landmarks, window.HAND_CONNECTIONS, { color: '#00FFCC', lineWidth: 3 });
+            }
+            if (window.drawLandmarks) {
+              window.drawLandmarks(ctx, landmarks, { color: '#FFFFFF', lineWidth: 1, radius: 3 });
+            }
+          });
+          ctx.restore();
+        }
+
+        if (gameStateRef.current === 'playing') {
+          spawnTimerRef.current += dt;
+          if (spawnTimerRef.current > currentConfig.spawnInterval) {
+            spawnTimerRef.current = 0;
+            const isBomb = Math.random() < currentConfig.bombProb;
+            const types = ['apple', 'banana', 'orange', 'watermelon', 'pineapple'];
+            objectsRef.current.push({
+              id: Math.random(),
+              x: Math.random() * (APP_WIDTH - 160) + 80,
+              y: APP_HEIGHT + 60,
+              vx: (Math.random() - 0.5) * 400 * currentConfig.speedMult,
+              vy: -(Math.random() * 200 + 600) * currentConfig.speedMult,
+              radius: 40,
+              type: isBomb ? 'bomb' : types[Math.floor(Math.random() * types.length)],
+              isSliced: false,
+              angle: Math.random() * Math.PI * 2,
+              rotationSpeed: (Math.random() - 0.5) * 8 * currentConfig.speedMult
+            });
+          }
+        }
+
+        // particles
+        particlesRef.current.forEach((p) => {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += 800 * dt;
+          p.life -= dt * 2;
+        });
+        particlesRef.current = particlesRef.current.filter((p) => p.life > 0);
+
+        // objects
+        const gravity = 700;
+        objectsRef.current.forEach((obj) => {
+          obj.vy += gravity * dt;
+          obj.x += obj.vx * dt;
+          obj.y += obj.vy * dt;
+          obj.angle += obj.rotationSpeed * dt;
+
+          if (gameStateRef.current === 'playing' && obj.y > APP_HEIGHT + 50 && !obj.isSliced && obj.type !== 'bomb') {
+            setComboStreak(0);
+          }
+
+          ctx.save();
+          ctx.translate(obj.x, obj.y);
+          ctx.rotate(obj.angle);
+          ctx.font = '80px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          if (obj.isSliced) {
+            const t = (Date.now() - (obj.sliceTime || 0)) / 1000;
+            ctx.globalAlpha = Math.max(0, 1 - t * 3);
+            ctx.save();
+            ctx.rotate(obj.sliceAngle || 0);
+            ctx.fillText(FRUIT_EMOJIS[obj.type], -t * 120, -5);
+            ctx.fillText(FRUIT_EMOJIS[obj.type], t * 120, 5);
+            ctx.restore();
+          } else {
+            ctx.fillText(FRUIT_EMOJIS[obj.type], 0, 0);
+          }
+          ctx.restore();
+        });
+        objectsRef.current = objectsRef.current.filter((o) => o.y < APP_HEIGHT + 150);
+
+        // draw particles
+        ctx.save();
+        particlesRef.current.forEach((p) => {
+          ctx.globalAlpha = p.life;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.restore();
+
+        // swords
+        swordsRef.current.forEach((pos) => {
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(pos.px, pos.py);
+          ctx.lineTo(pos.x, pos.y);
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 14;
+          ctx.lineCap = 'round';
+          ctx.stroke();
+
+          ctx.lineWidth = 6;
+          ctx.strokeStyle = '#00F3FF';
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fill();
+          ctx.restore();
+        });
+
+        requestAnimationFrame(gameLoop);
+      }, [currentConfig, stopGame]);
+
+      useEffect(() => {
+        const frame = requestAnimationFrame(gameLoop);
+        return () => cancelAnimationFrame(frame);
+      }, [gameLoop]);
+
+      // cleanup on unmount
+      useEffect(() => {
+        return () => {
+          try { if (cameraRef.current) cameraRef.current.stop(); } catch (_) {}
+        };
+      }, []);
+
+      const isPlayView = gameState === 'playing' || gameState === 'waiting' || gameState === 'countdown';
+
+      const e = React.createElement;
+
+      return e('div', { className: 'relative w-full h-full bg-black overflow-hidden select-none flex flex-col items-center justify-center' },
+        e('video', { ref: videoRef, className: 'hidden', playsInline: true, muted: true }),
+
+        // Sound toggle
+        e('button', {
+          onClick: () => setIsMuted(!isMuted),
+          className: 'absolute top-4 right-4 z-[70] p-3 bg-white/20 backdrop-blur rounded-full hover:bg-white/40 transition-all active:scale-95'
+        },
+          isMuted ?
+            e('svg', { className: 'w-5 h-5 text-red-400', fill: 'currentColor', viewBox: '0 0 24 24' },
+              e('path', { d: 'M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z' })
+            )
+            :
+            e('svg', { className: 'w-5 h-5 text-white', fill: 'currentColor', viewBox: '0 0 24 24' },
+              e('path', { d: 'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z' })
+            )
+        ),
+
+        // Canvas layer
+        e('div', {
+          className: `absolute inset-0 transition-opacity duration-700 ${isPlayView ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
+        },
+          e('canvas', { ref: canvasRef, className: 'w-full h-full block object-cover', width: APP_WIDTH, height: APP_HEIGHT })
+        ),
+
+        // HUD
+        (gameState === 'playing') ? e('div', {
+          className: 'absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 px-5 py-2 bg-black/40 backdrop-blur-xl rounded-full text-white border border-white/10 z-[60] shadow-xl'
+        },
+          e('div', { className: 'flex flex-col items-center' },
+            e('div', { className: 'text-xl font-black text-yellow-400 tabular-nums italic leading-none' }, `${timeLeft}s`),
+            e('div', { className: `text-[7px] font-black px-1.5 rounded-full ${currentConfig.color} uppercase tracking-widest` }, difficulty)
+          ),
+          e('div', { className: 'h-4 w-px bg-white/20' }),
+          e('div', { className: 'flex flex-col items-center' },
+            e('div', { className: 'text-lg font-black italic tracking-tighter leading-none' },
+              'SCORE: ', e('span', { className: 'text-green-400' }, String(score))
+            ),
+            (comboStreak > 5) ? e('div', { className: 'text-[8px] font-black text-yellow-300 italic animate-pulse' }, `COMBO X${Math.min(10, 1 + Math.floor(comboStreak / 5))}`) : null
+          )
+        ) : null,
+
+        // MENU
+        (gameState === 'menu') ? e('div', { className: 'absolute inset-0 z-50 flex flex-col items-center justify-center bg-white p-6' },
+          e('button', {
+            onClick: onBack,
+            className: 'absolute top-6 left-6 p-4 bg-gray-50 hover:bg-gray-100 rounded-full transition-all'
+          },
+            e('svg', { className: 'w-6 h-6 text-gray-400', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+              e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 3, d: 'M10 19l-7-7m0 0l7-7m-7 7h18' })
+            )
+          ),
+          e('div', { className: 'flex flex-col items-center max-w-sm w-full' },
+            e('div', { className: 'text-6xl mb-4' }, '🍎'),
+            e('h2', { className: 'text-5xl font-black text-purple-900 italic uppercase tracking-tighter leading-none mb-8 text-center' },
+              'FRUIT', e('br'), 'SLASH'
+            ),
+            e('div', { className: 'w-full space-y-6' },
+              e('div', { className: 'flex gap-2 p-1 bg-gray-100 rounded-2xl' },
+                e('button', {
+                  onClick: () => setIs2Player(false),
+                  className: `flex-1 py-3 rounded-xl font-black text-xs ${!is2Player ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-400'}`
+                }, '1 PLAYER'),
+                e('button', {
+                  onClick: () => setIs2Player(true),
+                  className: `flex-1 py-3 rounded-xl font-black text-xs ${is2Player ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-400'}`
+                }, '2 PLAYERS')
+              ),
+              e('div', { className: 'flex gap-2 p-1 bg-gray-100 rounded-2xl' },
+                ['easy','medium','hard'].map((level) =>
+                  e('button', {
+                    key: level,
+                    onClick: () => setDifficulty(level),
+                    className: `flex-1 py-2 rounded-xl font-black text-[9px] uppercase italic ${difficulty === level ? `${DIFFICULTY_CONFIG[level].color} text-white` : 'text-gray-400'}`
+                  }, level)
+                )
+              ),
+              e('button', {
+                onClick: initCamera,
+                className: 'w-full py-5 bg-purple-600 text-white text-2xl font-black rounded-3xl shadow-[0_4px_0_rgb(88,28,135)] active:translate-y-1 active:shadow-none transition-all uppercase italic'
+              }, 'START GAME')
+            )
+          ),
+          error ? e('p', { className: 'mt-4 text-red-500 font-bold text-xs' }, error) : null
+        ) : null,
+
+        // LOADING
+        (gameState === 'loading') ? e('div', { className: 'absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90' },
+          e('div', { className: 'w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin' }),
+          e('p', { className: 'mt-4 text-purple-900 font-black uppercase text-xs tracking-widest' }, 'Optimizing Vision...')
+        ) : null,
+
+        // WAITING
+        (gameState === 'waiting') ? e('div', { className: 'absolute inset-0 z-[65] flex items-center justify-center bg-black/40 backdrop-blur-sm' },
+          e('div', { className: 'text-center p-10 bg-white rounded-[32px] shadow-2xl' },
+            e('div', { className: 'text-6xl mb-4 animate-bounce' }, '🖐️'),
+            e('h2', { className: 'text-3xl font-black text-purple-900 mb-1 uppercase italic' }, 'Wave to Start'),
+            e('p', { className: 'text-purple-600 font-bold text-[10px] uppercase opacity-60' }, 'Hand tracking active')
+          )
+        ) : null,
+
+        // COUNTDOWN
+        (gameState === 'countdown') ? e('div', { className: 'absolute inset-0 z-[66] flex items-center justify-center pointer-events-none' },
+          e('div', { className: 'text-[120px] font-black text-white italic animate-ping' }, countdown > 0 ? String(countdown) : 'GO!')
+        ) : null,
+
+        // ENDED
+        (gameState === 'ended') ? e('div', { className: 'absolute inset-0 z-50 flex flex-col items-center justify-center bg-white' },
+          e('h3', { className: 'text-purple-300 font-black text-xs tracking-widest mb-4' }, 'GAME OVER'),
+          e('div', { className: 'text-[120px] font-black text-purple-900 leading-none italic mb-8' }, String(score)),
+          e('div', { className: 'w-full max-w-[280px] space-y-3' },
+            e('button', { onClick: initCamera, className: 'w-full py-5 bg-purple-600 text-white text-xl font-black rounded-3xl uppercase italic shadow-[0_4px_0_rgb(88,28,135)]' }, 'TRY AGAIN'),
+            e('button', { onClick: () => setGameState('menu'), className: 'w-full py-3 text-gray-400 font-black uppercase text-[10px]' }, 'BACK TO MENU')
+          )
+        ) : null
+      );
+    }
+
+    function App() {
+      const [bestScore, setBestScore] = useState(0);
+
+      useEffect(() => {
+        const savedBest = localStorage.getItem('fruit_best');
+        if (savedBest) setBestScore(parseInt(savedBest, 10) || 0);
+      }, []);
+
+      const updateBestScore = (s) => {
+        if (s > bestScore) {
+          setBestScore(s);
+          localStorage.setItem('fruit_best', String(s));
+        }
+      };
+
+      return React.createElement('div', { className: 'w-full h-full select-none overflow-hidden bg-white' },
+        React.createElement(FruitSlash, {
+          onBack: () => {
+            if (window.__fruitSlashBackToHome) window.__fruitSlashBackToHome();
+            else window.location.reload();
+          },
+          bestScore,
+          onUpdateBest: updateBestScore
+        })
+      );
+    }
+
+    let _root = null;
+
+    function mount() {
+      const el = document.getElementById('fruitSlashRoot');
+      if (!el) return;
+      if (_root) return;
+      _root = ReactDOM.createRoot(el);
+      _root.render(React.createElement(React.StrictMode, null, React.createElement(App)));
+    }
+
+    function unmount() {
+      try {
+        if (_root) {
+          _root.unmount();
+          _root = null;
+        }
+      } catch (_) {}
+    }
+
+    function enter() {
+      mount();
+    }
+
+    window.FruitSlashFrame15 = { mount, unmount, enter, onResize: () => {} };
+
+    // Mount lazily when first entering frame15, but allow immediate mount if already visible
+    if (document.getElementById('frame15') && document.getElementById('frame15').style.display === 'block') {
+      mount();
+    }
+  </script>
 
 </body>
 </html>
