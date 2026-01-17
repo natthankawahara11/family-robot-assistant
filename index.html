@@ -868,12 +868,11 @@ var FruitSlash = ({ onBack, bestScore, onUpdateBest }) => {
       const handsToProcess = is2Player ? results.multiHandLandmarks.slice(0, 2) : results.multiHandLandmarks.slice(0, 1);
       handsToProcess.forEach((landmarks, index) => {
         const tip = landmarks[8];
-        const x = (1 - tip.y) * APP_WIDTH;
-        const yRaw = tip.x * APP_HEIGHT;
-
-        // ✅ because you used ctx.scale(1, -1)
-        const y = APP_HEIGHT - yRaw;
-        
+        // ✅ Align sword position with the exact video transform used in gameLoop()
+        // gameLoop(): translate(W/2,H/2) -> rotate(PI/2) -> scale(1,-1)
+        // This mapping becomes: canvasX = tip.y * W, canvasY = tip.x * H
+        const x = tip.y * APP_WIDTH;
+        const y = tip.x * APP_HEIGHT;
         const existing = swordsRef.current.get(index);
         if (existing) {
           if (gameStateRef.current === "playing") checkCollision(existing.x, existing.y, x, y);
@@ -980,14 +979,15 @@ var FruitSlash = ({ onBack, bestScore, onUpdateBest }) => {
     ctx.save();
     ctx.translate(APP_WIDTH / 2, APP_HEIGHT / 2);
     ctx.rotate(Math.PI / 2);
-    ctx.scale(1, -1);
     ctx.drawImage(videoRef.current, -APP_HEIGHT / 2, -APP_WIDTH / 2, APP_HEIGHT, APP_WIDTH);
     ctx.restore();
     if (handResultsRef.current?.multiHandLandmarks) {
       ctx.save();
       handResultsRef.current.multiHandLandmarks.forEach((landmarks) => {
+        // ✅ Align landmark overlay with the exact video transform used in gameLoop()
+        // Mapping: canvasX = land.y * W, canvasY = land.x * H
         const transformedLandmarks = landmarks.map((land) => ({
-          x: 1 - land.y,
+          x: land.y,
           y: land.x
         }));
         window.drawConnectors(ctx, transformedLandmarks, window.HAND_CONNECTIONS, {
@@ -996,7 +996,7 @@ var FruitSlash = ({ onBack, bestScore, onUpdateBest }) => {
         });
         transformedLandmarks.forEach((land) => {
           const lx = land.x * APP_WIDTH;
-          const ly = (1 - land.y) * APP_HEIGHT;
+          const ly = land.y * APP_HEIGHT;
           ctx.fillStyle = "#FFFFFF";
           ctx.beginPath();
           ctx.arc(lx, ly, 3, 0, Math.PI * 2);
@@ -1257,10 +1257,6 @@ window.__FRA_UNMOUNT_FRUIT__ = function () {
   </script>
 </body>
 </html>
-
-
-
-
 
 
 
