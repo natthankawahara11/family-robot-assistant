@@ -871,7 +871,7 @@ var FruitSlash = ({ onBack, bestScore, onUpdateBest }) => {
         const x = (1 - tip.y) * APP_WIDTH;
         const yRaw = tip.x * APP_HEIGHT;
 
-        // ✅ flip y to match vertical flip
+        // ✅ because you used ctx.scale(1, -1)
         const y = APP_HEIGHT - yRaw;
         
         const existing = swordsRef.current.get(index);
@@ -996,7 +996,7 @@ var FruitSlash = ({ onBack, bestScore, onUpdateBest }) => {
         });
         transformedLandmarks.forEach((land) => {
           const lx = land.x * APP_WIDTH;
-          const ly = land.y * APP_HEIGHT;
+          const ly = (1 - land.y) * APP_HEIGHT;
           ctx.fillStyle = "#FFFFFF";
           ctx.beginPath();
           ctx.arc(lx, ly, 3, 0, Math.PI * 2);
@@ -1257,6 +1257,7 @@ window.__FRA_UNMOUNT_FRUIT__ = function () {
   </script>
 </body>
 </html>
+
 
 
 
