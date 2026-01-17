@@ -979,6 +979,10 @@ var FruitSlash = ({ onBack, bestScore, onUpdateBest }) => {
     ctx.save();
     ctx.translate(APP_WIDTH / 2, APP_HEIGHT / 2);
     ctx.rotate(Math.PI / 2);
+    
+    // ✅ flip vertical (top <-> bottom)
+    ctx.scale(1, -1);
+
     ctx.drawImage(videoRef.current, -APP_HEIGHT / 2, -APP_WIDTH / 2, APP_HEIGHT, APP_WIDTH);
     ctx.restore();
     if (handResultsRef.current?.multiHandLandmarks) {
@@ -1257,6 +1261,7 @@ window.__FRA_UNMOUNT_FRUIT__ = function () {
   </script>
 </body>
 </html>
+
 
 
 
