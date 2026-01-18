@@ -1464,7 +1464,7 @@ var SettingsFrame = ({ name, age, avatar, onBack }) => {
             "button",
             {
               onClick: handleSave,
-              className: `px-12 py-4 rounded-[1.2rem] font-black text-[#233047] transition-all shadow-xl hover:translate-y-[-2px] active:translate-y-[1px] ${isSaved ? "bg-emerald-400" : "bg-[#BE8DFF] hover:bg-[#d0aeff]"}`,
+              className: `px-8 py-3 rounded-[1rem] font-black text-[#233047] transition-all shadow-xl hover:translate-y-[-2px] active:translate-y-[1px] ${isSaved ? "bg-emerald-400" : "bg-[#BE8DFF] hover:bg-[#d0aeff]"}`,
               children: isSaved ? "Sync Complete" : "Apply Changes"
             }
           )
@@ -1485,7 +1485,7 @@ var App = ({ name, age, avatar, onBack }) => {
     /* @__PURE__ */ jsx4("div", { className: "absolute bottom-[10%] left-[10%] text-blue-500/5 text-9xl font-black select-none pointer-events-none tracking-tighter", children: "01" }),
     /* @__PURE__ */ jsxs4("div", { className: "relative z-10 w-full h-full", children: [
       /* @__PURE__ */ jsx4(SettingsFrame_default, { name, age, avatar, onBack }),
-      /* @__PURE__ */ jsx4("div", { className: "absolute bottom-3 left-1/2 -translate-x-1/2 text-center text-purple-300/30 font-bold tracking-[0.5em] uppercase text-[10px] pointer-events-none", children: /* @__PURE__ */ jsx4("p", { children: "Alpha Interface System v1.0.1" }) })
+      // /* @__PURE__ */ jsx4("div", { className: "absolute bottom-3 left-1/2 -translate-x-1/2 text-center text-purple-300/30 font-bold tracking-[0.5em] uppercase text-[10px] pointer-events-none", children: /* @__PURE__ */ jsx4("p", { children: "Alpha Interface System v1.0.1" }) })
     ] })
   ] });
 };
@@ -1547,6 +1547,7 @@ window.__FRA_UNMOUNT_SETTINGS__ = function() {
 
 </body>
 </html>
+
 
 
 
