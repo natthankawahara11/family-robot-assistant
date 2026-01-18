@@ -254,6 +254,51 @@ const frame14 = document.getElementById('frame14'); // TicTacToe play
 const frame15 = document.getElementById('frame15');
 const frame16 = document.getElementById('frame16');
 
+// =========================================================
+// ✅ GLOBAL DISPLAY/AUDIO SETTINGS (Frame16)
+// =========================================================
+function __fraClamp01(n){ return Math.max(0, Math.min(1, n)); }
+
+function __fraApplyBrightness(percent){
+  const p = Math.max(15, Math.min(100, Number(percent) || 100));
+  const b = __fraClamp01(p / 100);
+  document.documentElement.style.setProperty('--fra-brightness', String(b));
+  window.__FRA_BRIGHTNESS__ = b;
+  try { localStorage.setItem('fra_brightness', String(Math.round(p))); } catch(_){}
+}
+
+function __fraSetGlobalVolume(v01){
+  const v = __fraClamp01(Number(v01) || 0);
+  window.__FRA_VOLUME__ = v;
+  try { localStorage.setItem('fra_volume', String(Math.round(v * 100))); } catch(_){}
+
+  // Apply to all existing media elements (video/audio)
+  try {
+    document.querySelectorAll('audio,video').forEach((el) => {
+      try {
+        // Keep intro video muted as designed
+        if (el && el.id === 'introVideo') return;
+        el.volume = v;
+      } catch(_){}
+    });
+  } catch(_){}
+}
+
+// Expose helpers for Frame16 React bundle
+window.__FRA_SET_VOLUME__ = __fraSetGlobalVolume;
+window.__FRA_SET_BRIGHTNESS__ = __fraApplyBrightness;
+
+// Restore persisted settings on boot
+try {
+  const savedB = parseInt(localStorage.getItem('fra_brightness') || '100', 10);
+  __fraApplyBrightness(isNaN(savedB) ? 100 : savedB);
+} catch(_) { __fraApplyBrightness(100); }
+
+try {
+  const savedV = parseInt(localStorage.getItem('fra_volume') || '60', 10);
+  __fraSetGlobalVolume(__fraClamp01((isNaN(savedV) ? 60 : savedV) / 100));
+} catch(_) { __fraSetGlobalVolume(0.6); }
+
 // ---- Scramble UI ----
 const scrambleStageSetup = document.getElementById('scrambleStageSetup');
 const scrambleStagePlay  = document.getElementById('scrambleStagePlay');
