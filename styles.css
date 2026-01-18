@@ -32,6 +32,17 @@ html, body{
   touch-action: pan-y;
 }
 
+/* =========================
+   Global brightness control (driven by Frame16 Settings)
+   ========================= */
+:root{
+  --fra-brightness: 1;
+}
+
+body{
+  filter: brightness(var(--fra-brightness));
+}
+
 body{
   background:url("Pic4.png") center/cover no-repeat;
   background-color:#b3ebf2;
@@ -39,6 +50,14 @@ body{
 }
 
 .hidden{ display:none !important; }
+
+/* Frame16 should always cover the whole viewport */
+.frame-16{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+}
 
 /* ✅ Make clickable stuff easier on iPhone */
 .option-card, .frame2-btn-left, .frame2-btn-right, .frame2-close,
