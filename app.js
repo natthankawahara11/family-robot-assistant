@@ -47,6 +47,13 @@ window.addEventListener("error", (e) => {
   try {
     if (bootStatus) bootStatus.textContent = "Error: " + (e?.message || "unknown");
   } catch (_) {}
+
+  // If we are leaving Frame16, unmount Settings (React)
+  try {
+    if (frame16 && frame16.style.display === 'block' && typeof window.__FRA_UNMOUNT_SETTINGS__ === 'function') {
+      window.__FRA_UNMOUNT_SETTINGS__();
+    }
+  } catch (_) {}
 });
 window.addEventListener("unhandledrejection", (e) => {
   try {
@@ -245,6 +252,7 @@ const frame13 = document.getElementById('frame13'); // Scramble play
 const frame14 = document.getElementById('frame14'); // TicTacToe play
 // ✅ fruit slash frame (15)
 const frame15 = document.getElementById('frame15');
+const frame16 = document.getElementById('frame16');
 
 // ---- Scramble UI ----
 const scrambleStageSetup = document.getElementById('scrambleStageSetup');
@@ -695,7 +703,7 @@ function hideAllFrames() {
   [
     frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7,
     frame8, frame9, frame10,
-    frame11, frame12, frame13, frame14, frame15
+    frame11, frame12, frame13, frame14, frame15, frame16
   ].forEach(f => { if (f) f.style.display = 'none'; });
 }
 
@@ -784,6 +792,11 @@ function goToFrame6(preferredTab = null) {
 
 // ✅ Allow Frame15 (web2) to navigate back into the main frame system
 // Used by the Fruit Slash React app for its top-left back button.
+// ✅ Helper for Settings frame back button (go to Frame6 Home)
+window.__FRA_GO_FRAME6_HOME__ = function(){
+  goToFrame6('home');
+};
+
 window.__FRA_GO_FRAME__ = function (n) {
   switch (Number(n)) {
     case 1: goToFrame1(); break;
@@ -801,6 +814,7 @@ window.__FRA_GO_FRAME__ = function (n) {
     case 13: goToFrame13(); break;
     case 14: goToFrame14(); break;
     case 15: goToFrame15(currentGameTab || 'community'); break;
+    case 16: goToFrame16(); break;
     default: goToFrame6('community'); break;
   }
 };
@@ -1742,6 +1756,7 @@ function attachFrame6CardHandlers() {
           if (game === "scramble") { goToFrame11(tab); return; }
           if (game === "ttt")      { goToFrame12(tab); return; }
           if (game === "fruit")    { goToFrame15(tab); return; }
+          if (game === "settings") { goToFrame16(); return; }
           return;
         }
 
@@ -2838,6 +2853,21 @@ function goToFrame15(tab = "community") {
   } catch (_) {}
 }
 
+
+function goToFrame16() {
+  hideAllFrames();
+  if (frame16) frame16.style.display = "block";
+  document.body.style.backgroundImage = 'url("Pic18.png")';
+  lastActiveFrame = 'frame16';
+  // reuse game scaler (Frame16 is 912x422 too)
+  updateGameScale();
+  startIdleTimer();
+
+  // ✅ Mount Settings (React) into Frame16
+  try {
+    if (typeof window.__FRA_MOUNT_SETTINGS__ === 'function') window.__FRA_MOUNT_SETTINGS__();
+  } catch (_) {}
+}
 
 function gameBackToHome() {
   clearScrambleTimer();
