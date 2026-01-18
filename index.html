@@ -999,6 +999,10 @@ var FruitSlash = ({ onBack, bestScore, onUpdateBest }) => {
     ctx.save();
     ctx.translate(APP_WIDTH / 2, APP_HEIGHT / 2);
     ctx.rotate(Math.PI / 2);
+
+    // flip vertical (top <-> bottom)
+    ctx.scale(1, -1);
+    
     ctx.drawImage(videoRef.current, -APP_HEIGHT / 2, -APP_WIDTH / 2, APP_HEIGHT, APP_WIDTH);
     ctx.restore();
     if (handResultsRef.current?.multiHandLandmarks) {
@@ -1417,7 +1421,7 @@ var SettingsFrame = ({ name, age, avatar, onBack }) => {
         /* @__PURE__ */ jsx3(AvatarSection_default, { avatar: settings.avatar, name: settings.displayName, age: settings.age }),
         /* @__PURE__ */ jsx3("div", { className: "mt-8 px-4 py-2 bg-purple-900/30 rounded-xl", children: /* @__PURE__ */ jsx3("span", { className: "text-purple-300 text-[10px] font-bold tracking-[0.2em] uppercase", children: "Status: Online" }) })
       ] }),
-      /* @__PURE__ */ jsxs3("div", { className: "flex-1 p-12 flex flex-col justify-between relative z-10", children: [
+      /* @__PURE__ */ jsxs3("div", { className: "flex-1 p-12 pb-16 flex flex-col justify-between relative z-10", children: [
         /* @__PURE__ */ jsxs3("div", { children: [
           /* @__PURE__ */ jsxs3("div", { className: "flex items-center space-x-3 mb-10", children: [
             /* @__PURE__ */ jsx3("div", { className: "w-12 h-12 bg-[#BE8DFF]/10 rounded-2xl flex items-center justify-center text-[#BE8DFF] shadow-[inset_0_0_10px_rgba(190,141,255,0.1)]", children: /* @__PURE__ */ jsx3("i", { className: "fas fa-layer-group text-xl" }) }),
@@ -1451,7 +1455,7 @@ var SettingsFrame = ({ name, age, avatar, onBack }) => {
             )
           ] })
         ] }),
-        /* @__PURE__ */ jsxs3("div", { className: "flex space-x-6 items-center justify-end", children: [
+        /* @__PURE__ */ jsxs3("div", { className: "flex space-x-6 items-center justify-end mt-4", children: [
           /* @__PURE__ */ jsx3(
             "button",
             {
@@ -1547,6 +1551,7 @@ window.__FRA_UNMOUNT_SETTINGS__ = function() {
 
 </body>
 </html>
+
 
 
 
