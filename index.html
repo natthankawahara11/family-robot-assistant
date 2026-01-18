@@ -36,6 +36,17 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" defer></script>
   <script src="app.js" defer></script>
+  <!-- ✅ Font Awesome (Frame16 Settings UI) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- ✅ Quicksand font (Frame16 Settings UI) -->
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Frame16 slider styles (scoped) */
+    #frame16{ font-family: 'Quicksand', sans-serif; background-color:#1a2538; overflow:hidden; }
+    #frame16 input[type='range']{ -webkit-appearance:none; width:100%; background:transparent; }
+    #frame16 input[type='range']::-webkit-slider-thumb{ -webkit-appearance:none; height:24px; width:24px; border-radius:50%; background:#BE8DFF; cursor:pointer; margin-top:-8px; border:3px solid #233047; box-shadow:0 0 15px rgba(190,141,255,0.4); }
+    #frame16 input[type='range']::-webkit-slider-runnable-track{ width:100%; height:8px; cursor:pointer; background:rgba(190,141,255,0.2); border-radius:10px; }
+  </style>
 </head>
 
 <body>
@@ -408,7 +419,7 @@
         </div> -->
       </div>
 
-      <div class="frame6-card" data-home="1" data-card-key="home_extra_6">
+      <div class="frame6-card" data-home="1" data-card-key="home_extra_6" data-game="settings">
         <!-- <img class="pin-header" src="Pin_Header.png" alt="Pinned" decoding="async"> -->
         <img src="Card6.png" alt="Card 6" decoding="async">
 
@@ -741,6 +752,14 @@
   </div>
 
 
+  <!-- =========================
+       FRAME 16: Settings (copied from web2)
+       ========================= -->
+  <div class="frame-16" id="frame16" style="display:none;">
+    <div id="settingsRoot" style="width:100%;height:100%;"></div>
+  </div>
+
+
 
   <script type="module">
 import React from "react";
@@ -979,10 +998,6 @@ var FruitSlash = ({ onBack, bestScore, onUpdateBest }) => {
     ctx.save();
     ctx.translate(APP_WIDTH / 2, APP_HEIGHT / 2);
     ctx.rotate(Math.PI / 2);
-    
-    // ✅ flip vertical (top <-> bottom)
-    ctx.scale(1, -1);
-
     ctx.drawImage(videoRef.current, -APP_HEIGHT / 2, -APP_WIDTH / 2, APP_HEIGHT, APP_WIDTH);
     ctx.restore();
     if (handResultsRef.current?.multiHandLandmarks) {
@@ -1259,9 +1274,280 @@ window.__FRA_UNMOUNT_FRUIT__ = function () {
   }
 };
   </script>
+
+
+  <!-- =========================
+       FRAME 16 bundle (from web2 TSX compiled)
+       ========================= -->
+  <script type="module">
+// mnt/data/settings_build/main.tsx
+import React2 from "react";
+import { createRoot } from "react-dom/client";
+
+// mnt/data/settings_build/components/SettingsFrame.tsx
+import { useMemo, useRef, useState } from "react";
+
+// mnt/data/settings_build/components/AvatarSection.tsx
+import { jsx, jsxs } from "react/jsx-runtime";
+var AvatarSection = ({ avatar, name, age }) => {
+  return /* @__PURE__ */ jsxs("div", { className: "flex flex-col items-center space-y-4 p-8 bg-[#1a2538]/40 rounded-[2.5rem] backdrop-blur-md", children: [
+    /* @__PURE__ */ jsx("div", { className: "relative", children: /* @__PURE__ */ jsx("div", { className: "w-[75px] h-[75px] rounded-full overflow-hidden border-4 border-[#BE8DFF] shadow-[0_0_20px_rgba(190,141,255,0.3)]", children: /* @__PURE__ */ jsx("img", { src: avatar, alt: name, className: "w-full h-full object-cover" }) }) }),
+    /* @__PURE__ */ jsxs("div", { className: "text-center space-y-1", children: [
+      /* @__PURE__ */ jsx("h2", { className: "text-white font-black text-2xl tracking-tight", children: name }),
+      /* @__PURE__ */ jsxs("div", { className: "flex flex-col items-center", children: [
+        /* @__PURE__ */ jsx("label", { className: "text-[10px] font-black text-purple-300 uppercase tracking-[0.2em]", children: "Age" }),
+        /* @__PURE__ */ jsx("div", { className: "bg-[#BE8DFF]/20 px-4 py-1 rounded-full mt-1", children: /* @__PURE__ */ jsx("span", { className: "text-[#BE8DFF] font-black text-lg", children: age }) })
+      ] })
+    ] })
+  ] });
+};
+var AvatarSection_default = AvatarSection;
+
+// mnt/data/settings_build/components/Slider.tsx
+import { jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
+var Slider = ({ label, value, min, max, icon, onChange, unit = "%" }) => {
+  return /* @__PURE__ */ jsxs2("div", { className: "flex flex-col space-y-4 w-full", children: [
+    /* @__PURE__ */ jsxs2("div", { className: "flex justify-between items-center", children: [
+      /* @__PURE__ */ jsxs2("div", { className: "flex items-center space-x-3 text-[#BE8DFF]", children: [
+        /* @__PURE__ */ jsx2("div", { className: `bg-[#BE8DFF]/10 p-2 rounded-xl transition-transform duration-150 ${value > 0 ? "scale-110" : "scale-100"}`, children: /* @__PURE__ */ jsx2("i", { className: `${icon} text-lg w-6 text-center` }) }),
+        /* @__PURE__ */ jsx2("span", { className: "text-md font-bold tracking-wide text-purple-100", children: label })
+      ] }),
+      /* @__PURE__ */ jsxs2("span", { className: "text-sm font-black text-[#233047] bg-[#BE8DFF] px-3 py-1 rounded-full shadow-lg min-w-[50px] text-center", children: [
+        value,
+        unit
+      ] })
+    ] }),
+    /* @__PURE__ */ jsx2(
+      "input",
+      {
+        type: "range",
+        min,
+        max,
+        value,
+        onChange: (e) => onChange(parseInt(e.target.value)),
+        className: "w-full cursor-pointer"
+      }
+    )
+  ] });
+};
+var Slider_default = Slider;
+
+// mnt/data/settings_build/components/SettingsFrame.tsx
+import { Fragment, jsx as jsx3, jsxs as jsxs3 } from "react/jsx-runtime";
+var SettingsFrame = ({ name, age, avatar, onBack }) => {
+  const defaultSettings = useMemo(() => ({
+    avatar,
+    age,
+    volume: 60,
+    brightness: 100,
+    displayName: name,
+    email: "alpha@core.sys"
+  }), [avatar, age, name]);
+  const [settings, setSettings] = useState(defaultSettings);
+  const [isSaved, setIsSaved] = useState(false);
+  const audioCtxRef = useRef(null);
+  const playVolumeFeedback = (volumeLevel) => {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") ctx.resume();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(440, ctx.currentTime);
+      const gainValue = volumeLevel / 100 * 0.3;
+      gainNode.gain.setValueAtTime(gainValue, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.2);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+  const handleVolumeChange = (newVal) => {
+    setSettings((prev) => ({ ...prev, volume: newVal }));
+    playVolumeFeedback(newVal);
+  };
+  const handleBrightnessChange = (newVal) => {
+    setSettings((prev) => ({ ...prev, brightness: newVal }));
+  };
+  const handleSave = () => {
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2e3);
+  };
+  const handleReset = () => {
+    setSettings((prev) => ({
+      ...prev,
+      volume: defaultSettings.volume,
+      brightness: defaultSettings.brightness
+    }));
+  };
+  const brightnessOverlayStyle = {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100vw",
+    height: "100vh",
+    backgroundColor: "black",
+    opacity: Math.max(0, 1 - settings.brightness / 100),
+    pointerEvents: "none",
+    zIndex: 9999,
+    transition: "opacity 0.1s ease-out"
+  };
+  return /* @__PURE__ */ jsxs3(Fragment, { children: [
+    /* @__PURE__ */ jsx3("div", { style: brightnessOverlayStyle }),
+    /* @__PURE__ */ jsxs3("div", { className: "w-[912px] h-[422px] bg-[#233047] rounded-[3rem] shadow-[0_40px_100px_rgba(0,0,0,0.6)] overflow-hidden flex relative", children: [
+      /* @__PURE__ */ jsxs3(
+        "button",
+        {
+          onClick: onBack,
+          className: "absolute top-6 left-8 z-20 flex items-center space-x-2 text-purple-300/60 hover:text-[#BE8DFF] transition-all group",
+          children: [
+            /* @__PURE__ */ jsx3("div", { className: "w-10 h-10 rounded-full bg-[#1a2538]/60 flex items-center justify-center group-hover:shadow-[0_0_15px_rgba(190,141,255,0.2)] transition-all", children: /* @__PURE__ */ jsx3("i", { className: "fas fa-chevron-left text-xs translate-x-[-1px]" }) }),
+            /* @__PURE__ */ jsx3("span", { className: "text-[10px] font-black uppercase tracking-[0.3em] opacity-0 group-hover:opacity-100 transition-opacity duration-300", children: "Back" })
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsx3("div", { className: "absolute -top-20 -left-20 w-64 h-64 bg-[#BE8DFF]/10 rounded-full blur-3xl pointer-events-none" }),
+      /* @__PURE__ */ jsx3("div", { className: "absolute -bottom-20 -right-20 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" }),
+      /* @__PURE__ */ jsxs3("div", { className: "w-1/3 bg-gradient-to-b from-[#1a2538] to-[#233047] p-10 flex flex-col items-center justify-center relative z-10", children: [
+        /* @__PURE__ */ jsx3(AvatarSection_default, { avatar: settings.avatar, name: settings.displayName, age: settings.age }),
+        /* @__PURE__ */ jsx3("div", { className: "mt-8 px-4 py-2 bg-purple-900/30 rounded-xl", children: /* @__PURE__ */ jsx3("span", { className: "text-purple-300 text-[10px] font-bold tracking-[0.2em] uppercase", children: "Status: Online" }) })
+      ] }),
+      /* @__PURE__ */ jsxs3("div", { className: "flex-1 p-12 flex flex-col justify-between relative z-10", children: [
+        /* @__PURE__ */ jsxs3("div", { children: [
+          /* @__PURE__ */ jsxs3("div", { className: "flex items-center space-x-3 mb-10", children: [
+            /* @__PURE__ */ jsx3("div", { className: "w-12 h-12 bg-[#BE8DFF]/10 rounded-2xl flex items-center justify-center text-[#BE8DFF] shadow-[inset_0_0_10px_rgba(190,141,255,0.1)]", children: /* @__PURE__ */ jsx3("i", { className: "fas fa-layer-group text-xl" }) }),
+            /* @__PURE__ */ jsxs3("div", { children: [
+              /* @__PURE__ */ jsx3("h2", { className: "text-2xl font-black text-white tracking-tight", children: "System Configuration" }),
+              /* @__PURE__ */ jsx3("p", { className: "text-purple-300/60 text-xs font-bold uppercase tracking-widest", children: "Adjust device parameters" })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxs3("div", { className: "space-y-10", children: [
+            /* @__PURE__ */ jsx3(
+              Slider_default,
+              {
+                label: "Output Volume",
+                icon: `fas ${settings.volume === 0 ? "fa-volume-mute" : "fa-volume-up"}`,
+                value: settings.volume,
+                min: 0,
+                max: 100,
+                onChange: handleVolumeChange
+              }
+            ),
+            /* @__PURE__ */ jsx3(
+              Slider_default,
+              {
+                label: "Panel Brightness",
+                icon: "fas fa-adjust",
+                value: settings.brightness,
+                min: 15,
+                max: 100,
+                onChange: handleBrightnessChange
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxs3("div", { className: "flex space-x-6 items-center justify-end", children: [
+          /* @__PURE__ */ jsx3(
+            "button",
+            {
+              onClick: handleReset,
+              className: "text-purple-300/50 font-bold hover:text-[#BE8DFF] transition-colors px-6 uppercase text-xs tracking-widest",
+              children: "Reset"
+            }
+          ),
+          /* @__PURE__ */ jsx3(
+            "button",
+            {
+              onClick: handleSave,
+              className: `px-12 py-4 rounded-[1.2rem] font-black text-[#233047] transition-all shadow-xl hover:translate-y-[-2px] active:translate-y-[1px] ${isSaved ? "bg-emerald-400" : "bg-[#BE8DFF] hover:bg-[#d0aeff]"}`,
+              children: isSaved ? "Sync Complete" : "Apply Changes"
+            }
+          )
+        ] })
+      ] })
+    ] })
+  ] });
+};
+var SettingsFrame_default = SettingsFrame;
+
+// mnt/data/settings_build/App.tsx
+import { jsx as jsx4, jsxs as jsxs4 } from "react/jsx-runtime";
+var App = ({ name, age, avatar, onBack }) => {
+  return /* @__PURE__ */ jsxs4("div", { className: "min-h-screen w-full bg-[#1a2538] flex items-center justify-center p-8 relative overflow-hidden", children: [
+    /* @__PURE__ */ jsx4("div", { className: "absolute top-[5%] left-[5%] w-64 h-64 bg-[#BE8DFF]/5 rounded-full blur-[100px]" }),
+    /* @__PURE__ */ jsx4("div", { className: "absolute bottom-[5%] right-[5%] w-96 h-96 bg-blue-600/5 rounded-full blur-[120px]" }),
+    /* @__PURE__ */ jsx4("div", { className: "absolute top-[10%] right-[10%] text-[#BE8DFF]/10 text-9xl font-black select-none pointer-events-none", children: "A" }),
+    /* @__PURE__ */ jsx4("div", { className: "absolute bottom-[10%] left-[10%] text-blue-500/5 text-9xl font-black select-none pointer-events-none tracking-tighter", children: "01" }),
+    /* @__PURE__ */ jsxs4("div", { className: "relative z-10 scale-90 md:scale-100 transition-all duration-700", children: [
+      /* @__PURE__ */ jsx4(SettingsFrame_default, { name, age, avatar, onBack }),
+      /* @__PURE__ */ jsx4("div", { className: "mt-8 text-center text-purple-300/30 font-bold tracking-[0.5em] uppercase text-[10px]", children: /* @__PURE__ */ jsx4("p", { children: "Alpha Interface System v1.0.1" }) })
+    ] })
+  ] });
+};
+var App_default = App;
+
+// mnt/data/settings_build/main.tsx
+import { jsx as jsx5 } from "react/jsx-runtime";
+function getActiveProfile() {
+  try {
+    const LS_PROFILES_KEY = "fra_profiles_v1";
+    const LS_STATE_KEY = "fra_state_v1";
+    const profiles = JSON.parse(localStorage.getItem(LS_PROFILES_KEY) || "[]");
+    const state = JSON.parse(localStorage.getItem(LS_STATE_KEY) || "{}");
+    const id = state?.currentProfileId;
+    const p = (profiles || []).find((x) => x?.id === id) || (profiles || [])[0] || null;
+    if (p) {
+      return {
+        name: String(p.name || "Guest"),
+        age: Number(p.ageNumber || 0),
+        avatar: String(p.avatarSrc || "Pic13.png")
+      };
+    }
+  } catch (_) {
+  }
+  return { name: "Guest", age: 0, avatar: "Pic13.png" };
+}
+var __settingsRoot = null;
+window.__FRA_MOUNT_SETTINGS__ = function() {
+  const el = document.getElementById("settingsRoot");
+  if (!el) return;
+  if (__settingsRoot) return;
+  const profile = getActiveProfile();
+  const onBack = () => {
+    if (typeof window.__FRA_GO_FRAME6_HOME__ === "function") {
+      window.__FRA_GO_FRAME6_HOME__();
+    } else if (typeof window.__FRA_GO_FRAME__ === "function") {
+      window.__FRA_GO_FRAME__(6);
+    } else {
+      location.hash = "#frame6";
+    }
+  };
+  __settingsRoot = createRoot(el);
+  __settingsRoot.render(
+    /* @__PURE__ */ jsx5(React2.StrictMode, { children: /* @__PURE__ */ jsx5(App_default, { name: profile.name, age: profile.age, avatar: profile.avatar, onBack }) })
+  );
+};
+window.__FRA_UNMOUNT_SETTINGS__ = function() {
+  try {
+    if (__settingsRoot) {
+      __settingsRoot.unmount();
+      __settingsRoot = null;
+    }
+  } catch (_) {
+    __settingsRoot = null;
+  }
+};
+
+  </script>
+
 </body>
 </html>
-
 
 
 
