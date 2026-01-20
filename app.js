@@ -472,23 +472,57 @@ async function __bleRequestAndConnect() {
   __setBluetoothIcon();
   __updateClimateConnUI();
 
-  // Request device must be from a user gesture
-  __ble.device = await navigator.bluetooth.requestDevice({
-    filters: [{ name: "FARALPHA" }],
-    optionalServices: [
-      BLE_UUIDS.QUIZ_SERVICE,
-      BLE_UUIDS.BIRD_SERVICE,
-      BLE_UUIDS.TEMP_SERVICE,
-      BLE_UUIDS.HUMID_SERVICE
-    ]
-  });
+  try {
+    // 1) Best-effort auto-select previously permitted device (no popup)
+    if (typeof navigator.bluetooth.getDevices === "function") {
+      const devices = await navigator.bluetooth.getDevices();
+      const far = devices.find(d => (d?.name || "") === "FARALPHA");
 
-  __ble.device.removeEventListener("gattserverdisconnected", __onBleDisconnected);
-  __ble.device.addEventListener("gattserverdisconnected", __onBleDisconnected);
+      if (far) {
+        __ble.device = far;
+        __ble.device.removeEventListener("gattserverdisconnected", __onBleDisconnected);
+        __ble.device.addEventListener("gattserverdisconnected", __onBleDisconnected);
 
-  await __bleEstablishConnection();
-  __setBleState(true);
+        await __bleEstablishConnection();
+        __setBleState(true);
+        return;
+      }
+    }
+
+    // 2) Fallback: show chooser, but filter to FARALPHA only
+    // Request device must be from a user gesture
+    __ble.device = await navigator.bluetooth.requestDevice({
+      filters: [
+        { name: "FARALPHA" },
+        // If some platforms don't match name reliably, service filter helps:
+        { services: [BLE_UUIDS.QUIZ_SERVICE] }
+      ],
+      optionalServices: [
+        BLE_UUIDS.QUIZ_SERVICE,
+        BLE_UUIDS.BIRD_SERVICE,
+        BLE_UUIDS.TEMP_SERVICE,
+        BLE_UUIDS.HUMID_SERVICE
+      ]
+    });
+
+    __ble.device.removeEventListener("gattserverdisconnected", __onBleDisconnected);
+    __ble.device.addEventListener("gattserverdisconnected", __onBleDisconnected);
+
+    await __bleEstablishConnection();
+    __setBleState(true);
+  } catch (e) {
+    console.error(e);
+    __setBleState(false);
+    throw e;
+  } finally {
+    // __setBleState() will also clear connecting when success/fail,
+    // but keep this safe in case of unexpected early returns.
+    __ble.connecting = false;
+    __setBluetoothIcon();
+    __updateClimateConnUI();
+  }
 }
+
 
 async function __bleEstablishConnection() {
   if (!__ble.device) throw new Error("No BLE device selected.");
