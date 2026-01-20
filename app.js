@@ -254,6 +254,8 @@ const frame14 = document.getElementById('frame14'); // TicTacToe play
 const frame15 = document.getElementById('frame15');
 const frame16 = document.getElementById('frame16');
 
+
+const frame17 = document.getElementById('frame17'); // Climate Buddy
 // =========================================================
 // ✅ GLOBAL DISPLAY/AUDIO SETTINGS (Frame16)
 // =========================================================
@@ -402,7 +404,212 @@ const profilesList = document.getElementById('profilesList');
 
 const frame6ProfileImg = document.getElementById('frame6ProfileImg');
 const frame6ProfileBtn = document.getElementById('frame6ProfileBtn');
+const frame6BluetoothBtn = document.querySelector('.frame6-bluetooth');
+const frame6BluetoothImg = frame6BluetoothBtn ? frame6BluetoothBtn.querySelector('img') : null;
 const tabHighlight = document.getElementById('tabHighlight');
+
+// =========================================================
+// ✅ BLE (Web Bluetooth) – shared across Frame6 + Frame17 + games
+// =========================================================
+const BLE_UUIDS = {
+  QUIZ_SERVICE: "2ac978f8-ed5f-4bbd-bb76-8ceca41834be",
+  QUIZ_WRITE:   "5ddd3234-1463-45ed-b5c7-26a2b6ac49b6",
+  BIRD_SERVICE: "a158cb5d-0bc0-4752-a562-0a7ce2efe51e",
+  BIRD_CHAR:    "de3b7cbd-ce7e-448b-87e7-cb9f0cb39d92",
+  TEMP_SERVICE: "41076f58-2e40-43ec-9811-22c387d28273",
+  TEMP_CHAR:    "d416d30e-d11b-45b5-ad00-14a3d596ba99",
+  HUMID_SERVICE:"273ca8c3-fec3-4d9f-bf72-59d4ff70770c",
+  HUMID_CHAR:   "767b52d6-ee36-405f-91f8-c9992f3bd298",
+};
+
+const __ble = {
+  device: null,
+  server: null,
+  quizWriteChar: null,
+  tempChar: null,
+  humidChar: null,
+  birdChar: null,
+  connected: false,
+  connecting: false,
+  lastTemp: 24.0,
+  lastHumid: 50.0,
+  lastBird: 0,
+  reconnecting: false,
+  decoder: new TextDecoder(),
+  encoder: new TextEncoder(),
+};
+
+function __setBluetoothIcon() {
+  if (!frame6BluetoothImg) return;
+  frame6BluetoothImg.src = __ble.connected ? "Bluetooth2.png" : "Bluetooth.png";
+}
+
+function __updateClimateConnUI() {
+  const dot = document.getElementById("climateConnDot");
+  const btn = document.getElementById("climateConnBtn");
+  if (dot) {
+    dot.className = "w-2.5 h-2.5 rounded-full " + (__ble.connecting ? "bg-amber-400" : (__ble.connected ? "bg-sky-400 animate-pulse" : "bg-slate-300"));
+  }
+  if (btn) {
+    btn.textContent = __ble.connecting ? "LINKING..." : (__ble.connected ? "CONNECTED" : "CONNECT SENSOR");
+    btn.className = "text-[10px] font-bold tracking-[0.2em] uppercase transition-colors " + (__ble.connecting ? "text-amber-500" : (__ble.connected ? "text-slate-500" : "text-sky-500"));
+  }
+}
+
+function __setBleState(connected) {
+  __ble.connected = !!connected;
+  __ble.connecting = false;
+  __setBluetoothIcon();
+  __updateClimateConnUI();
+  try { climateEnsureSimulation(); } catch(_) {}
+}
+
+async function __bleRequestAndConnect() {
+  if (__ble.connecting) return;
+  if (!navigator.bluetooth) throw new Error("Web Bluetooth not available on this browser.");
+
+  __ble.connecting = true;
+  __setBluetoothIcon();
+  __updateClimateConnUI();
+
+  // Request device must be from a user gesture
+  __ble.device = await navigator.bluetooth.requestDevice({
+    filters: [{ name: "FARALPHA" }],
+    optionalServices: [
+      BLE_UUIDS.QUIZ_SERVICE,
+      BLE_UUIDS.BIRD_SERVICE,
+      BLE_UUIDS.TEMP_SERVICE,
+      BLE_UUIDS.HUMID_SERVICE
+    ]
+  });
+
+  __ble.device.removeEventListener("gattserverdisconnected", __onBleDisconnected);
+  __ble.device.addEventListener("gattserverdisconnected", __onBleDisconnected);
+
+  await __bleEstablishConnection();
+  __setBleState(true);
+}
+
+async function __bleEstablishConnection() {
+  if (!__ble.device) throw new Error("No BLE device selected.");
+
+  __ble.server = await __ble.device.gatt.connect();
+
+  // Services
+  const quizService = await __ble.server.getPrimaryService(BLE_UUIDS.QUIZ_SERVICE);
+  const tempService = await __ble.server.getPrimaryService(BLE_UUIDS.TEMP_SERVICE);
+  const humidService = await __ble.server.getPrimaryService(BLE_UUIDS.HUMID_SERVICE);
+  const birdService = await __ble.server.getPrimaryService(BLE_UUIDS.BIRD_SERVICE);
+
+  // Characteristics
+  __ble.quizWriteChar = await quizService.getCharacteristic(BLE_UUIDS.QUIZ_WRITE);
+  __ble.tempChar = await tempService.getCharacteristic(BLE_UUIDS.TEMP_CHAR);
+  __ble.humidChar = await humidService.getCharacteristic(BLE_UUIDS.HUMID_CHAR);
+  __ble.birdChar = await birdService.getCharacteristic(BLE_UUIDS.BIRD_CHAR);
+
+  // Subscribe notifications
+  const handleTemp = (ev) => {
+    const v = ev?.target?.value;
+    if (!v) return;
+    const s = __ble.decoder.decode(v);
+    const n = parseFloat(s);
+    if (!isNaN(n)) {
+      __ble.lastTemp = n;
+      climateUpdateData(__ble.lastTemp, __ble.lastHumid);
+    }
+  };
+  const handleHumid = (ev) => {
+    const v = ev?.target?.value;
+    if (!v) return;
+    const s = __ble.decoder.decode(v);
+    const n = parseFloat(s);
+    if (!isNaN(n)) {
+      __ble.lastHumid = n;
+      climateUpdateData(__ble.lastTemp, __ble.lastHumid);
+    }
+  };
+  const handleBird = (ev) => {
+    const v = ev?.target?.value;
+    if (!v) return;
+    const s = __ble.decoder.decode(v);
+    const n = parseInt(s, 10);
+    if (!isNaN(n)) __ble.lastBird = n;
+  };
+
+  __ble.tempChar.addEventListener("characteristicvaluechanged", handleTemp);
+  __ble.humidChar.addEventListener("characteristicvaluechanged", handleHumid);
+  __ble.birdChar.addEventListener("characteristicvaluechanged", handleBird);
+
+  await __ble.tempChar.startNotifications();
+  await new Promise(r => setTimeout(r, 80));
+  await __ble.humidChar.startNotifications();
+  await new Promise(r => setTimeout(r, 80));
+  await __ble.birdChar.startNotifications();
+
+  // initial push
+  climateUpdateData(__ble.lastTemp, __ble.lastHumid);
+}
+
+function __onBleDisconnected() {
+  __ble.connected = false;
+  __ble.connecting = false;
+  __setBluetoothIcon();
+  __updateClimateConnUI();
+
+  // auto-reconnect (best effort)
+  if (!__ble.device || __ble.reconnecting) return;
+  __ble.reconnecting = true;
+
+  let tries = 0;
+  const maxTries = 10;
+
+  const retry = async () => {
+    if (!__ble.device) { __ble.reconnecting = false; return; }
+    if (__ble.device.gatt.connected) { __ble.reconnecting = false; return; }
+    tries++;
+
+    try {
+      __ble.connecting = true;
+      __updateClimateConnUI();
+      await __bleEstablishConnection();
+      __setBleState(true);
+      __ble.reconnecting = false;
+    } catch (_) {
+      __ble.connecting = false;
+      __updateClimateConnUI();
+      if (tries < maxTries) setTimeout(retry, 2000);
+      else __ble.reconnecting = false;
+    }
+  };
+
+  setTimeout(retry, 1200);
+}
+
+function bleDisconnect() {
+  try { __ble.device?.gatt?.disconnect?.(); } catch (_) {}
+  __ble.server = null;
+  __ble.quizWriteChar = null;
+  __ble.tempChar = null;
+  __ble.humidChar = null;
+  __ble.birdChar = null;
+  __ble.device = __ble.device; // keep device reference for re-select next time
+  __setBleState(false);
+}
+
+async function bleToggleConnect() {
+  startIdleTimer();
+  if (__ble.connected) { bleDisconnect(); return; }
+  try { await __bleRequestAndConnect(); } catch (e) { console.error(e); __setBleState(false); }
+}
+
+async function bleSendAA() {
+  if (!__ble.connected || !__ble.quizWriteChar) return;
+  try {
+    await __ble.quizWriteChar.writeValue(__ble.encoder.encode("AA"));
+  } catch (e) {
+    console.error("BLE write AA failed:", e);
+  }
+}
 const tabHome = document.getElementById('tabHome');
 const tabHealthcare = document.getElementById('tabHealthcare');
 const tabSports = document.getElementById('tabSports');
@@ -738,6 +945,8 @@ function togglePin(tabName, cardKey) {
 // ✅ FRAME NAV
 // =========================================================
 function hideAllFrames() {
+  // reset body backgroundColor (some frames use solid colors)
+  try { document.body.style.backgroundColor = ''; } catch(_) {}
   // If we are leaving Frame15, unmount Fruit Slash (React) and release camera
   try {
     if (frame15 && frame15.style.display === 'block' && typeof window.__FRA_UNMOUNT_FRUIT__ === 'function') {
@@ -748,7 +957,7 @@ function hideAllFrames() {
   [
     frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7,
     frame8, frame9, frame10,
-    frame11, frame12, frame13, frame14, frame15, frame16
+    frame11, frame12, frame13, frame14, frame15, frame16, frame17
   ].forEach(f => { if (f) f.style.display = 'none'; });
 }
 
@@ -1548,6 +1757,15 @@ bindTap(tabCommunity, () => { setActiveTab('community'); startIdleTimer(); });
 
 bindTap(frame6ProfileBtn, () => { goToFrame5Accounts(); startIdleTimer(); });
 
+// ✅ Frame6 BLE connect button
+if (frame6BluetoothBtn && frame6BluetoothBtn.dataset.bound !== '1') {
+  frame6BluetoothBtn.dataset.bound = '1';
+  bindTap(frame6BluetoothBtn, bleToggleConnect);
+}
+__setBluetoothIcon();
+__updateClimateConnUI();
+
+
 // home card swipe helpers
 function getTranslateX(el) {
   const t = window.getComputedStyle(el).transform;
@@ -1787,6 +2005,9 @@ function attachFrame6CardHandlers() {
 
       bindCardTapOnly(card, () => {
         lastFrame6Tab = currentTabName || "home";
+
+        const cardKey = card.getAttribute("data-card-key") || "";
+        if (cardKey === "home_extra_5") { goToFrame17(); return; }
 
         const isQuiz = card.getAttribute("data-quiz") === "1";
         if (isQuiz) {
@@ -2368,6 +2589,301 @@ function updateGameScale() {
   if (tttStagePlay)       tttStagePlay.style.setProperty('--gs', s.toString());
 }
 
+// =========================================================
+// ✅ FRAME 17: Climate Buddy (Web2) – Vanilla implementation
+// =========================================================
+let __climateInited = false;
+let __climateView = "temp"; // "temp" | "humid"
+let __climateHistory = [];
+let __climateCurrent = { temperature: 24.0, humidity: 50.0, timestamp: "--:--" };
+let __climateSimHandle = null;
+let __climateLastUpdate = 0;
+
+function climateInitOnce() {
+  if (__climateInited) return;
+  __climateInited = true;
+
+  // Build initial history (15 points)
+  const now = Date.now();
+  let t = 24.0, h = 50.0;
+  __climateHistory = [];
+  for (let i = 15; i > 0; i--) {
+    t += (Math.random() - 0.5) * 0.5;
+    h += (Math.random() - 0.5) * 2.0;
+    const time = new Date(now - i * 600000);
+    __climateHistory.push({
+      temperature: Number(t.toFixed(1)),
+      humidity: Number(Math.min(100, Math.max(0, h)).toFixed(1)),
+      timestamp: time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    });
+  }
+  __climateCurrent = __climateHistory[__climateHistory.length - 1];
+
+  // Back button (go to Frame6 Home)
+  const backBtn = document.getElementById("climateBackBtn");
+  if (backBtn && backBtn.dataset.bound !== "1") {
+    backBtn.dataset.bound = "1";
+    bindTap(backBtn, () => { goToFrame6("home"); });
+  }
+
+  // Gauges
+  const gT = document.getElementById("climateGaugeTemp");
+  const gH = document.getElementById("climateGaugeHumid");
+  if (gT) gT.innerHTML = climateGaugeTempHTML();
+  if (gH) gH.innerHTML = climateGaugeHumidHTML();
+
+  // Chart
+  const chartWrap = document.getElementById("climateChartWrap");
+  if (chartWrap) chartWrap.innerHTML = climateChartHTML();
+
+  const btnTemp = document.getElementById("climateViewTemp");
+  const btnHum = document.getElementById("climateViewHumid");
+  if (btnTemp) bindTap(btnTemp, () => { __climateView = "temp"; climateRenderAll(); });
+  if (btnHum) bindTap(btnHum, () => { __climateView = "humid"; climateRenderAll(); });
+
+  climateRenderAll();
+  __updateClimateConnUI();
+  __setBluetoothIcon();
+
+  // Start simulation when not connected
+  climateEnsureSimulation();
+}
+
+function climateEnsureSimulation() {
+  if (__ble.connected) {
+    if (__climateSimHandle) { clearInterval(__climateSimHandle); __climateSimHandle = null; }
+    return;
+  }
+  if (__climateSimHandle) return;
+  __climateSimHandle = setInterval(() => {
+    const prevT = __climateCurrent.temperature;
+    const prevH = __climateCurrent.humidity;
+    const newT = Math.min(Math.max(prevT + (Math.random() - 0.5) * 0.8, -8), 40);
+    const newH = Math.min(Math.max(prevH + (Math.random() - 0.5) * 2.5, 0), 100);
+    climateUpdateData(newT, newH, true);
+  }, 8000);
+}
+
+function climateUpdateData(temp, humid, fromSim=false) {
+  const now = Date.now();
+  if (now - __climateLastUpdate < 500) return;
+  __climateLastUpdate = now;
+
+  if (isNaN(temp) || isNaN(humid)) return;
+
+  const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const next = {
+    temperature: Number(temp.toFixed(1)),
+    humidity: Number(humid.toFixed(1)),
+    timestamp: timeStr
+  };
+
+  // update current
+  __climateCurrent = next;
+
+  // update history (15 points)
+  const last = __climateHistory[__climateHistory.length - 1];
+  if (last && last.timestamp === next.timestamp) {
+    __climateHistory[__climateHistory.length - 1] = next;
+  } else {
+    __climateHistory = [...__climateHistory.slice(1), next];
+  }
+
+  // If real data arrives, stop sim
+  if (!fromSim) {
+    if (__climateSimHandle) { clearInterval(__climateSimHandle); __climateSimHandle = null; }
+  }
+
+  climateRenderAll();
+}
+
+function climateRenderAll() {
+  // time
+  const timeEl = document.getElementById("climateTime");
+  if (timeEl) timeEl.textContent = __climateCurrent.timestamp || "--:--";
+
+  // gauges
+  climateRenderTempGauge();
+  climateRenderHumidGauge();
+
+  // chart
+  climateRenderChart();
+
+  // Toggle button styles to match Web2
+  const btnTemp = document.getElementById("climateViewTemp");
+  const btnHum = document.getElementById("climateViewHumid");
+  if (btnTemp) btnTemp.className = `px-4 py-1.5 rounded-xl text-[9px] font-bold uppercase tracking-wider transition-all duration-300 ${__climateView==="temp" ? "bg-rose-400 text-white shadow-md" : "text-slate-400 hover:text-slate-600"}`;
+  if (btnHum) btnHum.className = `px-4 py-1.5 rounded-xl text-[9px] font-bold uppercase tracking-wider transition-all duration-300 ${__climateView==="humid" ? "bg-sky-400 text-white shadow-md" : "text-slate-400 hover:text-slate-600"}`;
+
+  const iconWrap = document.getElementById("climateChartIconWrap");
+  if (iconWrap) iconWrap.className = `p-2.5 rounded-2xl shadow-sm transition-all duration-500 ${__climateView==="temp" ? "bg-rose-50 text-rose-500" : "bg-sky-50 text-sky-500"}`;
+
+  const icon = document.getElementById("climateChartIcon");
+  if (icon) icon.textContent = __climateView==="temp" ? "🌡️" : "💧";
+}
+
+function climateGaugeTempHTML() {
+  return `
+  <div class="flex flex-col items-center justify-center glass p-4 rounded-[40px] relative overflow-hidden h-full shadow-lg shadow-sky-100/50 border-white transform-gpu">
+    <div class="relative flex items-end justify-center w-full h-24 mb-2 z-10">
+      <div class="relative w-6 h-20 bg-white/70 rounded-full border-2 border-white overflow-hidden flex flex-col justify-end p-0.5 shadow-inner">
+        <div id="climateTempFill" class="w-full rounded-full transition-all duration-700 ease-out shadow-sm" style="height:50%;background-color:#86efac;"></div>
+      </div>
+      <div id="climateTempBulb" class="absolute -bottom-1 w-10 h-10 rounded-full border-4 border-white z-10 shadow-md transition-all duration-700" style="background-color:#86efac;"></div>
+      <div class="absolute right-[60%] top-2 flex flex-col items-end">
+        <span id="climateTempValue" class="text-2xl font-bold tracking-tighter text-slate-700 bubbly-text">24.0</span>
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">°C</span>
+      </div>
+    </div>
+    <h3 class="mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] z-10">Warmth</h3>
+  </div>`;
+}
+function climateGaugeHumidHTML() {
+  return `
+  <div class="flex flex-col items-center justify-center glass p-4 rounded-[40px] relative overflow-hidden h-full shadow-lg shadow-sky-100/50 border-white transform-gpu">
+    <div class="relative w-28 h-28 flex items-center justify-center">
+      <div class="absolute inset-0 rounded-full bg-white/50 border-4 border-white overflow-hidden shadow-inner">
+        <div id="climateHumidFill" class="absolute bottom-0 left-0 right-0 transition-all duration-700 ease-in-out" style="height:50%;background-color:#7dd3fc;opacity:0.4;box-shadow:inset 0 4px 12px rgba(255,255,255,0.4)"></div>
+      </div>
+      <div class="z-10 flex flex-col items-center">
+        <span class="text-3xl mb-1 animate-bounce-slow drop-shadow-sm">💧</span>
+        <div class="flex items-baseline gap-0.5">
+          <span id="climateHumidValue" class="text-3xl font-bold text-slate-700 bubbly-text">50</span>
+          <span class="text-[12px] font-bold text-slate-400">%</span>
+        </div>
+      </div>
+    </div>
+    <h3 class="mt-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">Wetness</h3>
+  </div>`;
+}
+
+function climateTempColor(t) {
+  if (t < 10) return "#7dd3fc";
+  if (t < 25) return "#86efac";
+  if (t < 30) return "#fde047";
+  return "#fda4af";
+}
+function climateHumidColor(h) {
+  if (h < 30) return "#bae6fd";
+  if (h < 65) return "#7dd3fc";
+  return "#38bdf8";
+}
+function climateRenderTempGauge() {
+  const t = __climateCurrent.temperature;
+  const min = -10, max = 45;
+  const pct = Math.min(Math.max(((t - min) / (max - min)) * 100, 0), 100);
+  const c = climateTempColor(t);
+
+  const fill = document.getElementById("climateTempFill");
+  const bulb = document.getElementById("climateTempBulb");
+  const val = document.getElementById("climateTempValue");
+
+  if (fill) { fill.style.height = `${pct}%`; fill.style.backgroundColor = c; }
+  if (bulb) bulb.style.backgroundColor = c;
+  if (val) val.textContent = t.toFixed(1);
+}
+function climateRenderHumidGauge() {
+  const h = __climateCurrent.humidity;
+  const pct = Math.min(Math.max(h, 0), 100);
+  const c = climateHumidColor(h);
+
+  const fill = document.getElementById("climateHumidFill");
+  const val = document.getElementById("climateHumidValue");
+  if (fill) { fill.style.height = `${pct}%`; fill.style.backgroundColor = c; }
+  if (val) val.textContent = h.toFixed(0);
+}
+
+function climateChartHTML() {
+  return `
+  <div class="glass p-5 rounded-[40px] h-full w-full overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 border-white transform-gpu">
+    <div class="flex justify-between items-center mb-6">
+      <div class="flex items-center gap-3">
+        <div id="climateChartIconWrap" class="p-2.5 rounded-2xl shadow-sm transition-all duration-500 bg-rose-50 text-rose-500">
+          <span id="climateChartIcon" class="text-lg">🌡️</span>
+        </div>
+        <div>
+          <h3 class="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em]">Timeline</h3>
+          <p class="text-[8px] text-slate-400 font-medium">Last 15 readings</p>
+        </div>
+      </div>
+
+      <div class="flex bg-slate-50/50 p-1 rounded-2xl border border-slate-100 shadow-inner">
+        <button id="climateViewTemp" type="button" class="px-4 py-1.5 rounded-xl text-[9px] font-bold uppercase tracking-wider transition-all duration-300 bg-rose-400 text-white shadow-md">Temp</button>
+        <button id="climateViewHumid" type="button" class="px-4 py-1.5 rounded-xl text-[9px] font-bold uppercase tracking-wider transition-all duration-300 text-slate-400 hover:text-slate-600">Humid</button>
+      </div>
+    </div>
+
+    <div class="flex-grow min-h-0">
+      <svg id="climateChartSvg" viewBox="0 0 520 260" preserveAspectRatio="none" style="width:100%;height:100%;">
+        <defs>
+          <linearGradient id="climateGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop id="climateGradTop" offset="5%" stop-opacity="0.4"/>
+            <stop id="climateGradBot" offset="95%" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path id="climateArea" fill="url(#climateGrad)" stroke="none"></path>
+        <path id="climateLine" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+        <g id="climateDots"></g>
+      </svg>
+    </div>
+  </div>`;
+}
+
+function climateRenderChart() {
+  const svgLine = document.getElementById("climateLine");
+  const svgArea = document.getElementById("climateArea");
+  const dots = document.getElementById("climateDots");
+  const gradTop = document.getElementById("climateGradTop");
+  const gradBot = document.getElementById("climateGradBot");
+
+  if (!svgLine || !svgArea || !dots || !gradTop || !gradBot) return;
+
+  const data = __climateHistory || [];
+  if (!data.length) return;
+
+  const key = __climateView === "temp" ? "temperature" : "humidity";
+  const values = data.map(d => Number(d[key]));
+  const minV = (__climateView === "temp") ? Math.min(...values) : 0;
+  const maxV = (__climateView === "temp") ? Math.max(...values) : 100;
+
+  const W = 520, H = 260, padX = 16, padY = 18;
+  const innerW = W - padX*2;
+  const innerH = H - padY*2;
+
+  const x = (i) => padX + (innerW * (i / (values.length - 1)));
+  const y = (v) => {
+    const t = (v - minV) / ((maxV - minV) || 1);
+    return padY + (innerH * (1 - t));
+  };
+
+  const pts = values.map((v,i) => [x(i), y(v)]);
+  const lineD = "M " + pts.map(p => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(" L ");
+  const areaD = lineD + ` L ${padX+innerW} ${padY+innerH} L ${padX} ${padY+innerH} Z`;
+
+  const stroke = (__climateView === "temp") ? "#fb7185" : "#38bdf8";
+  const fillColor = (__climateView === "temp") ? "#fda4af" : "#93c5fd";
+
+  svgLine.setAttribute("d", lineD);
+  svgLine.setAttribute("stroke", stroke);
+
+  svgArea.setAttribute("d", areaD);
+  gradTop.setAttribute("stop-color", fillColor);
+  gradBot.setAttribute("stop-color", fillColor);
+
+  // dots
+  dots.innerHTML = "";
+  pts.forEach((p) => {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", p[0]);
+    c.setAttribute("cy", p[1]);
+    c.setAttribute("r", "4");
+    c.setAttribute("fill", "#fff");
+    c.setAttribute("stroke", stroke);
+    c.setAttribute("stroke-width", "2");
+    dots.appendChild(c);
+  });
+}
+
 function goToFrame8(tab) {
   currentQuizTab = tab || "healthcare";
   hideAllFrames();
@@ -2798,7 +3314,12 @@ function finishQuiz() {
   else msg = "Good try! Practice makes perfect 💜";
 
   if (quizCongratsText) quizCongratsText.textContent = msg;
+
+
+  // ✅ Notify ESP32 via BLE when Quiz finished
+  bleSendAA();
 }
+
 
 if (quizStartBtn) bindTap(quizStartBtn, startQuizFlow);
 
@@ -2912,6 +3433,20 @@ function goToFrame16() {
   try {
     if (typeof window.__FRA_MOUNT_SETTINGS__ === 'function') window.__FRA_MOUNT_SETTINGS__();
   } catch (_) {}
+}
+
+
+function goToFrame17() {
+  hideAllFrames();
+  if (frame17) frame17.style.display = "block";
+  // Frame17 uses its own background color
+  document.body.style.backgroundImage = "none";
+  document.body.style.backgroundColor = "#38bdf8";
+  lastActiveFrame = "frame17";
+  updateGameScale();
+  startIdleTimer();
+  climateInitOnce();
+  climateEnsureSimulation();
 }
 
 function gameBackToHome() {
@@ -3124,6 +3659,9 @@ if (scrambleNextBtn) bindTap(scrambleNextBtn, () => {
     // finish => go back setup with result text
     goToFrame11(currentGameTab);
     if (scrambleSetupHint) scrambleSetupHint.textContent = `Finished! Final score: ${scrambleScore} / ${total}`;
+
+    // ✅ Notify ESP32 via BLE when Scramble finished
+    bleSendAA();
     return;
   }
   scrambleIndex += 1;
@@ -3236,6 +3774,10 @@ function maybeAIMove() {
     else tttTurn = (aiSide === "X") ? "O" : "X";
 
     renderTTT();
+    if (w && w !== "draw") {
+      // ✅ Notify ESP32 via BLE when TicTacToe has a winner
+      bleSendAA();
+    }
   }, 180);
 }
 
@@ -3252,6 +3794,10 @@ function onTTTMove(i) {
   if (w) {
     tttOver = true;
     renderTTT();
+    if (w !== "draw") {
+      // ✅ Notify ESP32 via BLE when TicTacToe has a winner
+      bleSendAA();
+    }
     return;
   }
 
