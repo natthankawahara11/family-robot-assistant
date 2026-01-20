@@ -1920,3 +1920,103 @@ body{
 
 @keyframes climate-snowfall { 0%{transform:translateY(-10px) rotate(0deg); opacity:0;} 20%{opacity:0.6;} 80%{opacity:0.6;} 100%{transform:translateY(140px) rotate(360deg); opacity:0;} }
 #frame17 .animate-snow{ animation:climate-snowfall linear infinite; will-change:transform; }
+
+
+/* =========================
+   BLE Modal + Loading
+   ========================= */
+.ble-hidden{ display:none !important; }
+
+.ble-modal{
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:'Fredoka', sans-serif;
+}
+.ble-modal-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.55);
+}
+.ble-modal-card{
+  position:relative;
+  width:min(520px, calc(100vw - 40px));
+  background:#ffffff;
+  border-radius:20px;
+  box-shadow:0 25px 60px rgba(0,0,0,0.35);
+  padding:18px 18px 16px 18px;
+}
+.ble-modal-header h3{
+  margin:0;
+  font-size:20px;
+  color:#0f172a;
+}
+.ble-modal-body{
+  margin-top:10px;
+  color:#334155;
+  line-height:1.4;
+  font-size:16px;
+}
+.ble-modal-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  margin-top:14px;
+}
+.ble-btn{
+  border:0;
+  border-radius:12px;
+  padding:10px 14px;
+  font-size:14px;
+  cursor:pointer;
+}
+.ble-btn-ghost{
+  background:rgba(15,23,42,0.08);
+  color:#0f172a;
+}
+.ble-btn-primary{
+  background:#38bdf8;
+  color:#0b1220;
+  font-weight:700;
+}
+.ble-btn:active{ transform:translateY(1px); }
+
+.ble-loading{
+  position:fixed;
+  inset:0;
+  z-index:99998;
+  background:rgba(255,255,255,0.92);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:'Fredoka', sans-serif;
+}
+.ble-loading-card{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  background:#ffffff;
+  border-radius:20px;
+  padding:18px 20px;
+  box-shadow:0 25px 60px rgba(0,0,0,0.2);
+}
+.ble-loading-text{
+  font-size:16px;
+  color:#0f172a;
+  font-weight:700;
+}
+.ble-spinner{
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  border:3px solid rgba(15,23,42,0.18);
+  border-top-color:rgba(15,23,42,0.85);
+  animation:bleSpin 0.9s linear infinite;
+}
+@keyframes bleSpin{
+  to{ transform:rotate(360deg); }
+}
+
