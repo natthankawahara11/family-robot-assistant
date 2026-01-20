@@ -1844,54 +1844,72 @@ body{
 
 
 /* =========================================================
-   FRAME 17: Climate Buddy (Web2) – scoped styles
+   FRAME 17: Climate Buddy (Web2) – FULLSCREEN (no border)
    ========================================================= */
+
+/* ให้ Frame17 กินเต็ม viewport แน่ ๆ */
+#frame17{
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ตัว body ภายใน ไม่ต้องจัดกลางแล้ว ให้เต็มพื้นที่ */
 #frame17 .climateBuddy-body{
   font-family: 'Fredoka', sans-serif;
-  background-color:#38bdf8;
+  background: linear-gradient(to bottom,#e0f2fe,#f0f9ff);
   color:#334155;
   margin:0;
   width:100%;
   height:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  display:block;          /* เดิมเป็น flex จัดกลาง */
   overflow:hidden;
   touch-action:none;
   -webkit-tap-highlight-color:transparent;
 }
+
+/* root ให้เต็มจอ + ตัดขอบ/เงา/กรอบออก */
 #frame17 .climateBuddy-root{
-  width:912px;
-  height:422px;
+  width: 100vw;
+  height: 100vh;
   overflow:hidden;
   position:relative;
-  background:linear-gradient(to bottom,#e0f2fe,#f0f9ff);
-  border:10px solid #ffffff;
-  border-radius:56px;
-  box-shadow:
-    0 50px 100px -20px rgba(0,0,0,0.3),
-    0 30px 60px -30px rgba(0,0,0,0.35);
+
+  background: linear-gradient(to bottom,#e0f2fe,#f0f9ff);
+
+  border: none;           /* เอากรอบขาวออก */
+  border-radius: 0;       /* เอาขอบโค้งออก */
+  box-shadow: none;       /* เอาเงาออก */
+
   display:flex;
   flex-direction:column;
-  transform:translateY(-5px);
+
+  transform:none;         /* ยกเลิก translateY */
   backface-visibility:hidden;
   perspective:1000;
 }
+
+/* ยกเลิกการ scale ที่ทำให้เห็นขอบ/ขาวรอบ ๆ */
 @media (max-width: 1000px){
   #frame17 .climateBuddy-root{
-    transform: scale(calc(100vw / 1000)) translateY(0);
+    transform:none;
     transform-origin:center center;
   }
 }
+
+/* glass ควรไม่บังคับโค้งใหญ่ ถ้าจะให้เต็มจอแบบเนียน */
 #frame17 .glass{
   background:rgba(255,255,255,0.92);
   backdrop-filter:blur(12px);
   -webkit-backdrop-filter:blur(12px);
   border:2px solid #ffffff;
   box-shadow:0 8px 20px rgba(14,165,233,0.05);
-  border-radius:32px;
+  border-radius:24px;     /* ถ้าอยากตัดโค้งทั้งหมด เปลี่ยนเป็น 0 */
   will-change:transform;
 }
+
 #frame17 .bubbly-text{ text-shadow:1px 1px 0px #fff; }
 #frame17 .transform-gpu{ transform:translateZ(0); }
 
