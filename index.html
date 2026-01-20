@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <title>Chatbot Welcome</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -761,7 +764,83 @@
 
 
 
-  <script type="module">
+  
+  <!-- FRAME 17: Climate Buddy (copied from Web2) -->
+  <div class="frame-17" id="frame17" style="display:none;">
+    <div class="climateBuddy-body">
+      <div id="climateBuddyRoot" class="climateBuddy-root">
+        <div class="climateBuddy-app flex flex-col h-full w-full pt-6 px-10 pb-10 overflow-hidden relative select-none transform-gpu">
+          <header class="flex items-center justify-between mb-8 flex-shrink-0">
+            <div class="flex-1">
+              <button id="climateBackBtn" class="group flex items-center justify-center w-10 h-10 glass rounded-2xl active:scale-90 transition-all border-white shadow-md hover:bg-sky-50" type="button" aria-label="Back">
+                <svg class="w-5 h-5 text-slate-400 group-hover:text-sky-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="flex items-center gap-3 bg-white/90 px-6 py-2 rounded-full border-2 border-white shadow-md transition-all group">
+              <span id="climateConnDot" class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+
+              <!-- IMPORTANT: This button is display-only (disabled). BLE connect is handled from Frame6 -->
+              <button id="climateConnBtn" class="text-[10px] font-bold tracking-[0.2em] uppercase transition-colors text-sky-500" type="button" disabled style="pointer-events:none;opacity:1;">
+                CONNECT SENSOR
+              </button>
+
+              <div class="w-px h-4 bg-slate-200 mx-1"></div>
+              <span id="climateTime" class="text-[10px] font-bold text-sky-500">--:--</span>
+            </div>
+
+            <div class="flex-1"></div>
+          </header>
+
+          <main class="flex-grow grid grid-cols-12 gap-6 min-h-0 items-stretch">
+            <div class="col-span-3 flex flex-col gap-4">
+              <div class="flex-1 min-h-0" id="climateGaugeTemp"></div>
+              <div class="flex-1 min-h-0" id="climateGaugeHumid"></div>
+            </div>
+
+            <div class="col-span-5 flex flex-col h-full" id="climateChartWrap"></div>
+
+            <div class="col-span-4 h-full">
+              <div class="glass p-5 rounded-[40px] h-full flex flex-col overflow-hidden relative border-white shadow-xl shadow-sky-200/20">
+                <div class="absolute -top-2 -right-2 text-4xl opacity-5 pointer-events-none rotate-12 text-sky-400">✨</div>
+
+                <div class="flex items-center justify-between mb-4 flex-shrink-0">
+                  <div class="flex items-center gap-2">
+                    <div class="p-2 bg-sky-50 rounded-2xl">
+                      <span class="text-xl animate-bounce-slow">🐹</span>
+                    </div>
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest bubbly-text">Cloudy Tip</span>
+                  </div>
+
+                  <span id="climateStatusPill" class="px-3 py-1 rounded-full text-[8px] font-bold uppercase border-2 text-sky-500 border-sky-100 bg-sky-50/50">
+                    optimal
+                  </span>
+                </div>
+
+                <div class="flex-grow flex flex-col justify-center overflow-hidden pr-2">
+                  <p id="climateInsight" class="text-[14px] text-slate-600 leading-relaxed font-semibold bubbly-text line-clamp-2">
+                    Real-time environmental monitoring is active. Values are streaming directly from your ESP32 device.
+                  </p>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-sky-100 flex-shrink-0 flex items-center justify-between opacity-40">
+                  <div class="flex items-center gap-2">
+                    <div class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping"></div>
+                    <span class="text-[8px] font-bold text-slate-400 uppercase tracking-widest">LIVE SENSOR FEED</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+<script type="module">
 import React from "react";
 import { createRoot } from "react-dom/client";
 
