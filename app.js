@@ -404,7 +404,7 @@ const profilesList = document.getElementById('profilesList');
 
 const frame6ProfileImg = document.getElementById('frame6ProfileImg');
 const frame6ProfileBtn = document.getElementById('frame6ProfileBtn');
-const frame6BluetoothBtn = document.querySelector('.frame6-bluetooth');
+const frame6BluetoothBtn = document.getElementById('frame6BluetoothBtn') || document.querySelector('.frame6-bluetooth');
 const frame6BluetoothImg = frame6BluetoothBtn ? frame6BluetoothBtn.querySelector('img') : null;
 const tabHighlight = document.getElementById('tabHighlight');
 
