@@ -1628,6 +1628,31 @@ window.__FRA_UNMOUNT_SETTINGS__ = function() {
 
   </script>
 
+
+  <!-- BLE Connect Modal + Loading Overlay -->
+  <div id="bleModal" class="ble-modal ble-hidden" role="dialog" aria-modal="true" aria-labelledby="bleModalTitle">
+    <div class="ble-modal-backdrop"></div>
+    <div class="ble-modal-card">
+      <div class="ble-modal-header">
+        <h3 id="bleModalTitle">Bluetooth</h3>
+      </div>
+      <div class="ble-modal-body">
+        <p>กรุณากด <b>Connect</b> แล้วเลือกอุปกรณ์ชื่อ <b>FARALPHA</b> ในหน้าต่างที่เด้งขึ้น</p>
+      </div>
+      <div class="ble-modal-actions">
+        <button type="button" id="bleModalCancel" class="ble-btn ble-btn-ghost">Cancel</button>
+        <button type="button" id="bleModalConnect" class="ble-btn ble-btn-primary">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="bleLoading" class="ble-loading ble-hidden" aria-live="polite" aria-busy="true">
+    <div class="ble-loading-card">
+      <div class="ble-spinner" aria-hidden="true"></div>
+      <div id="bleLoadingText" class="ble-loading-text">Connecting...</div>
+    </div>
+  </div>
+
 </body>
 </html>
 
