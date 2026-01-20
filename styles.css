@@ -762,8 +762,27 @@ body{
   top:42px;
   width:45px;
   height:45px;
+
+  /* ✅ make Bluetooth.png truly clickable (above tabs overlay) */
+  z-index:60;
+  pointer-events:auto;
+  touch-action: manipulation;
+
+  /* ✅ if it's a <button>, remove default styles */
+  background:transparent;
+  border:none;
+  padding:0;
+  cursor:pointer;
 }
-.frame6-bluetooth img{ width:100%; height:100%; object-fit:contain; display:block; }
+.frame6-bluetooth:active{ transform:scale(0.98); }
+
+.frame6-bluetooth img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+  pointer-events:none; /* click hits the wrapper */
+}
 
 .frame6-tabs{
   position:absolute;
@@ -1844,72 +1863,54 @@ body{
 
 
 /* =========================================================
-   FRAME 17: Climate Buddy (Web2) – FULLSCREEN (no border)
+   FRAME 17: Climate Buddy (Web2) – scoped styles
    ========================================================= */
-
-/* ให้ Frame17 กินเต็ม viewport แน่ ๆ */
-#frame17{
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-}
-
-/* ตัว body ภายใน ไม่ต้องจัดกลางแล้ว ให้เต็มพื้นที่ */
 #frame17 .climateBuddy-body{
   font-family: 'Fredoka', sans-serif;
-  background: linear-gradient(to bottom,#e0f2fe,#f0f9ff);
+  background-color:#38bdf8;
   color:#334155;
   margin:0;
   width:100%;
   height:100%;
-  display:block;          /* เดิมเป็น flex จัดกลาง */
+  display:flex;
+  align-items:center;
+  justify-content:center;
   overflow:hidden;
   touch-action:none;
   -webkit-tap-highlight-color:transparent;
 }
-
-/* root ให้เต็มจอ + ตัดขอบ/เงา/กรอบออก */
 #frame17 .climateBuddy-root{
-  width: 100vw;
-  height: 100vh;
+  width:912px;
+  height:422px;
   overflow:hidden;
   position:relative;
-
-  background: linear-gradient(to bottom,#e0f2fe,#f0f9ff);
-
-  border: none;           /* เอากรอบขาวออก */
-  border-radius: 0;       /* เอาขอบโค้งออก */
-  box-shadow: none;       /* เอาเงาออก */
-
+  background:linear-gradient(to bottom,#e0f2fe,#f0f9ff);
+  border:10px solid #ffffff;
+  border-radius:56px;
+  box-shadow:
+    0 50px 100px -20px rgba(0,0,0,0.3),
+    0 30px 60px -30px rgba(0,0,0,0.35);
   display:flex;
   flex-direction:column;
-
-  transform:none;         /* ยกเลิก translateY */
+  transform:translateY(-5px);
   backface-visibility:hidden;
   perspective:1000;
 }
-
-/* ยกเลิกการ scale ที่ทำให้เห็นขอบ/ขาวรอบ ๆ */
 @media (max-width: 1000px){
   #frame17 .climateBuddy-root{
-    transform:none;
+    transform: scale(calc(100vw / 1000)) translateY(0);
     transform-origin:center center;
   }
 }
-
-/* glass ควรไม่บังคับโค้งใหญ่ ถ้าจะให้เต็มจอแบบเนียน */
 #frame17 .glass{
   background:rgba(255,255,255,0.92);
   backdrop-filter:blur(12px);
   -webkit-backdrop-filter:blur(12px);
   border:2px solid #ffffff;
   box-shadow:0 8px 20px rgba(14,165,233,0.05);
-  border-radius:24px;     /* ถ้าอยากตัดโค้งทั้งหมด เปลี่ยนเป็น 0 */
+  border-radius:32px;
   will-change:transform;
 }
-
 #frame17 .bubbly-text{ text-shadow:1px 1px 0px #fff; }
 #frame17 .transform-gpu{ transform:translateZ(0); }
 
