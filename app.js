@@ -256,7 +256,6 @@ const frame16 = document.getElementById('frame16');
 
 
 const frame17 = document.getElementById('frame17'); // Climate Buddy
-const frame18 = document.getElementById('frame18'); // Flappy Bird
 // =========================================================
 // ✅ GLOBAL DISPLAY/AUDIO SETTINGS (Frame16)
 // =========================================================
@@ -405,77 +404,37 @@ const profilesList = document.getElementById('profilesList');
 
 const frame6ProfileImg = document.getElementById('frame6ProfileImg');
 const frame6ProfileBtn = document.getElementById('frame6ProfileBtn');
-const frame6BluetoothBtn = document.getElementById('frame6BluetoothBtn');
+const frame6BluetoothBtn = document.getElementById('frame6BluetoothBtn') || document.querySelector('.frame6-bluetooth');
 const frame6BluetoothImg = frame6BluetoothBtn ? frame6BluetoothBtn.querySelector('img') : null;
-
-const bleModal = document.getElementById('bleModal');
-const bleModalConnectBtn = document.getElementById('bleModalConnectBtn');
-const bleModalCancelBtn = document.getElementById('bleModalCancelBtn');
-const bleLoading = document.getElementById('bleLoading');
-const bleLoadingText = document.getElementById('bleLoadingText');
-const bleToast = document.getElementById('bleToast');
-
-function bleShowModal() {
-  if (!bleModal) return;
-  bleModal.classList.remove('hidden');
-  bleModal.setAttribute('aria-hidden', 'false');
-}
-
-function bleHideModal() {
-  if (!bleModal) return;
-  bleModal.classList.add('hidden');
-  bleModal.setAttribute('aria-hidden', 'true');
-}
-
-function bleShowLoading(on, text) {
-  if (!bleLoading) return;
-  if (bleLoadingText && text) bleLoadingText.textContent = text;
-  if (on) {
-    bleLoading.classList.remove('hidden');
-    bleLoading.setAttribute('aria-hidden', 'false');
-  } else {
-    bleLoading.classList.add('hidden');
-    bleLoading.setAttribute('aria-hidden', 'true');
-  }
-}
-
-let __bleToastTimer = null;
-function bleToastMsg(msg) {
-  if (!bleToast) return;
-  clearTimeout(__bleToastTimer);
-  bleToast.textContent = msg;
-  bleToast.classList.remove('hidden');
-  __bleToastTimer = setTimeout(() => bleToast.classList.add('hidden'), 1600);
-}
-
-// close modal when tapping backdrop
-if (bleModal) {
-  bleModal.addEventListener('click', (ev) => {
-    if (ev.target === bleModal) bleHideModal();
-  });
-}
 const tabHighlight = document.getElementById('tabHighlight');
 
 // =========================================================
 // ✅ BLE (Web Bluetooth) – shared across Frame6 + Frame17 + games
-
 // =========================================================
-// ✅ SENSOR LINK (WiFi WebSocket for Safari — replaces BLE)
-// =========================================================
-const WIFI_SENSOR = {
-  // ESP32 SoftAP default IP
-  WS_URL: "ws://192.168.4.1/ws",
-  // If you run ESP32 on your home router, change to: "ws://<ESP32_IP>/ws"
+const BLE_UUIDS = {
+  QUIZ_SERVICE: "2ac978f8-ed5f-4bbd-bb76-8ceca41834be",
+  QUIZ_WRITE:   "5ddd3234-1463-45ed-b5c7-26a2b6ac49b6",
+  BIRD_SERVICE: "a158cb5d-0bc0-4752-a562-0a7ce2efe51e",
+  BIRD_CHAR:    "de3b7cbd-ce7e-448b-87e7-cb9f0cb39d92",
+  TEMP_SERVICE: "41076f58-2e40-43ec-9811-22c387d28273",
+  TEMP_CHAR:    "d416d30e-d11b-45b5-ad00-14a3d596ba99",
+  HUMID_SERVICE:"273ca8c3-fec3-4d9f-bf72-59d4ff70770c",
+  HUMID_CHAR:   "767b52d6-ee36-405f-91f8-c9992f3bd298",
 };
 
 const __ble = {
-  // kept name "__ble" to avoid changing other parts of the app
-  ws: null,
+  device: null,
+  server: null,
+  quizWriteChar: null,
+  tempChar: null,
+  humidChar: null,
+  birdChar: null,
   connected: false,
   connecting: false,
   lastTemp: 24.0,
   lastHumid: 50.0,
   lastBird: 0,
+  reconnecting: false,
   decoder: new TextDecoder(),
   encoder: new TextEncoder(),
 };
@@ -505,179 +464,152 @@ function __setBleState(connected) {
   try { climateEnsureSimulation(); } catch(_) {}
 }
 
-// ----- UI helpers (modal/loading/toast) -----
-function toastShow(msg, ms = 1400) {
-  const el = document.getElementById("toast");
-  if (!el) return;
-  el.textContent = msg;
-  el.style.display = "block";
-  clearTimeout(el.__t);
-  el.__t = setTimeout(() => { el.style.display = "none"; }, ms);
-}
-
-function wifiModalShow() {
-  const m = document.getElementById("wifiModal");
-  if (!m) return;
-  m.classList.add("show");
-  m.setAttribute("aria-hidden", "false");
-}
-function wifiModalHide() {
-  const m = document.getElementById("wifiModal");
-  if (!m) return;
-  m.classList.remove("show");
-  m.setAttribute("aria-hidden", "true");
-}
-function wifiLoadingShow(text = "Connecting…") {
-  const o = document.getElementById("wifiLoading");
-  const t = document.getElementById("wifiLoadingText");
-  if (t) t.textContent = text;
-  if (o) o.style.display = "flex";
-}
-function wifiLoadingHide() {
-  const o = document.getElementById("wifiLoading");
-  if (o) o.style.display = "none";
-}
-
-function wifiDisconnect() {
-  try { __ble.ws?.close?.(); } catch (_) {}
-  __ble.ws = null;
-  __setBleState(false);
-}
-
-function __wifiAttachUiOnce() {
-  // attach once after DOM exists
-  const btnConnect = document.getElementById("wifiConnectBtn");
-  const btnCancel = document.getElementById("wifiCancelBtn");
-  if (btnConnect && !btnConnect.__wired) {
-    btnConnect.__wired = true;
-    btnConnect.addEventListener("click", async () => {
-      wifiModalHide();
-      await wifiConnect();
-    });
-  }
-  if (btnCancel && !btnCancel.__wired) {
-    btnCancel.__wired = true;
-    btnCancel.addEventListener("click", () => {
-      wifiModalHide();
-    });
-  }
-}
-
-async function wifiConnect() {
-  if (__ble.connecting || __ble.connected) return;
+async function __bleRequestAndConnect() {
+  if (__ble.connecting) return;
+  if (!navigator.bluetooth) throw new Error("Web Bluetooth not available on this browser.");
 
   __ble.connecting = true;
   __setBluetoothIcon();
   __updateClimateConnUI();
-  wifiLoadingShow("Connecting…");
 
-  return new Promise((resolve) => {
-    let opened = false;
-
-    // Clean previous
-    try { __ble.ws?.close?.(); } catch (_) {}
-    __ble.ws = null;
-
-    let ws;
-    try {
-      ws = new WebSocket(WIFI_SENSOR.WS_URL);
-    } catch (e) {
-      __ble.connecting = false;
-      wifiLoadingHide();
-      __setBleState(false);
-      toastShow("Connection failed.");
-      resolve(false);
-      return;
-    }
-
-    __ble.ws = ws;
-
-    const timeout = setTimeout(() => {
-      if (opened) return;
-      try { ws.close(); } catch (_) {}
-      __ble.connecting = false;
-      wifiLoadingHide();
-      __setBleState(false);
-      toastShow("Connection failed.");
-      resolve(false);
-    }, 5000);
-
-    ws.onopen = () => {
-      opened = true;
-      clearTimeout(timeout);
-      __setBleState(true);
-      wifiLoadingHide();
-      toastShow("Connected successfully.");
-      // initial push
-      try { climateUpdateData(__ble.lastTemp, __ble.lastHumid); } catch (_) {}
-      resolve(true);
-    };
-
-    ws.onmessage = (ev) => {
-      const raw = (typeof ev.data === "string") ? ev.data : "";
-      if (!raw) return;
-
-      // accept JSON {t,h,touch} or "t=..,h=..,touch=.."
-      let obj = null;
-      try { obj = JSON.parse(raw); } catch (_) {}
-
-      if (obj && typeof obj === "object") {
-        if (typeof obj.t === "number") __ble.lastTemp = obj.t;
-        if (typeof obj.h === "number") __ble.lastHumid = obj.h;
-        if (typeof obj.touch === "number") __ble.lastBird = obj.touch;
-        try { climateUpdateData(__ble.lastTemp, __ble.lastHumid); } catch (_) {}
-        return;
-      }
-
-      // fallback parse
-      const mT = raw.match(/t\s*=\s*([0-9.]+)/i);
-      const mH = raw.match(/h\s*=\s*([0-9.]+)/i);
-      const mC = raw.match(/touch\s*=\s*([0-9]+)/i);
-      if (mT) __ble.lastTemp = parseFloat(mT[1]);
-      if (mH) __ble.lastHumid = parseFloat(mH[1]);
-      if (mC) __ble.lastBird = parseInt(mC[1], 10);
-      try { climateUpdateData(__ble.lastTemp, __ble.lastHumid); } catch (_) {}
-    };
-
-    ws.onclose = () => {
-      clearTimeout(timeout);
-      __ble.connected = false;
-      __ble.connecting = false;
-      __setBluetoothIcon();
-      __updateClimateConnUI();
-    };
-
-    ws.onerror = () => {
-      // let onclose handle UI
-    };
+  // Request device must be from a user gesture
+  __ble.device = await navigator.bluetooth.requestDevice({
+    filters: [{ name: "FARALPHA" }],
+    optionalServices: [
+      BLE_UUIDS.QUIZ_SERVICE,
+      BLE_UUIDS.BIRD_SERVICE,
+      BLE_UUIDS.TEMP_SERVICE,
+      BLE_UUIDS.HUMID_SERVICE
+    ]
   });
+
+  __ble.device.removeEventListener("gattserverdisconnected", __onBleDisconnected);
+  __ble.device.addEventListener("gattserverdisconnected", __onBleDisconnected);
+
+  await __bleEstablishConnection();
+  __setBleState(true);
+}
+
+async function __bleEstablishConnection() {
+  if (!__ble.device) throw new Error("No BLE device selected.");
+
+  __ble.server = await __ble.device.gatt.connect();
+
+  // Services
+  const quizService = await __ble.server.getPrimaryService(BLE_UUIDS.QUIZ_SERVICE);
+  const tempService = await __ble.server.getPrimaryService(BLE_UUIDS.TEMP_SERVICE);
+  const humidService = await __ble.server.getPrimaryService(BLE_UUIDS.HUMID_SERVICE);
+  const birdService = await __ble.server.getPrimaryService(BLE_UUIDS.BIRD_SERVICE);
+
+  // Characteristics
+  __ble.quizWriteChar = await quizService.getCharacteristic(BLE_UUIDS.QUIZ_WRITE);
+  __ble.tempChar = await tempService.getCharacteristic(BLE_UUIDS.TEMP_CHAR);
+  __ble.humidChar = await humidService.getCharacteristic(BLE_UUIDS.HUMID_CHAR);
+  __ble.birdChar = await birdService.getCharacteristic(BLE_UUIDS.BIRD_CHAR);
+
+  // Subscribe notifications
+  const handleTemp = (ev) => {
+    const v = ev?.target?.value;
+    if (!v) return;
+    const s = __ble.decoder.decode(v);
+    const n = parseFloat(s);
+    if (!isNaN(n)) {
+      __ble.lastTemp = n;
+      climateUpdateData(__ble.lastTemp, __ble.lastHumid);
+    }
+  };
+  const handleHumid = (ev) => {
+    const v = ev?.target?.value;
+    if (!v) return;
+    const s = __ble.decoder.decode(v);
+    const n = parseFloat(s);
+    if (!isNaN(n)) {
+      __ble.lastHumid = n;
+      climateUpdateData(__ble.lastTemp, __ble.lastHumid);
+    }
+  };
+  const handleBird = (ev) => {
+    const v = ev?.target?.value;
+    if (!v) return;
+    const s = __ble.decoder.decode(v);
+    const n = parseInt(s, 10);
+    if (!isNaN(n)) __ble.lastBird = n;
+  };
+
+  __ble.tempChar.addEventListener("characteristicvaluechanged", handleTemp);
+  __ble.humidChar.addEventListener("characteristicvaluechanged", handleHumid);
+  __ble.birdChar.addEventListener("characteristicvaluechanged", handleBird);
+
+  await __ble.tempChar.startNotifications();
+  await new Promise(r => setTimeout(r, 80));
+  await __ble.humidChar.startNotifications();
+  await new Promise(r => setTimeout(r, 80));
+  await __ble.birdChar.startNotifications();
+
+  // initial push
+  climateUpdateData(__ble.lastTemp, __ble.lastHumid);
+}
+
+function __onBleDisconnected() {
+  __ble.connected = false;
+  __ble.connecting = false;
+  __setBluetoothIcon();
+  __updateClimateConnUI();
+
+  // auto-reconnect (best effort)
+  if (!__ble.device || __ble.reconnecting) return;
+  __ble.reconnecting = true;
+
+  let tries = 0;
+  const maxTries = 10;
+
+  const retry = async () => {
+    if (!__ble.device) { __ble.reconnecting = false; return; }
+    if (__ble.device.gatt.connected) { __ble.reconnecting = false; return; }
+    tries++;
+
+    try {
+      __ble.connecting = true;
+      __updateClimateConnUI();
+      await __bleEstablishConnection();
+      __setBleState(true);
+      __ble.reconnecting = false;
+    } catch (_) {
+      __ble.connecting = false;
+      __updateClimateConnUI();
+      if (tries < maxTries) setTimeout(retry, 2000);
+      else __ble.reconnecting = false;
+    }
+  };
+
+  setTimeout(retry, 1200);
+}
+
+function bleDisconnect() {
+  try { __ble.device?.gatt?.disconnect?.(); } catch (_) {}
+  __ble.server = null;
+  __ble.quizWriteChar = null;
+  __ble.tempChar = null;
+  __ble.humidChar = null;
+  __ble.birdChar = null;
+  __ble.device = __ble.device; // keep device reference for re-select next time
+  __setBleState(false);
 }
 
 async function bleToggleConnect() {
   startIdleTimer();
-
-  // Ensure modal buttons are wired
-  __wifiAttachUiOnce();
-
-  if (__ble.connected) {
-    wifiDisconnect();
-    return;
-  }
-
-  // Show our own instructions popup (Safari friendly)
-  wifiModalShow();
+  if (__ble.connected) { bleDisconnect(); return; }
+  try { await __bleRequestAndConnect(); } catch (e) { console.error(e); __setBleState(false); }
 }
 
 async function bleSendAA() {
-  if (!__ble.connected || !__ble.ws || __ble.ws.readyState !== 1) return;
+  if (!__ble.connected || !__ble.quizWriteChar) return;
   try {
-    __ble.ws.send("AA");
+    await __ble.quizWriteChar.writeValue(__ble.encoder.encode("AA"));
   } catch (e) {
-    console.error("WS send AA failed:", e);
+    console.error("BLE write AA failed:", e);
   }
 }
-
-
 const tabHome = document.getElementById('tabHome');
 const tabHealthcare = document.getElementById('tabHealthcare');
 const tabSports = document.getElementById('tabSports');
@@ -1020,15 +952,12 @@ function hideAllFrames() {
     if (frame15 && frame15.style.display === 'block' && typeof window.__FRA_UNMOUNT_FRUIT__ === 'function') {
       window.__FRA_UNMOUNT_FRUIT__();
     }
-    if (frame18 && frame18.style.display === 'block' && typeof window.__FRA_UNMOUNT_FLAPPY__ === 'function') {
-      window.__FRA_UNMOUNT_FLAPPY__();
-    }
   } catch (_) {}
 
   [
     frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7,
     frame8, frame9, frame10,
-    frame11, frame12, frame13, frame14, frame15, frame16, frame17, frame18
+    frame11, frame12, frame13, frame14, frame15, frame16, frame17
   ].forEach(f => { if (f) f.style.display = 'none'; });
 }
 
@@ -1122,11 +1051,6 @@ window.__FRA_GO_FRAME6_HOME__ = function(){
   goToFrame6('home');
 };
 
-// ✅ Helper for Frame18 back button (go to Frame6 Community)
-window.__FRA_GO_FRAME6_COMMUNITY__ = function(){
-  goToFrame6('community');
-};
-
 window.__FRA_GO_FRAME__ = function (n) {
   switch (Number(n)) {
     case 1: goToFrame1(); break;
@@ -1145,8 +1069,6 @@ window.__FRA_GO_FRAME__ = function (n) {
     case 14: goToFrame14(); break;
     case 15: goToFrame15(currentGameTab || 'community'); break;
     case 16: goToFrame16(); break;
-    case 17: goToFrame17(); break;
-    case 18: goToFrame18(currentGameTab || 'community'); break;
     default: goToFrame6('community'); break;
   }
 };
@@ -1838,28 +1760,7 @@ bindTap(frame6ProfileBtn, () => { goToFrame5Accounts(); startIdleTimer(); });
 // ✅ Frame6 BLE connect button
 if (frame6BluetoothBtn && frame6BluetoothBtn.dataset.bound !== '1') {
   frame6BluetoothBtn.dataset.bound = '1';
-  bindTap(frame6BluetoothBtn, () => { startIdleTimer(); bleShowModal(); });
-
-bindTap(bleModalCancelBtn, () => { startIdleTimer(); bleHideModal(); });
-
-bindTap(bleModalConnectBtn, async () => {
-  startIdleTimer();
-  bleHideModal();
-
-  // Loading while connecting
-  bleShowLoading(true, "Connecting...");
-
-  try {
-    await __bleRequestAndConnect();
-    bleShowLoading(false);
-    bleToastMsg("Connected successfully.");
-  } catch (e) {
-    console.error(e);
-    __setBleState(false);
-    bleShowLoading(false);
-    bleToastMsg("Connection failed.");
-  }
-});
+  bindTap(frame6BluetoothBtn, bleToggleConnect);
 }
 __setBluetoothIcon();
 __updateClimateConnUI();
@@ -2122,7 +2023,6 @@ function attachFrame6CardHandlers() {
           if (game === "ttt")      { goToFrame12(tab); return; }
           if (game === "fruit")    { goToFrame15(tab); return; }
           if (game === "settings") { goToFrame16(); return; }
-          if (game === "flappy")   { goToFrame18(tab); return; }
           return;
         }
 
@@ -3548,24 +3448,6 @@ function goToFrame17() {
   climateInitOnce();
   climateEnsureSimulation();
 }
-
-function goToFrame18(tab = "community") {
-  currentGameTab = tab || "community";
-  hideAllFrames();
-  if (frame18) frame18.style.display = "block";
-  // Frame18 uses its own black background
-  document.body.style.backgroundImage = "none";
-  document.body.style.backgroundColor = "#000";
-  lastActiveFrame = "frame18";
-  updateGameScale();
-  startIdleTimer();
-
-  // ✅ Mount the web2 Flappy Bird (React) into Frame18
-  try {
-    if (typeof window.__FRA_MOUNT_FLAPPY__ === "function") window.__FRA_MOUNT_FLAPPY__();
-  } catch (_) {}
-}
-
 
 function gameBackToHome() {
   clearScrambleTimer();
