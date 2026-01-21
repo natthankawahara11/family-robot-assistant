@@ -195,7 +195,7 @@
     <img src="Pic13.png" alt="Profile" id="frame6ProfileImg" decoding="async">
   </div>
 
-  <button class="frame6-bluetooth" id="frame6BluetoothBtn" type="button" aria-label="Connect BLE">
+  <button class="frame6-bluetooth" id="frame6BluetoothBtn" type="button" aria-label="Bluetooth">
     <img src="Bluetooth.png" alt="Bluetooth" decoding="async">
   </button>
 
@@ -1629,33 +1629,33 @@ window.__FRA_UNMOUNT_SETTINGS__ = function() {
   </script>
 
 
-  <!-- BLE Connect Modal + Loading Overlay -->
-  <div id="bleModal" class="ble-modal ble-hidden" role="dialog" aria-modal="true" aria-labelledby="bleModalTitle">
-    <div class="ble-modal-backdrop"></div>
-    <div class="ble-modal-card">
-      <div class="ble-modal-header">
-        <h3 id="bleModalTitle">Bluetooth</h3>
-      </div>
-      <div class="ble-modal-body">
-        <p>กรุณากด <b>Connect</b> แล้วเลือกอุปกรณ์ชื่อ <b>FARALPHA</b> ในหน้าต่างที่เด้งขึ้น</p>
+  <!-- BLE Connect Modal -->
+  <div class="ble-modal hidden" id="bleModal" aria-hidden="true">
+    <div class="ble-modal-card" role="dialog" aria-modal="true" aria-labelledby="bleModalTitle">
+      <div class="ble-modal-title" id="bleModalTitle">Connect Bluetooth</div>
+      <div class="ble-modal-text" id="bleModalText">
+        Please tap <b>Connect</b>, then select <b>FARALPHA</b> from the Bluetooth picker.
       </div>
       <div class="ble-modal-actions">
-        <button type="button" id="bleModalCancel" class="ble-btn ble-btn-ghost">Cancel</button>
-        <button type="button" id="bleModalConnect" class="ble-btn ble-btn-primary">Connect</button>
+        <button class="ble-btn ble-btn-ghost" id="bleModalCancelBtn" type="button">Cancel</button>
+        <button class="ble-btn ble-btn-primary" id="bleModalConnectBtn" type="button">Connect</button>
       </div>
     </div>
   </div>
 
-  <div id="bleLoading" class="ble-loading ble-hidden" aria-live="polite" aria-busy="true">
+  <!-- BLE Loading -->
+  <div class="ble-loading hidden" id="bleLoading" aria-hidden="true">
     <div class="ble-loading-card">
       <div class="ble-spinner" aria-hidden="true"></div>
-      <div id="bleLoadingText" class="ble-loading-text">Connecting...</div>
+      <div class="ble-loading-text" id="bleLoadingText">Connecting...</div>
     </div>
   </div>
+
+  <!-- BLE Toast -->
+  <div class="ble-toast hidden" id="bleToast" aria-live="polite">Connected successfully.</div>
 
 </body>
 </html>
-
 
 
 
