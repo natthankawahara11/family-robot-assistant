@@ -404,64 +404,56 @@ const profilesList = document.getElementById('profilesList');
 
 const frame6ProfileImg = document.getElementById('frame6ProfileImg');
 const frame6ProfileBtn = document.getElementById('frame6ProfileBtn');
-const frame6BluetoothBtn = document.getElementById('frame6BluetoothBtn') || document.querySelector('.frame6-bluetooth');
+const frame6BluetoothBtn = document.getElementById('frame6BluetoothBtn');
 const frame6BluetoothImg = frame6BluetoothBtn ? frame6BluetoothBtn.querySelector('img') : null;
-const tabHighlight = document.getElementById('tabHighlight');
 
-// ===== BLE UI (Modal + Loading) =====
 const bleModal = document.getElementById('bleModal');
-const bleModalCancel = document.getElementById('bleModalCancel');
-const bleModalConnect = document.getElementById('bleModalConnect');
+const bleModalConnectBtn = document.getElementById('bleModalConnectBtn');
+const bleModalCancelBtn = document.getElementById('bleModalCancelBtn');
 const bleLoading = document.getElementById('bleLoading');
 const bleLoadingText = document.getElementById('bleLoadingText');
+const bleToast = document.getElementById('bleToast');
 
 function bleShowModal() {
   if (!bleModal) return;
-  bleModal.classList.remove('ble-hidden');
+  bleModal.classList.remove('hidden');
+  bleModal.setAttribute('aria-hidden', 'false');
 }
+
 function bleHideModal() {
   if (!bleModal) return;
-  bleModal.classList.add('ble-hidden');
+  bleModal.classList.add('hidden');
+  bleModal.setAttribute('aria-hidden', 'true');
 }
-function bleShowLoading(text, spinning = true) {
-  if (!bleLoading) return;
-  if (bleLoadingText) bleLoadingText.textContent = text || 'Connecting...';
-  const spinner = bleLoading.querySelector('.ble-spinner');
-  if (spinner) spinner.style.display = spinning ? '' : 'none';
-  bleLoading.setAttribute('aria-busy', spinning ? 'true' : 'false');
-  bleLoading.classList.remove('ble-hidden');
-}
-function bleHideLoading() {
-  if (!bleLoading) return;
-  bleLoading.classList.add('ble-hidden');
-  bleLoading.setAttribute('aria-busy', 'false');
-}
-async function bleConnectWithUX() {
-  try {
-    if (__ble.connected) {
-      // if already connected, just disconnect
-      await bleDisconnect();
-      return;
-    }
-    bleHideModal();
-    bleShowLoading('Connecting...', true);
 
-    await __bleRequestAndConnect(); // this will trigger the browser popup
-
-    // success
-    bleShowLoading('Connected successfully.', false);
-    setTimeout(() => { bleHideLoading(); }, 1200);
-  } catch (e) {
-    console.error(e);
-    bleShowLoading('Connection failed.', false);
-    setTimeout(() => { bleHideLoading(); }, 1600);
-  } finally {
-    try {
-      if (bleModalConnect) bleModalConnect.disabled = false;
-      if (bleModalCancel) bleModalCancel.disabled = false;
-    } catch(_) {}
+function bleShowLoading(on, text) {
+  if (!bleLoading) return;
+  if (bleLoadingText && text) bleLoadingText.textContent = text;
+  if (on) {
+    bleLoading.classList.remove('hidden');
+    bleLoading.setAttribute('aria-hidden', 'false');
+  } else {
+    bleLoading.classList.add('hidden');
+    bleLoading.setAttribute('aria-hidden', 'true');
   }
 }
+
+let __bleToastTimer = null;
+function bleToastMsg(msg) {
+  if (!bleToast) return;
+  clearTimeout(__bleToastTimer);
+  bleToast.textContent = msg;
+  bleToast.classList.remove('hidden');
+  __bleToastTimer = setTimeout(() => bleToast.classList.add('hidden'), 1600);
+}
+
+// close modal when tapping backdrop
+if (bleModal) {
+  bleModal.addEventListener('click', (ev) => {
+    if (ev.target === bleModal) bleHideModal();
+  });
+}
+const tabHighlight = document.getElementById('tabHighlight');
 
 // =========================================================
 // ✅ BLE (Web Bluetooth) – shared across Frame6 + Frame17 + games
@@ -514,39 +506,10 @@ function __updateClimateConnUI() {
 function __setBleState(connected) {
   __ble.connected = !!connected;
   __ble.connecting = false;
-  
-// BLE modal button handlers
-if (bleModalCancel && !bleModalCancel.dataset.bound) {
-  bleModalCancel.dataset.bound = '1';
-  bleModalCancel.addEventListener('click', () => {
-    bleHideModal();
-  });
-}
-if (bleModalConnect && !bleModalConnect.dataset.bound) {
-  bleModalConnect.dataset.bound = '1';
-  bleModalConnect.addEventListener('click', async () => {
-    try {
-      bleModalConnect.disabled = true;
-      if (bleModalCancel) bleModalCancel.disabled = true;
-      await bleConnectWithUX();
-    } catch(_) {}
-  });
-}
-// clicking backdrop closes modal
-if (bleModal && !bleModal.dataset.bound) {
-  bleModal.dataset.bound = '1';
-  bleModal.addEventListener('click', (ev) => {
-    if (ev.target && ev.target.classList && ev.target.classList.contains('ble-modal-backdrop')) {
-      bleHideModal();
-    }
-  });
-}
-
-__setBluetoothIcon();
+  __setBluetoothIcon();
   __updateClimateConnUI();
   try { climateEnsureSimulation(); } catch(_) {}
 }
-
 
 async function __bleRequestAndConnect() {
   if (__ble.connecting) return;
@@ -556,41 +519,25 @@ async function __bleRequestAndConnect() {
   __setBluetoothIcon();
   __updateClimateConnUI();
 
-  try {
-    // Always show the browser's device picker (filtered to FARALPHA)
-    __ble.device = await navigator.bluetooth.requestDevice({
-      filters: [
-        { name: "FARALPHA" },
-        { services: [BLE_UUIDS.QUIZ_SERVICE] }
-      ],
-      optionalServices: [
-        BLE_UUIDS.QUIZ_SERVICE,
-        BLE_UUIDS.BIRD_SERVICE,
-        BLE_UUIDS.TEMP_SERVICE,
-        BLE_UUIDS.HUMID_SERVICE
-      ]
-    });
+  // Request device must be from a user gesture
+  __ble.device = await navigator.bluetooth.requestDevice({
+    filters: [{ name: "FARALPHA" }],
+    optionalServices: [
+      BLE_UUIDS.QUIZ_SERVICE,
+      BLE_UUIDS.BIRD_SERVICE,
+      BLE_UUIDS.TEMP_SERVICE,
+      BLE_UUIDS.HUMID_SERVICE
+    ]
+  });
 
-    __ble.device.removeEventListener("gattserverdisconnected", __onBleDisconnected);
-    __ble.device.addEventListener("gattserverdisconnected", __onBleDisconnected);
+  __ble.device.removeEventListener("gattserverdisconnected", __onBleDisconnected);
+  __ble.device.addEventListener("gattserverdisconnected", __onBleDisconnected);
 
-    await __bleEstablishConnection();
-    __setBleState(true);
-  } catch (e) {
-    console.error(e);
-    __setBleState(false);
-    throw e;
-  } finally {
-    // __setBleState() will also clear connecting when success/fail,
-    // but keep this safe in case of unexpected early returns.
-    __ble.connecting = false;
-    __setBluetoothIcon();
-    __updateClimateConnUI();
-  }
+  await __bleEstablishConnection();
+  __setBleState(true);
 }
 
-
-async function __bleEstablishConnectionasync function __bleEstablishConnection() {
+async function __bleEstablishConnection() {
   if (!__ble.device) throw new Error("No BLE device selected.");
 
   __ble.server = await __ble.device.gatt.connect();
@@ -1860,7 +1807,28 @@ bindTap(frame6ProfileBtn, () => { goToFrame5Accounts(); startIdleTimer(); });
 // ✅ Frame6 BLE connect button
 if (frame6BluetoothBtn && frame6BluetoothBtn.dataset.bound !== '1') {
   frame6BluetoothBtn.dataset.bound = '1';
-  bindTap(frame6BluetoothBtn, () => { if (bleModalConnect) bleModalConnect.disabled = false; bleShowModal(); });
+  bindTap(frame6BluetoothBtn, () => { startIdleTimer(); bleShowModal(); });
+
+bindTap(bleModalCancelBtn, () => { startIdleTimer(); bleHideModal(); });
+
+bindTap(bleModalConnectBtn, async () => {
+  startIdleTimer();
+  bleHideModal();
+
+  // Loading while connecting
+  bleShowLoading(true, "Connecting...");
+
+  try {
+    await __bleRequestAndConnect();
+    bleShowLoading(false);
+    bleToastMsg("Connected successfully.");
+  } catch (e) {
+    console.error(e);
+    __setBleState(false);
+    bleShowLoading(false);
+    bleToastMsg("Connection failed.");
+  }
+});
 }
 __setBluetoothIcon();
 __updateClimateConnUI();
