@@ -432,6 +432,17 @@
       </div>
 
 
+
+      <!-- Card 5: Flappy Bird Game Card (Frame18) -->
+      <div class="frame6-card frame6-card-game" data-home="0" data-game="flappy" data-for-tab="community" data-card-key="community_game_flappy">
+        <img src="Card_Game_Community3.png" alt="Flappy Bird Game" decoding="async">
+
+        <button class="frame6-card-menu" type="button" aria-label="Card menu">
+          <span class="menu-circle"></span>
+          <img src="Fix_Menu.png" alt="Menu" decoding="async">
+        </button>
+      </div>
+
       <!-- Home-only extras -->
       <div class="frame6-card" data-home="1" data-card-key="home_extra_5">
         <!-- <img class="pin-header" src="Pin_Header.png" alt="Pinned" decoding="async"> -->
@@ -867,6 +878,17 @@
     </div>
   </div>
 
+
+  <!-- =========================
+       FRAME 18: Flappy Bird (copied from web2)
+       ========================= -->
+  <div class="frame-18" id="frame18" style="display:none;">
+    <div class="flappy-body">
+      <!-- Back button (center) -->
+      <button id="frame18BackBtn" class="flappy-back-btn pixel-shadow" type="button" aria-label="Back">BACK</button>
+      <div id="flappyRoot" class="flappy-root"></div>
+    </div>
+  </div>
 
 <script type="module">
 import React from "react";
@@ -1654,7 +1676,546 @@ window.__FRA_UNMOUNT_SETTINGS__ = function() {
   }
 };
 
-  </script>
+  
+// ------------------------------
+// Flappy Bird (Frame18) bundle (from web2)
+// ------------------------------
+const GAME18_WIDTH = 912;
+const GAME18_HEIGHT = 422;
+
+const GameState18 = {
+  START: "START",
+  PLAYING: "PLAYING",
+  GAME_OVER: "GAME_OVER",
+};
+
+const SETTINGS18 = {
+  gravity: 0.15,
+  jumpStrength: -3.8,
+  pipeSpeed: 2.0,
+  pipeWidth: 60,
+  pipeGap: 170,
+  birdSize: 34,
+  groundHeight: 100,
+};
+
+const COLORS18 = {
+  sky: "#70c5ce",
+  ground: "#ded895",
+  pipe: "#73bf2e",
+  pipeBorder: "#543847",
+  bird: "#f7d308",
+};
+
+class SoundService18 {
+  constructor() { this.ctx = null; }
+  init() {
+    if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
+  }
+  playFlap() {
+    this.init(); if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.1);
+    const gv = typeof window.__FRA_VOLUME__ === "number" ? window.__FRA_VOLUME__ : 1;
+    gain.gain.setValueAtTime(0.3 * Math.max(0, Math.min(1, gv)), this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    osc.start(); osc.stop(this.ctx.currentTime + 0.1);
+  }
+  playScore() {
+    this.init(); if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+    osc.frequency.setValueAtTime(1200, this.ctx.currentTime + 0.05);
+    const gv = typeof window.__FRA_VOLUME__ === "number" ? window.__FRA_VOLUME__ : 1;
+    gain.gain.setValueAtTime(0.1 * Math.max(0, Math.min(1, gv)), this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    osc.start(); osc.stop(this.ctx.currentTime + 0.2);
+  }
+  playCrash() {
+    this.init(); if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + 0.3);
+    const gv = typeof window.__FRA_VOLUME__ === "number" ? window.__FRA_VOLUME__ : 1;
+    gain.gain.setValueAtTime(0.2 * Math.max(0, Math.min(1, gv)), this.ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+  }
+}
+const sounds18 = new SoundService18();
+
+class BLEService18 {
+  constructor() {
+    this.device = null;
+    this.onMessageCallback = null;
+    this.isConnecting = false;
+  }
+  async connect() {
+    if (this.isConnecting) return false;
+    if (this.device && this.device.gatt && this.device.gatt.connected) return true;
+
+    const bluetooth = navigator.bluetooth;
+    if (!bluetooth) {
+      console.error("Web Bluetooth is not supported in this browser.");
+      return false;
+    }
+
+    this.isConnecting = true;
+    try {
+      const SERVICE_BIRD = "a158cb5d-0bc0-4752-a562-0a7ce2efe51e";
+      const CHAR_BIRD = "de3b7cbd-ce7e-448b-87e7-cb9f0cb39d92";
+
+      this.device = await bluetooth.requestDevice({
+        filters: [{ name: "FARALPHA" }, { services: [SERVICE_BIRD] }],
+        optionalServices: [SERVICE_BIRD],
+      });
+
+      const server = await this.device.gatt.connect();
+      const service = await server.getPrimaryService(SERVICE_BIRD);
+      const characteristic = await service.getCharacteristic(CHAR_BIRD);
+
+      await characteristic.startNotifications();
+      characteristic.addEventListener("characteristicvaluechanged", (event) => {
+        const value = event.target.value;
+        const decoder = new TextDecoder("utf-8");
+        const message = decoder.decode(value).trim();
+        if (this.onMessageCallback) this.onMessageCallback(message);
+      });
+
+      this.device.addEventListener("gattserverdisconnected", () => {
+        this.device = null;
+      });
+
+      this.isConnecting = false;
+      return true;
+    } catch (err) {
+      console.error("BLE Connection Error:", err);
+      this.isConnecting = false;
+      this.device = null;
+      return false;
+    }
+  }
+  onMessage(callback) { this.onMessageCallback = callback; }
+  disconnect() {
+    try { if (this.device && this.device.gatt && this.device.gatt.connected) this.device.gatt.disconnect(); } catch(_) {}
+    this.device = null;
+  }
+}
+const bleService18 = new BLEService18();
+
+async function getAICommentary18(score, reason) {
+  // Use existing /api/chat.js (Groq) as a proxy
+  const prompt = `You are a witty, slightly snarky arcade game commentator.
+The player just died in Flappy Bird with a score of ${score}.
+The reason for death was: ${reason}.
+Provide a very short (max 15 words) sarcastic or encouraging comment in a retro gamer tone.`;
+
+  try {
+    const profile = (typeof getActiveProfile === "function") ? getActiveProfile() : null;
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "community", message: prompt, history: [], profile })
+    });
+    const data = await res.json().catch(() => null);
+    const txt = (data && (data.reply || data.text || data.message)) ? String(data.reply || data.text || data.message) : "";
+    return (txt || "Ouch. That had to hurt.").trim().slice(0, 120);
+  } catch (e) {
+    return "Ouch. That had to hurt.";
+  }
+}
+
+function FlappyBirdApp18() {
+  const React18 = React;
+  const { useState, useEffect, useCallback, useRef } = React18;
+
+  const [gameState, setGameState] = useState(GameState18.START);
+  const [score, setScore] = useState(0);
+  const [highScore, setHighScore] = useState(0);
+  const [isBleConnected, setIsBleConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [bleError, setBleError] = useState(null);
+  const [commentary, setCommentary] = useState("");
+
+  const canvasRef = useRef(null);
+  const requestRef = useRef(undefined);
+  const lastTimeRef = useRef(0);
+
+  const birdRef = useRef({ y: GAME18_HEIGHT / 2, velocity: 0, rotation: 0 });
+  const pipesRef = useRef([]);
+  const cloudsRef = useRef([]);
+  const scoreRef = useRef(0);
+  const pipeSpawnTimerRef = useRef(0);
+  const groundOffsetRef = useRef(0);
+  const lastBleStateRef = useRef("0");
+
+  useEffect(() => {
+    const initialClouds = [];
+    for (let i = 0; i < 7; i++) {
+      initialClouds.push({
+        x: Math.random() * GAME18_WIDTH,
+        y: 20 + Math.random() * 100,
+        speed: 0.15 + Math.random() * 0.3,
+        scale: 0.6 + Math.random() * 0.8,
+        opacity: 0.3 + Math.random() * 0.4,
+      });
+    }
+    cloudsRef.current = initialClouds;
+  }, []);
+
+  const resetGameLogic = useCallback(() => {
+    birdRef.current = { y: GAME18_HEIGHT / 2, velocity: 0, rotation: 0 };
+    pipesRef.current = [];
+    scoreRef.current = 0;
+    pipeSpawnTimerRef.current = 0;
+    setScore(0);
+    setCommentary("");
+  }, []);
+
+  const handleGameOver = useCallback((reason) => {
+    setGameState(GameState18.GAME_OVER);
+    sounds18.playCrash();
+    if (scoreRef.current > highScore) setHighScore(scoreRef.current);
+    getAICommentary18(scoreRef.current, reason).then(setCommentary);
+  }, [highScore]);
+
+  const startGame = useCallback(() => {
+    resetGameLogic();
+    setGameState(GameState18.PLAYING);
+    sounds18.playFlap();
+    lastTimeRef.current = performance.now();
+  }, [resetGameLogic]);
+
+  const goToHome = useCallback(() => {
+    resetGameLogic();
+    setGameState(GameState18.START);
+  }, [resetGameLogic]);
+
+  const handleInput = useCallback(() => {
+    if (gameState === GameState18.START) {
+      startGame();
+    } else if (gameState === GameState18.PLAYING) {
+      birdRef.current.velocity = SETTINGS18.jumpStrength;
+      sounds18.playFlap();
+    }
+  }, [gameState, startGame]);
+
+  const handleInputRef = useRef(handleInput);
+  useEffect(() => { handleInputRef.current = handleInput; }, [handleInput]);
+
+  const connectBle = async (e) => {
+    if (e) e.stopPropagation();
+    setIsConnecting(true);
+    setBleError(null);
+    const success = await bleService18.connect();
+    setIsBleConnected(success);
+    setIsConnecting(false);
+    if (!success) {
+      setBleError("Connection Failed. Check Bluetooth/Device.");
+      setTimeout(() => setBleError(null), 3000);
+    }
+  };
+
+  useEffect(() => {
+    bleService18.onMessage((msg) => {
+      const cleanMsg = String(msg || "").trim().toLowerCase();
+      const isPressed = cleanMsg === "1" || cleanMsg === "on" || cleanMsg === "true";
+      if (isPressed && lastBleStateRef.current === "0") {
+        handleInputRef.current();
+      }
+      lastBleStateRef.current = isPressed ? "1" : "0";
+    });
+  }, []);
+
+  const drawBird = (ctx, b) => {
+    ctx.save();
+    ctx.translate(50 + SETTINGS18.birdSize / 2, b.y + SETTINGS18.birdSize / 2);
+    ctx.rotate((b.rotation * Math.PI) / 180);
+    ctx.fillStyle = COLORS18.bird;
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-SETTINGS18.birdSize / 2, -SETTINGS18.birdSize / 2, SETTINGS18.birdSize, SETTINGS18.birdSize, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(6, -6, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.arc(8, -6, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#f97316";
+    ctx.beginPath(); ctx.roundRect(SETTINGS18.birdSize / 2 - 4, 0, 10, 8, 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.roundRect(-SETTINGS18.birdSize / 2 + 2, 2, 12, 10, 4); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  };
+
+  const drawCloud = (ctx, cloud) => {
+    ctx.save();
+    ctx.globalAlpha = cloud.opacity;
+    ctx.fillStyle = "#FFFFFF";
+    const baseW = 45 * cloud.scale;
+    ctx.beginPath();
+    ctx.arc(cloud.x, cloud.y, baseW, 0, Math.PI * 2);
+    ctx.arc(cloud.x + baseW * 0.7, cloud.y - baseW * 0.3, baseW * 0.8, 0, Math.PI * 2);
+    ctx.arc(cloud.x + baseW * 1.3, cloud.y, baseW * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  const update = useCallback((time) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dt = Math.min((time - lastTimeRef.current) / 16.67, 2.5);
+    lastTimeRef.current = time;
+
+    cloudsRef.current.forEach((c) => {
+      c.x -= c.speed * dt;
+      if (c.x < -180) c.x = GAME18_WIDTH + 180;
+    });
+
+    if (gameState === GameState18.PLAYING) {
+      birdRef.current.velocity += SETTINGS18.gravity * dt;
+      birdRef.current.y += birdRef.current.velocity * dt;
+      birdRef.current.rotation = Math.min(Math.max(birdRef.current.velocity * 4, -25), 90);
+
+      if (birdRef.current.y + SETTINGS18.birdSize > GAME18_HEIGHT - SETTINGS18.groundHeight) {
+        handleGameOver("Ground collision");
+      }
+
+      pipesRef.current.forEach((p) => {
+        p.x -= SETTINGS18.pipeSpeed * dt;
+
+        if (p.x + SETTINGS18.pipeWidth > 50 && p.x < 50 + SETTINGS18.birdSize) {
+          if (birdRef.current.y < p.topHeight || birdRef.current.y + SETTINGS18.birdSize > p.topHeight + SETTINGS18.pipeGap) {
+            handleGameOver("Pipe collision");
+          }
+        }
+
+        if (!p.passed && p.x + SETTINGS18.pipeWidth < 50) {
+          p.passed = true;
+          scoreRef.current++;
+          setScore(scoreRef.current);
+          sounds18.playScore();
+        }
+      });
+
+      pipesRef.current = pipesRef.current.filter((p) => p.x > -100);
+
+      pipeSpawnTimerRef.current += dt;
+      if (pipeSpawnTimerRef.current > 120) {
+        pipeSpawnTimerRef.current = 0;
+        const h = 60 + Math.random() * (GAME18_HEIGHT - SETTINGS18.pipeGap - SETTINGS18.groundHeight - 120);
+        pipesRef.current.push({ id: Date.now(), x: GAME18_WIDTH, topHeight: h, passed: false });
+      }
+
+      groundOffsetRef.current = (groundOffsetRef.current + SETTINGS18.pipeSpeed * dt) % 40;
+    }
+
+    // draw
+    ctx.fillStyle = COLORS18.sky;
+    ctx.fillRect(0, 0, GAME18_WIDTH, GAME18_HEIGHT);
+
+    cloudsRef.current.forEach((c) => drawCloud(ctx, c));
+
+    pipesRef.current.forEach((p) => {
+      ctx.fillStyle = COLORS18.pipe;
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 3;
+      ctx.fillRect(p.x, 0, SETTINGS18.pipeWidth, p.topHeight);
+      ctx.strokeRect(p.x, -5, SETTINGS18.pipeWidth, p.topHeight + 5);
+      const bY = p.topHeight + SETTINGS18.pipeGap;
+      ctx.fillRect(p.x, bY, SETTINGS18.pipeWidth, GAME18_HEIGHT - bY);
+      ctx.strokeRect(p.x, bY, SETTINGS18.pipeWidth, GAME18_HEIGHT - bY);
+    });
+
+    const gY = GAME18_HEIGHT - SETTINGS18.groundHeight;
+    ctx.fillStyle = COLORS18.ground;
+    ctx.fillRect(0, gY, GAME18_WIDTH, SETTINGS18.groundHeight);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(-2, gY, GAME18_WIDTH + 4, 110);
+
+    ctx.fillStyle = "rgba(0,0,0,0.06)";
+    for (let i = 0; i < GAME18_WIDTH + 40; i += 40) ctx.fillRect(i - groundOffsetRef.current, gY, 20, 110);
+
+    drawBird(ctx, birdRef.current);
+
+    requestRef.current = requestAnimationFrame(update);
+  }, [gameState, handleGameOver]);
+
+  useEffect(() => {
+    requestRef.current = requestAnimationFrame(update);
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [update]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = GAME18_WIDTH * dpr;
+    canvas.height = GAME18_HEIGHT * dpr;
+    canvas.style.width = `${GAME18_WIDTH}px`;
+    canvas.style.height = `${GAME18_HEIGHT}px`;
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.scale(dpr, dpr);
+  }, []);
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.code === "Space" || e.code === "ArrowUp") handleInput();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [handleInput]);
+
+  return React18.createElement(
+    "div",
+    { className: "flappy-react-wrap flex items-center justify-center w-full h-full bg-slate-950 overflow-hidden select-none touch-none", onClick: () => handleInput() },
+    React18.createElement(
+      "div",
+      { className: "relative overflow-hidden bg-black pixel-shadow border-4 border-black", style: { width: GAME18_WIDTH, height: GAME18_HEIGHT } },
+      React18.createElement("canvas", { ref: canvasRef, className: "block w-full h-full" }),
+      React18.createElement(
+        "div",
+        { className: "absolute top-4 right-4 z-[60] flex flex-col items-end gap-2" },
+        !isBleConnected
+          ? React18.createElement(
+              "div",
+              { className: "flex flex-col items-end gap-1" },
+              React18.createElement(
+                "button",
+                {
+                  onClick: connectBle,
+                  disabled: isConnecting,
+                  className:
+                    `px-4 py-2 rounded-xl text-[10px] font-bold border-b-4 transition-all ${
+                      isConnecting ? "bg-gray-500 border-gray-700" : "bg-blue-500 border-blue-700 active:border-b-0 active:translate-y-1"
+                    } text-white`,
+                },
+                isConnecting ? "SEARCHING..." : "CONNECT SENSOR"
+              ),
+              bleError ? React18.createElement("div", { className: "text-[8px] text-red-400 bg-red-950/50 px-2 py-1 rounded" }, bleError) : null
+            )
+          : React18.createElement(
+              "div",
+              { className: "flex items-center gap-2 bg-green-500/90 px-3 py-1 rounded-full text-white text-[8px] animate-pulse font-mono border border-white/20" },
+              React18.createElement("div", { className: "w-1.5 h-1.5 bg-white rounded-full" }),
+              "FARALPHA CONNECTED"
+            )
+      ),
+      React18.createElement(
+        "div",
+        { className: "absolute top-10 left-0 right-0 text-center pointer-events-none z-40" },
+        React18.createElement("h1", { className: "text-white text-5xl drop-shadow-[4px_4px_0px_rgba(0,0,0,0.5)]" }, String(score))
+      ),
+      gameState === GameState18.START
+        ? React18.createElement(
+            "div",
+            { className: "absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/40 text-white" },
+            React18.createElement(
+              "div",
+              { className: "bg-white/10 backdrop-blur-md p-10 rounded-3xl border-4 border-white pixel-shadow text-center animate-bob" },
+              React18.createElement("h2", { className: "text-3xl mb-4 text-yellow-400 font-bold" }, "FLAPPY BIRD"),
+              React18.createElement(
+                "p",
+                { className: "text-xs mb-8 text-white/80 uppercase tracking-widest font-mono" },
+                isBleConnected ? "Ready! Tap sensor to start" : "Tap screen or connect sensor"
+              ),
+              React18.createElement("div", { className: "text-[10px] text-white/50 animate-pulse uppercase" }, "Tap screen to Start")
+            )
+          )
+        : null,
+      gameState === GameState18.GAME_OVER
+        ? React18.createElement(
+            "div",
+            { className: "absolute inset-0 z-50 flex flex-col items-center justify-center bg-red-900/40 p-4" },
+            React18.createElement(
+              "div",
+              { className: "bg-white p-6 rounded-2xl border-4 border-black pixel-shadow text-black text-center w-full max-w-[340px]" },
+              React18.createElement("h2", { className: "text-2xl text-red-600 mb-2 font-bold font-mono uppercase tracking-tighter" }, "Crashed!"),
+              React18.createElement("p", { className: "text-[10px] italic text-gray-700 bg-gray-100 p-3 rounded-xl mb-4 leading-relaxed" }, `"${commentary}"`),
+              React18.createElement(
+                "div",
+                { className: "flex justify-around mb-4 border-y-2 border-gray-100 py-4 font-bold" },
+                React18.createElement("div", null,
+                  React18.createElement("p", { className: "text-[8px] text-gray-400 uppercase" }, "Score"),
+                  React18.createElement("p", { className: "text-2xl" }, String(score))
+                ),
+                React18.createElement("div", null,
+                  React18.createElement("p", { className: "text-[8px] text-gray-400 uppercase" }, "Best"),
+                  React18.createElement("p", { className: "text-2xl" }, String(highScore))
+                )
+              ),
+              React18.createElement(
+                "div",
+                { className: "flex gap-4" },
+                React18.createElement(
+                  "button",
+                  { className: "flex-1 bg-yellow-400 py-4 border-b-6 border-yellow-600 active:border-b-0 rounded-xl font-bold text-xs", onClick: (e) => { e.stopPropagation(); startGame(); } },
+                  "RETRY"
+                ),
+                React18.createElement(
+                  "button",
+                  { className: "flex-1 bg-blue-500 py-4 border-b-6 border-blue-700 active:border-b-0 rounded-xl font-bold text-xs text-white", onClick: (e) => { e.stopPropagation(); goToHome(); } },
+                  "HOME"
+                )
+              )
+            )
+          )
+        : null
+    )
+  );
+}
+
+let __flappyRoot18 = null;
+window.__FRA_MOUNT_FLAPPY__ = function() {
+  const el = document.getElementById("flappyRoot");
+  if (!el) return;
+  if (__flappyRoot18) return;
+
+  const backBtn = document.getElementById("frame18BackBtn");
+  if (backBtn && backBtn.dataset.bound !== "1") {
+    backBtn.dataset.bound = "1";
+    backBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof window.__FRA_GO_FRAME6_COMMUNITY__ === "function") window.__FRA_GO_FRAME6_COMMUNITY__();
+      else if (typeof window.__FRA_GO_FRAME__ === "function") window.__FRA_GO_FRAME__(6);
+      else location.hash = "#frame6";
+    });
+  }
+
+  __flappyRoot18 = createRoot(el);
+  __flappyRoot18.render(React.createElement(React.StrictMode, null, React.createElement(FlappyBirdApp18, null)));
+};
+window.__FRA_UNMOUNT_FLAPPY__ = function() {
+  try {
+    if (__flappyRoot18) {
+      __flappyRoot18.unmount();
+      __flappyRoot18 = null;
+    }
+  } catch (_) {
+    __flappyRoot18 = null;
+  }
+};
+
+</script>
 
 
   <!-- BLE Connect Modal -->
