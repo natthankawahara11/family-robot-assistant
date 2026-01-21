@@ -1052,28 +1052,29 @@ var BLEService = class {
 };
 var bleService = new BLEService();
 
-// mnt/data/_flappybuild/services/geminiService.ts
-import { GoogleGenAI } from "@google/genai";
-var ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-var getAICommentary = async (score, reason) => {
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `You are a witty, slightly snarky arcade game commentator. 
-      The player just died in Flappy Bird with a score of ${score}. 
-      The reason for death was: ${reason}. 
-      Provide a very short (max 15 words) sarcastic or encouraging comment in a retro gamer tone.`,
-      config: {
-        temperature: 0.9,
-        topP: 0.8
+    // mnt/data/_flappybuild/services/geminiService.ts (patched for browser)
+    // NOTE: The original web2 used @google/genai + process.env.API_KEY (Node-only). In Vercel browser it crashes.
+    // We proxy through our existing /api/chat endpoint instead.
+    async function getAICommentary(score, reason) {
+      try {
+        const prompt = `You are a witty, slightly snarky arcade game commentator.
+The player just died in Flappy Bird with a score of ${score}.
+The reason for death was: ${reason}.
+Provide a very short (max 15 words) sarcastic or encouraging comment in a retro gamer tone.`;
+        const r = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "flappy_commentary", prompt })
+        });
+        if (!r.ok) throw new Error("api/chat failed");
+        const data = await r.json();
+        const text = (data && (data.commentary || data.reply || data.text || data.message)) || "";
+        return String(text).trim() || "Better luck next time, scrub!";
+      } catch (e) {
+        console.warn("Commentary fallback:", e);
+        return "Ouch. That had to hurt.";
       }
-    });
-    return response.text?.trim() || "Better luck next time, scrub!";
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    return "Ouch. That had to hurt.";
-  }
-};
+    }
 
 // mnt/data/_flappybuild/App.tsx
 var GAME_WIDTH = 912;
@@ -1378,7 +1379,8 @@ var SOUND_URLS = {
 };
 var APP_WIDTH = 912;
 var APP_HEIGHT = 422;
-var FruitSlash = ({ onBack, bestScore, onUpdateBest }) => {
+var FruitSlash = ({ onBack, bestScore, onUpdateBest }) =>(()=>{
+ {
   const [gameState, setGameState] = useState("menu");
   const gameStateRef = useRef(gameState);
   const [score, setScore] = useState(0);
@@ -1854,7 +1856,9 @@ window.__FRA_UNMOUNT_FRUIT__ = function () {
     __fruitReactRoot = null;
   }
 };
-  </script>
+  
+})();
+</script>
 
 
   <!-- =========================
