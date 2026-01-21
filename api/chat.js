@@ -1055,8 +1055,33 @@ module.exports = async function handler(req, res) {
       return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const { type, message, history = [], profile = null } = req.body || {};
-    const userMsg = String(message || "").slice(0, 9000);
+    const { type, message, history = [], profile = null, mode = null, prompt = null } = req.body || {};
+    
+const userMsg = String(message || (typeof prompt === "string" ? prompt : "")).slice(0, 9000);
+
+// ✅ lightweight mode for Frame18 Flappy commentary (returns {commentary})
+if (mode === "flappy_commentary") {
+  if (!client) {
+    return res.status(200).json({ commentary: "AI not configured yet." });
+  }
+  const system18 = [
+    "You are a witty, slightly snarky arcade game commentator.",
+    "Keep it ultra short: max 15 words.",
+    "Retro gamer tone. No emojis.",
+  ].join("\n");
+
+  const completion18 = await client.chat.completions.create({
+    model: "llama-3.1-8b-instant",
+    messages: [
+      { role: "system", content: system18 },
+      { role: "user", content: userMsg || "Give a short retro gamer comment." }
+    ],
+    temperature: 0.9
+  });
+
+  const text18 = completion18?.choices?.[0]?.message?.content?.trim() || "Ouch. That had to hurt.";
+  return res.status(200).json({ commentary: text18 });
+}
 
     if (!client) {
       return res.status(200).json({
