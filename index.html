@@ -81,6 +81,34 @@
     </div>
   </div>
 
+  <!-- ✅ WiFi Connect Modal (replaces BLE popup for Safari) -->
+  <div class="wifi-modal" id="wifiModal" aria-hidden="true">
+    <div class="wifi-card">
+      <div class="wifi-title">Connect Sensor</div>
+      <div class="wifi-sub">
+        1) Go to Wi‑Fi settings and connect to <b>FARALPHA</b><br/>
+        2) Come back and press <b>Connect</b>
+      </div>
+      <div class="wifi-actions">
+        <button class="wifi-btn ghost" id="wifiCancelBtn" type="button">Cancel</button>
+        <button class="wifi-btn primary" id="wifiConnectBtn" type="button">Connect</button>
+      </div>
+      <div class="wifi-hint" id="wifiHint">Tip: keep this tab open while connecting.</div>
+    </div>
+  </div>
+
+  <!-- ✅ WiFi Connecting Overlay -->
+  <div class="wifi-loading" id="wifiLoading" style="display:none;">
+    <div class="wifi-loading-card">
+      <div class="wifi-spin"></div>
+      <div class="wifi-loading-text" id="wifiLoadingText">Connecting…</div>
+    </div>
+  </div>
+
+  <!-- ✅ Toast -->
+  <div class="toast" id="toast" style="display:none;">Connected successfully.</div>
+
+
   <!-- VIDEO OVERLAY -->
   <div class="frame-video" id="frameVideo" style="display:none;">
     <video id="introVideo" autoplay muted loop playsinline preload="auto">
@@ -1630,43 +1658,29 @@ window.__FRA_UNMOUNT_SETTINGS__ = function() {
 
 
   <!-- BLE Connect Modal -->
-    <!-- WiFi Connect Modal -->
-  <div class="ble-modal hidden" id="wifiModal" aria-hidden="true">
-    <div class="ble-modal-card" role="dialog" aria-modal="true" aria-label="WiFi connect">
-      <div class="ble-modal-title">Connect to FARALPHA (Wi‑Fi)</div>
-      <div class="ble-modal-text" id="wifiModalText">
-        1) Make sure your phone is connected to the Wi‑Fi network <b>FARALPHA</b>.<br/>
-        2) Tap <b>Connect</b> to start the link.
+  <div class="ble-modal hidden" id="bleModal" aria-hidden="true">
+    <div class="ble-modal-card" role="dialog" aria-modal="true" aria-labelledby="bleModalTitle">
+      <div class="ble-modal-title" id="bleModalTitle">Connect Bluetooth</div>
+      <div class="ble-modal-text" id="bleModalText">
+        Please tap <b>Connect</b>, then select <b>FARALPHA</b> from the Bluetooth picker.
       </div>
-
-      <div style="margin-top:12px;text-align:left;">
-        <div style="font-weight:900;font-size:12px;color:rgba(0,0,0,0.55);margin-bottom:6px;">ESP32 IP address</div>
-        <input id="wifiIpInput" class="ble-input" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"
-               value="192.168.4.1" placeholder="e.g. 192.168.4.1" />
-        <div style="margin-top:8px;font-size:11px;font-weight:800;color:rgba(0,0,0,0.45);">
-          Tip: If ESP32 is in AP mode, the default is usually <b>192.168.4.1</b>.
-        </div>
-      </div>
-
       <div class="ble-modal-actions">
-        <button class="ble-btn ble-btn-ghost" id="wifiModalCancelBtn" type="button">Cancel</button>
-        <button class="ble-btn ble-btn-primary" id="wifiModalConnectBtn" type="button">Connect</button>
+        <button class="ble-btn ble-btn-ghost" id="bleModalCancelBtn" type="button">Cancel</button>
+        <button class="ble-btn ble-btn-primary" id="bleModalConnectBtn" type="button">Connect</button>
       </div>
     </div>
   </div>
 
-</div>
-
-  <!-- WiFi Loading -->
-  <div class="ble-loading hidden" id="wifiLoading" aria-hidden="true">
+  <!-- BLE Loading -->
+  <div class="ble-loading hidden" id="bleLoading" aria-hidden="true">
     <div class="ble-loading-card">
       <div class="ble-spinner" aria-hidden="true"></div>
-      <div class="ble-loading-text" id="wifiLoadingText">Connecting...</div>
+      <div class="ble-loading-text" id="bleLoadingText">Connecting...</div>
     </div>
   </div>
 
   <!-- BLE Toast -->
-  <div class="ble-toast hidden" id="wifiToast" aria-live="polite">Connected successfully.</div>
+  <div class="ble-toast hidden" id="bleToast" aria-live="polite">Connected successfully.</div>
 
 </body>
 </html>
