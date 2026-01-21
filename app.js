@@ -256,6 +256,7 @@ const frame16 = document.getElementById('frame16');
 
 
 const frame17 = document.getElementById('frame17'); // Climate Buddy
+const frame18 = document.getElementById('frame18'); // Flappy Bird
 // =========================================================
 // ✅ GLOBAL DISPLAY/AUDIO SETTINGS (Frame16)
 // =========================================================
@@ -1019,12 +1020,15 @@ function hideAllFrames() {
     if (frame15 && frame15.style.display === 'block' && typeof window.__FRA_UNMOUNT_FRUIT__ === 'function') {
       window.__FRA_UNMOUNT_FRUIT__();
     }
+    if (frame18 && frame18.style.display === 'block' && typeof window.__FRA_UNMOUNT_FLAPPY__ === 'function') {
+      window.__FRA_UNMOUNT_FLAPPY__();
+    }
   } catch (_) {}
 
   [
     frame1, frame2, frame3, frameAvatar, frame4, frame5, frame6, frame7,
     frame8, frame9, frame10,
-    frame11, frame12, frame13, frame14, frame15, frame16, frame17
+    frame11, frame12, frame13, frame14, frame15, frame16, frame17, frame18
   ].forEach(f => { if (f) f.style.display = 'none'; });
 }
 
@@ -1118,6 +1122,11 @@ window.__FRA_GO_FRAME6_HOME__ = function(){
   goToFrame6('home');
 };
 
+// ✅ Helper for Frame18 back button (go to Frame6 Community)
+window.__FRA_GO_FRAME6_COMMUNITY__ = function(){
+  goToFrame6('community');
+};
+
 window.__FRA_GO_FRAME__ = function (n) {
   switch (Number(n)) {
     case 1: goToFrame1(); break;
@@ -1136,6 +1145,8 @@ window.__FRA_GO_FRAME__ = function (n) {
     case 14: goToFrame14(); break;
     case 15: goToFrame15(currentGameTab || 'community'); break;
     case 16: goToFrame16(); break;
+    case 17: goToFrame17(); break;
+    case 18: goToFrame18(currentGameTab || 'community'); break;
     default: goToFrame6('community'); break;
   }
 };
@@ -2111,6 +2122,7 @@ function attachFrame6CardHandlers() {
           if (game === "ttt")      { goToFrame12(tab); return; }
           if (game === "fruit")    { goToFrame15(tab); return; }
           if (game === "settings") { goToFrame16(); return; }
+          if (game === "flappy")   { goToFrame18(tab); return; }
           return;
         }
 
@@ -3536,6 +3548,24 @@ function goToFrame17() {
   climateInitOnce();
   climateEnsureSimulation();
 }
+
+function goToFrame18(tab = "community") {
+  currentGameTab = tab || "community";
+  hideAllFrames();
+  if (frame18) frame18.style.display = "block";
+  // Frame18 uses its own black background
+  document.body.style.backgroundImage = "none";
+  document.body.style.backgroundColor = "#000";
+  lastActiveFrame = "frame18";
+  updateGameScale();
+  startIdleTimer();
+
+  // ✅ Mount the web2 Flappy Bird (React) into Frame18
+  try {
+    if (typeof window.__FRA_MOUNT_FLAPPY__ === "function") window.__FRA_MOUNT_FLAPPY__();
+  } catch (_) {}
+}
+
 
 function gameBackToHome() {
   clearScrambleTimer();
