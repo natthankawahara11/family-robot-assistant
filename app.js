@@ -407,209 +407,275 @@ const frame6ProfileBtn = document.getElementById('frame6ProfileBtn');
 const frame6BluetoothBtn = document.getElementById('frame6BluetoothBtn');
 const frame6BluetoothImg = frame6BluetoothBtn ? frame6BluetoothBtn.querySelector('img') : null;
 
-const wifiModal = document.getElementById('wifiModal');
-const wifiModalConnectBtn = document.getElementById('wifiModalConnectBtn');
-const wifiModalCancelBtn = document.getElementById('wifiModalCancelBtn');
-const wifiIpInput = document.getElementById('wifiIpInput');
+const bleModal = document.getElementById('bleModal');
+const bleModalConnectBtn = document.getElementById('bleModalConnectBtn');
+const bleModalCancelBtn = document.getElementById('bleModalCancelBtn');
+const bleLoading = document.getElementById('bleLoading');
+const bleLoadingText = document.getElementById('bleLoadingText');
+const bleToast = document.getElementById('bleToast');
 
-const wifiLoading = document.getElementById('wifiLoading');
-const wifiLoadingText = document.getElementById('wifiLoadingText');
-const wifiToast = document.getElementById('wifiToast');
-
-// ================================
-// ✅ WiFi (WebSocket) device link
-// ================================
-const __wifi = {
-  ws: null,
-  connected: false,
-  connecting: false,
-  ip: "192.168.4.1",
-  last: null,
-  lastSeenAt: 0,
-};
-
-let __wifiToastTimer = null;
-function wifiToastMsg(msg) {
-  if (!wifiToast) return;
-  clearTimeout(__wifiToastTimer);
-  wifiToast.textContent = msg;
-  wifiToast.classList.remove('hidden');
-  __wifiToastTimer = setTimeout(() => wifiToast.classList.add('hidden'), 1600);
+function bleShowModal() {
+  if (!bleModal) return;
+  bleModal.classList.remove('hidden');
+  bleModal.setAttribute('aria-hidden', 'false');
 }
 
-function wifiShowLoading(show, text) {
-  if (!wifiLoading) return;
-  if (show) {
-    if (wifiLoadingText) wifiLoadingText.textContent = text || "Connecting...";
-    wifiLoading.classList.remove('hidden');
-    wifiLoading.setAttribute('aria-hidden', 'false');
+function bleHideModal() {
+  if (!bleModal) return;
+  bleModal.classList.add('hidden');
+  bleModal.setAttribute('aria-hidden', 'true');
+}
+
+function bleShowLoading(on, text) {
+  if (!bleLoading) return;
+  if (bleLoadingText && text) bleLoadingText.textContent = text;
+  if (on) {
+    bleLoading.classList.remove('hidden');
+    bleLoading.setAttribute('aria-hidden', 'false');
   } else {
-    wifiLoading.classList.add('hidden');
-    wifiLoading.setAttribute('aria-hidden', 'true');
+    bleLoading.classList.add('hidden');
+    bleLoading.setAttribute('aria-hidden', 'true');
   }
 }
 
-function wifiShowModal() {
-  if (!wifiModal) return;
-  if (wifiIpInput) wifiIpInput.value = (__wifi.ip || "192.168.4.1");
-  wifiModal.classList.remove('hidden');
-  wifiModal.setAttribute('aria-hidden', 'false');
-}
-
-function wifiHideModal() {
-  if (!wifiModal) return;
-  wifiModal.classList.add('hidden');
-  wifiModal.setAttribute('aria-hidden', 'true');
-}
-
-function __setWifiState(connected, connecting=false) {
-  __wifi.connected = !!connected;
-  __wifi.connecting = !!connecting;
-  __setBluetoothIcon();
-  __updateClimateConnUI();
-}
-
-function __setBluetoothIcon() {
-  if (!frame6BluetoothImg) return;
-  // simple visual feedback: gray when disconnected, purple when connected, amber when connecting
-  frame6BluetoothImg.style.filter = __wifi.connecting ? "grayscale(0) saturate(1.2)" : (__wifi.connected ? "grayscale(0) saturate(1.4)" : "grayscale(1) opacity(0.85)");
-}
-
-function __updateClimateConnUI() {
-  const dot = document.getElementById('climateConnDot');
-  const pill = document.getElementById('climateConnBtn');
-  if (dot) {
-    dot.classList.remove('bg-slate-300','bg-amber-400','bg-emerald-400');
-    dot.classList.add(__wifi.connecting ? 'bg-amber-400' : (__wifi.connected ? 'bg-emerald-400' : 'bg-slate-300'));
-  }
-  if (pill) {
-    pill.textContent = __wifi.connected ? "CONNECTED" : (__wifi.connecting ? "CONNECTING" : "CONNECT SENSOR");
-  }
-}
-
-function __wifiCleanWs() {
-  try { if (__wifi.ws) __wifi.ws.close(); } catch (_) {}
-  __wifi.ws = null;
-}
-
-function __normalizeIp(s) {
-  const v = String(s || "").trim();
-  if (!v) return "";
-  // allow "http://x.x.x.x" / "https://..." / "x.x.x.x:port"
-  return v.replace(/^https?:\/\//i, "").replace(/\/.*$/,"");
-}
-
-async function wifiConnect(ipRaw) {
-  const ip = __normalizeIp(ipRaw || (__wifi.ip || "192.168.4.1"));
-  if (!ip) throw new Error("Missing IP");
-
-  if (__wifi.connected && __wifi.ip === ip) return true;
-
-  __wifi.ip = ip;
-  localStorage.setItem("fra_wifi_ip_v1", ip);
-
-  __setWifiState(false, true);
-  __wifiCleanWs();
-
-  // If the page is https, ws:// will be blocked. Try wss:// first, then ws://.
-  const schemes = (location.protocol === "https:") ? ["wss://", "ws://"] : ["ws://", "wss://"];
-
-  let lastErr = null;
-  for (const scheme of schemes) {
-    try {
-      const url = `${scheme}${ip}/ws`;
-      const ws = new WebSocket(url);
-      __wifi.ws = ws;
-
-      await new Promise((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error("WS timeout")), 6500);
-
-        ws.onopen = () => { clearTimeout(t); resolve(true); };
-        ws.onerror = (e) => { clearTimeout(t); reject(new Error("WS error")); };
-      });
-
-      ws.onmessage = (evt) => {
-        const raw = evt.data;
-        let data = null;
-        try { data = JSON.parse(raw); } catch (_) {
-          // allow plain text too
-          data = { raw: String(raw) };
-        }
-        __wifi.last = data;
-        __wifi.lastSeenAt = Date.now();
-        window.__FRA_SENSOR__ = data;
-        window.dispatchEvent(new CustomEvent("fra:sensor", { detail: data }));
-      };
-
-      ws.onclose = () => {
-        __setWifiState(false, false);
-        wifiToastMsg("Disconnected.");
-      };
-
-      __setWifiState(true, false);
-      return true;
-    } catch (e) {
-      lastErr = e;
-      __wifiCleanWs();
-    }
-  }
-
-  __setWifiState(false, false);
-  throw lastErr || new Error("Failed to connect");
-}
-
-function wifiDisconnect() {
-  __wifiCleanWs();
-  __setWifiState(false, false);
-}
-
-function wifiSendAA() {
-  if (!__wifi.connected || !__wifi.ws) return;
-  try { __wifi.ws.send("AA"); } catch (_) {}
+let __bleToastTimer = null;
+function bleToastMsg(msg) {
+  if (!bleToast) return;
+  clearTimeout(__bleToastTimer);
+  bleToast.textContent = msg;
+  bleToast.classList.remove('hidden');
+  __bleToastTimer = setTimeout(() => bleToast.classList.add('hidden'), 1600);
 }
 
 // close modal when tapping backdrop
-if (wifiModal) {
-  wifiModal.addEventListener('click', (e) => {
-    if (e.target === wifiModal) wifiHideModal();
+if (bleModal) {
+  bleModal.addEventListener('click', (ev) => {
+    if (ev.target === bleModal) bleHideModal();
   });
 }
+const tabHighlight = document.getElementById('tabHighlight');
 
-if (wifiModalCancelBtn) {
-  wifiModalCancelBtn.addEventListener('click', () => { startIdleTimer(); wifiHideModal(); });
+// =========================================================
+// ✅ BLE (Web Bluetooth) – shared across Frame6 + Frame17 + games
+
+// =========================================================
+// ✅ SENSOR LINK (WiFi WebSocket for Safari — replaces BLE)
+// =========================================================
+const WIFI_SENSOR = {
+  // ESP32 SoftAP default IP
+  WS_URL: "ws://192.168.4.1/ws",
+  // If you run ESP32 on your home router, change to: "ws://<ESP32_IP>/ws"
+};
+
+const __ble = {
+  // kept name "__ble" to avoid changing other parts of the app
+  ws: null,
+  connected: false,
+  connecting: false,
+  lastTemp: 24.0,
+  lastHumid: 50.0,
+  lastBird: 0,
+  decoder: new TextDecoder(),
+  encoder: new TextEncoder(),
+};
+
+function __setBluetoothIcon() {
+  if (!frame6BluetoothImg) return;
+  frame6BluetoothImg.src = __ble.connected ? "Bluetooth2.png" : "Bluetooth.png";
 }
 
-if (wifiModalConnectBtn) {
-  wifiModalConnectBtn.addEventListener('click', async () => {
-    startIdleTimer();
-    wifiHideModal();
+function __updateClimateConnUI() {
+  const dot = document.getElementById("climateConnDot");
+  const btn = document.getElementById("climateConnBtn");
+  if (dot) {
+    dot.className = "w-2.5 h-2.5 rounded-full " + (__ble.connecting ? "bg-amber-400" : (__ble.connected ? "bg-sky-400 animate-pulse" : "bg-slate-300"));
+  }
+  if (btn) {
+    btn.textContent = __ble.connecting ? "LINKING..." : (__ble.connected ? "CONNECTED" : "CONNECT SENSOR");
+    btn.className = "text-[10px] font-bold tracking-[0.2em] uppercase transition-colors " + (__ble.connecting ? "text-amber-500" : (__ble.connected ? "text-slate-500" : "text-sky-500"));
+  }
+}
 
-    const ip = wifiIpInput ? wifiIpInput.value : (__wifi.ip || "192.168.4.1");
+function __setBleState(connected) {
+  __ble.connected = !!connected;
+  __ble.connecting = false;
+  __setBluetoothIcon();
+  __updateClimateConnUI();
+  try { climateEnsureSimulation(); } catch(_) {}
+}
 
-    wifiShowLoading(true, "Connecting...");
+// ----- UI helpers (modal/loading/toast) -----
+function toastShow(msg, ms = 1400) {
+  const el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = "block";
+  clearTimeout(el.__t);
+  el.__t = setTimeout(() => { el.style.display = "none"; }, ms);
+}
+
+function wifiModalShow() {
+  const m = document.getElementById("wifiModal");
+  if (!m) return;
+  m.classList.add("show");
+  m.setAttribute("aria-hidden", "false");
+}
+function wifiModalHide() {
+  const m = document.getElementById("wifiModal");
+  if (!m) return;
+  m.classList.remove("show");
+  m.setAttribute("aria-hidden", "true");
+}
+function wifiLoadingShow(text = "Connecting…") {
+  const o = document.getElementById("wifiLoading");
+  const t = document.getElementById("wifiLoadingText");
+  if (t) t.textContent = text;
+  if (o) o.style.display = "flex";
+}
+function wifiLoadingHide() {
+  const o = document.getElementById("wifiLoading");
+  if (o) o.style.display = "none";
+}
+
+function wifiDisconnect() {
+  try { __ble.ws?.close?.(); } catch (_) {}
+  __ble.ws = null;
+  __setBleState(false);
+}
+
+function __wifiAttachUiOnce() {
+  // attach once after DOM exists
+  const btnConnect = document.getElementById("wifiConnectBtn");
+  const btnCancel = document.getElementById("wifiCancelBtn");
+  if (btnConnect && !btnConnect.__wired) {
+    btnConnect.__wired = true;
+    btnConnect.addEventListener("click", async () => {
+      wifiModalHide();
+      await wifiConnect();
+    });
+  }
+  if (btnCancel && !btnCancel.__wired) {
+    btnCancel.__wired = true;
+    btnCancel.addEventListener("click", () => {
+      wifiModalHide();
+    });
+  }
+}
+
+async function wifiConnect() {
+  if (__ble.connecting || __ble.connected) return;
+
+  __ble.connecting = true;
+  __setBluetoothIcon();
+  __updateClimateConnUI();
+  wifiLoadingShow("Connecting…");
+
+  return new Promise((resolve) => {
+    let opened = false;
+
+    // Clean previous
+    try { __ble.ws?.close?.(); } catch (_) {}
+    __ble.ws = null;
+
+    let ws;
     try {
-      await wifiConnect(ip);
-      wifiShowLoading(false);
-      wifiToastMsg("Connected successfully.");
+      ws = new WebSocket(WIFI_SENSOR.WS_URL);
     } catch (e) {
-      console.error(e);
-      wifiShowLoading(false);
-      wifiToastMsg("Connection failed.");
+      __ble.connecting = false;
+      wifiLoadingHide();
+      __setBleState(false);
+      toastShow("Connection failed.");
+      resolve(false);
+      return;
     }
+
+    __ble.ws = ws;
+
+    const timeout = setTimeout(() => {
+      if (opened) return;
+      try { ws.close(); } catch (_) {}
+      __ble.connecting = false;
+      wifiLoadingHide();
+      __setBleState(false);
+      toastShow("Connection failed.");
+      resolve(false);
+    }, 5000);
+
+    ws.onopen = () => {
+      opened = true;
+      clearTimeout(timeout);
+      __setBleState(true);
+      wifiLoadingHide();
+      toastShow("Connected successfully.");
+      // initial push
+      try { climateUpdateData(__ble.lastTemp, __ble.lastHumid); } catch (_) {}
+      resolve(true);
+    };
+
+    ws.onmessage = (ev) => {
+      const raw = (typeof ev.data === "string") ? ev.data : "";
+      if (!raw) return;
+
+      // accept JSON {t,h,touch} or "t=..,h=..,touch=.."
+      let obj = null;
+      try { obj = JSON.parse(raw); } catch (_) {}
+
+      if (obj && typeof obj === "object") {
+        if (typeof obj.t === "number") __ble.lastTemp = obj.t;
+        if (typeof obj.h === "number") __ble.lastHumid = obj.h;
+        if (typeof obj.touch === "number") __ble.lastBird = obj.touch;
+        try { climateUpdateData(__ble.lastTemp, __ble.lastHumid); } catch (_) {}
+        return;
+      }
+
+      // fallback parse
+      const mT = raw.match(/t\s*=\s*([0-9.]+)/i);
+      const mH = raw.match(/h\s*=\s*([0-9.]+)/i);
+      const mC = raw.match(/touch\s*=\s*([0-9]+)/i);
+      if (mT) __ble.lastTemp = parseFloat(mT[1]);
+      if (mH) __ble.lastHumid = parseFloat(mH[1]);
+      if (mC) __ble.lastBird = parseInt(mC[1], 10);
+      try { climateUpdateData(__ble.lastTemp, __ble.lastHumid); } catch (_) {}
+    };
+
+    ws.onclose = () => {
+      clearTimeout(timeout);
+      __ble.connected = false;
+      __ble.connecting = false;
+      __setBluetoothIcon();
+      __updateClimateConnUI();
+    };
+
+    ws.onerror = () => {
+      // let onclose handle UI
+    };
   });
 }
 
-// main button (Frame6) open modal
-if (frame6BluetoothBtn && frame6BluetoothBtn.dataset.bound2 !== '1') {
-  frame6BluetoothBtn.dataset.bound2 = '1';
-  frame6BluetoothBtn.addEventListener('click', () => { startIdleTimer(); wifiShowModal(); });
+async function bleToggleConnect() {
+  startIdleTimer();
+
+  // Ensure modal buttons are wired
+  __wifiAttachUiOnce();
+
+  if (__ble.connected) {
+    wifiDisconnect();
+    return;
+  }
+
+  // Show our own instructions popup (Safari friendly)
+  wifiModalShow();
 }
 
-// restore last ip
-try {
-  const savedIp = localStorage.getItem("fra_wifi_ip_v1");
-  if (savedIp) __wifi.ip = savedIp;
-} catch (_) {}
+async function bleSendAA() {
+  if (!__ble.connected || !__ble.ws || __ble.ws.readyState !== 1) return;
+  try {
+    __ble.ws.send("AA");
+  } catch (e) {
+    console.error("WS send AA failed:", e);
+  }
+}
+
 
 const tabHome = document.getElementById('tabHome');
 const tabHealthcare = document.getElementById('tabHealthcare');
@@ -1761,40 +1827,29 @@ bindTap(frame6ProfileBtn, () => { goToFrame5Accounts(); startIdleTimer(); });
 // ✅ Frame6 BLE connect button
 if (frame6BluetoothBtn && frame6BluetoothBtn.dataset.bound !== '1') {
   frame6BluetoothBtn.dataset.bound = '1';
-  bindTap(frame6BluetoothBtn, () => { startIdleTimer(); wifiShowModal(); });
+  bindTap(frame6BluetoothBtn, () => { startIdleTimer(); bleShowModal(); });
 
-  bindTap(wifiModalCancelBtn, () => { startIdleTimer(); wifiHideModal(); });
+bindTap(bleModalCancelBtn, () => { startIdleTimer(); bleHideModal(); });
 
-  bindTap(wifiModalConnectBtn, async () => {
-    startIdleTimer();
-    wifiHideModal();
+bindTap(bleModalConnectBtn, async () => {
+  startIdleTimer();
+  bleHideModal();
 
-    const ip = wifiIpInput ? wifiIpInput.value : (__wifi.ip || "192.168.4.1");
+  // Loading while connecting
+  bleShowLoading(true, "Connecting...");
 
-    wifiShowLoading(true, "Connecting...");
-
-    try {
-      await wifiConnect(ip);
-      wifiShowLoading(false);
-      wifiToastMsg("Connected successfully.");
-    } catch (e) {
-      console.error(e);
-      __setWifiState(false, false);
-      wifiShowLoading(false);
-      wifiToastMsg("Connection failed.");
-    }
-  });
+  try {
+    await __bleRequestAndConnect();
+    bleShowLoading(false);
+    bleToastMsg("Connected successfully.");
+  } catch (e) {
+    console.error(e);
+    __setBleState(false);
+    bleShowLoading(false);
+    bleToastMsg("Connection failed.");
+  }
+});
 }
-__setBluetoothIcon();
-__updateClimateConnUI();
-se);
-      wifiShowLoading(false);
-      wifiToastMsg("Connection failed.");
-    }
-  });
-}
-__setBluetoothIcon();
-__updateClimateConnUI();
 __setBluetoothIcon();
 __updateClimateConnUI();
 
@@ -1836,34 +1891,31 @@ if (homeCardsWrapper && homeCardsTrack) {
     homeDragging = true;
     homeCardsTrack.style.transition = 'none';
 
-    homeLock = directionLif (frame6BluetoothBtn && frame6BluetoothBtn.dataset.bound !== '1') {
-  frame6BluetoothBtn.dataset.bound = '1';
-  bindTap(frame6BluetoothBtn, () => { startIdleTimer(); wifiShowModal(); });
+    homeLock = directionLockState();
+    homeLock.sx = e.touches[0].clientX;
+    homeLock.sy = e.touches[0].clientY;
 
-  bindTap(wifiModalCancelBtn, () => { startIdleTimer(); wifiHideModal(); });
+    homeStartX = homeLock.sx;
+    homeStartTranslate = getTranslateX(homeCardsTrack);
 
-  bindTap(wifiModalConnectBtn, async () => {
-    startIdleTimer();
-    wifiHideModal();
+    const bounds = calcHomeBounds();
+    homeMinTranslate = bounds.min;
+    homeMaxTranslate = bounds.max;
 
-    const ip = wifiIpInput ? wifiIpInput.value : (__wifi.ip || "192.168.4.1");
+    homeLastX = homeStartX;
+    homeLastTime = performance.now();
+    homeVelocity = 0;
+  }, { passive: true });
 
-    wifiShowLoading(true, "Connecting...");
+  homeCardsWrapper.addEventListener('touchmove', (e) => {
+    if (!homeDragging) return;
 
-    try {
-      await wifiConnect(ip);
-      wifiShowLoading(false);
-      wifiToastMsg("Connected successfully.");
-    } catch (e) {
-      console.error(e);
-      __setWifiState(false, false);
-      wifiShowLoading(false);
-      wifiToastMsg("Connection failed.");
-    }
-  });
-}
-__setBluetoothIcon();
-__updateClimateConnUI();
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+
+    const isH = shouldLockHorizontal(homeLock, x, y);
+    if (isH === null) return;
+    if (!isH) return;
 
     e.preventDefault();
 
@@ -2686,7 +2738,7 @@ function climateInitOnce() {
 }
 
 function climateEnsureSimulation() {
-  if (__wifi.connected) {
+  if (__ble.connected) {
     if (__climateSimHandle) { clearInterval(__climateSimHandle); __climateSimHandle = null; }
     return;
   }
@@ -3353,7 +3405,7 @@ function finishQuiz() {
 
 
   // ✅ Notify ESP32 via BLE when Quiz finished
-  wifiSendAA();
+  bleSendAA();
 }
 
 
@@ -3697,7 +3749,7 @@ if (scrambleNextBtn) bindTap(scrambleNextBtn, () => {
     if (scrambleSetupHint) scrambleSetupHint.textContent = `Finished! Final score: ${scrambleScore} / ${total}`;
 
     // ✅ Notify ESP32 via BLE when Scramble finished
-    wifiSendAA();
+    bleSendAA();
     return;
   }
   scrambleIndex += 1;
@@ -3812,7 +3864,7 @@ function maybeAIMove() {
     renderTTT();
     if (w && w !== "draw") {
       // ✅ Notify ESP32 via BLE when TicTacToe has a winner
-      wifiSendAA();
+      bleSendAA();
     }
   }, 180);
 }
@@ -3832,7 +3884,7 @@ function onTTTMove(i) {
     renderTTT();
     if (w !== "draw") {
       // ✅ Notify ESP32 via BLE when TicTacToe has a winner
-      wifiSendAA();
+      bleSendAA();
     }
     return;
   }
